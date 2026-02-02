@@ -1,0 +1,204 @@
+@import url("https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@font-face {
+  font-family: "m6x11plus";
+  src: url("/fonts/m6x11plus.ttf") format("truetype");
+}
+
+@theme inline {
+  --font-game: "m6x11plus", sans-serif;
+  --font-lexend: "Lexend", sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Jungle Green Palette */
+  --color-jungle-green-50: #f1f8f5;
+  --color-jungle-green-100: #dcefe5;
+  --color-jungle-green-200: #bcdecd;
+  --color-jungle-green-300: #8fc6af;
+  --color-jungle-green-400: #59a487;
+  --color-jungle-green-500: #3e8b70;
+  --color-jungle-green-600: #2c6f59;
+  --color-jungle-green-700: #235949;
+  --color-jungle-green-800: #1e473a;
+  --color-jungle-green-900: #193b31;
+  --color-jungle-green-950: #0d211c;
+
+  /* Balatro Colors */
+  --color-balatro-mult: #fe5f55;
+  --color-balatro-chips: #009dff;
+  --color-balatro-money: #f3b958;
+  --color-balatro-attention: #ff9a00;
+  --color-balatro-gold: #eac058;
+  --color-balatro-joker: #708b91;
+  --color-balatro-tarot: #a782d1;
+  --color-balatro-planet: #13afce;
+  --color-balatro-spectral: #4584fa;
+  --color-balatro-voucher: #fd682b;
+  --color-balatro-edition: #4ca893;
+  --color-balatro-enhanced: #8389dd;
+  --color-balatro-purple: #aa5bb5;
+
+  /* Duotone Mappings */
+  --color-joker-primary: #708b91;
+  --color-joker-secondary: #cfd8da;
+  
+  --color-consumable-primary: #13afce;
+  --color-consumable-secondary: #b8e7f0;
+  
+  --color-voucher-primary: #fd682b;
+  --color-voucher-secondary: #fed2bf;
+  
+  --color-deck-primary: #009dff;
+  --color-deck-secondary: #b3e1ff;
+  
+  --color-enhancement-primary: #8389dd;
+  --color-enhancement-secondary: #dadcf5;
+  
+  --color-seal-primary: #aa5bb5;
+  --color-seal-secondary: #e6cee9;
+  
+  --color-edition-primary: #4ca893;
+  --color-edition-secondary: #c9e5df;
+  
+  --color-sound-primary: #ff9a00;
+  --color-sound-secondary: #ffe1b3;
+
+  --color-booster-primary: #eac058;
+  --color-booster-secondary: #fceecb;
+}
+
+:root {
+  --radius: 0.625rem;
+  
+  /* Neutral Light Mode */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  
+  /* Jungle Green Primary */
+  --primary: #3e8b70;
+  --primary-foreground: #f1f8f5;
+  
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: #3e8b70;
+  
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #3e8b70;
+  --sidebar-primary-foreground: #f1f8f5;
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: #3e8b70;
+}
+
+.dark {
+  /* Neutral Dark Mode */
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  
+  /* Jungle Green Primary */
+  --primary: #3e8b70;
+  --primary-foreground: #f1f8f5;
+  
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: #3e8b70;
+  
+  --sidebar: oklch(0.145 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: #3e8b70;
+  --sidebar-primary-foreground: #f1f8f5;
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: #3e8b70;
+}
+
+@layer base {
+  * {
+    @apply outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background-color: transparent;
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--primary);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background-color: transparent;
+  }
+}
