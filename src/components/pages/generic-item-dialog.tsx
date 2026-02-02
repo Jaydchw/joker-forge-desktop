@@ -573,7 +573,7 @@ export function GenericItemDialog<T extends { id: string }>({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-[95vw] h-[92vh] flex flex-col p-0 bg-background/95 backdrop-blur-xl border-border/50 gap-0 overflow-hidden shadow-2xl">
+      <DialogContent className="max-w-[95vw]! w-[95vw]! h-[92vh] flex flex-col p-0 bg-background/95 backdrop-blur-xl border-border/50 gap-0 overflow-hidden shadow-2xl">
         <DialogHeader className="px-8 py-5 border-b border-border/40 shrink-0 bg-muted/5">
           <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">
             {title}

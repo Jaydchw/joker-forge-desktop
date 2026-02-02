@@ -2,6 +2,11 @@ import { useState, useEffect } from "react";
 import { Image as ImageIcon } from "@phosphor-icons/react";
 import { BalatroText } from "@/lib/balatro-text-formatter";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   JokerData,
   ConsumableData,
   VoucherData,
@@ -73,6 +78,7 @@ export function BalatroCard({
 }: BalatroCardProps) {
   const [imageError, setImageError] = useState(false);
   const [selectedAce, setSelectedAce] = useState("HC_A_hearts");
+  const [, setHoveredButton] = useState<string | null>(null);
 
   const aceOptions = [
     [
@@ -272,8 +278,8 @@ export function BalatroCard({
     >
       <div className="flex flex-col items-center">
         {showCost && cost !== undefined && (
-          <div className="bg-balatro-red border-2 border-balatro-redshadow rounded-t-xl px-4 py-0.5 -mb-1 z-10 relative shadow-sm">
-            <span className="text-white font-bold text-shadow text-xl tracking-wider">
+          <div className="bg-balatro-cost-bg border-4 border-balatro-cost-border rounded-t-2xl px-4 py-1 -mb-1 z-10 relative shadow-sm">
+            <span className="text-balatro-cost-text font-bold text-shadow-cost text-2xl tracking-wider">
               ${cost}
             </span>
           </div>
@@ -283,22 +289,31 @@ export function BalatroCard({
           type === "edition" ||
           type === "enhancement" ||
           type === "seal") && (
-          <div className="mb-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity absolute -top-12 bg-black/80 p-1 rounded-lg z-50">
+          <div className="mb-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity absolute -top-12 bg-balatro-black/90 p-1 rounded-lg z-50">
             {aceOptions[0].map((ace) => (
-              <button
-                key={ace.key}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedAce(ace.key);
-                }}
-                className={cn(
-                  "w-8 h-8 flex items-center justify-center rounded hover:bg-white/10",
-                  selectedAce === ace.key && "bg-white/20",
-                )}
-                title={ace.name}
-              >
-                <span className={ace.color}>{ace.name}</span>
-              </button>
+              <Tooltip key={ace.key}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedAce(ace.key);
+                    }}
+                    onMouseEnter={() => setHoveredButton(ace.key)}
+                    onMouseLeave={() => setHoveredButton(null)}
+                    className={cn(
+                      "w-10 h-10 rounded border-2 flex items-center justify-center text-2xl font-bold transition-all duration-200",
+                      selectedAce === ace.key
+                        ? "bg-primary border-primary-foreground text-balatro-black shadow-lg scale-110"
+                        : "bg-balatro-black border-balatro-lightgreyshadow text-balatro-white hover:bg-balatro-light-black hover:scale-105",
+                    )}
+                  >
+                    <span className={ace.color}>{ace.name}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{ace.name}</p>
+                </TooltipContent>
+              </Tooltip>
             ))}
           </div>
         )}
@@ -320,19 +335,21 @@ export function BalatroCard({
           )}
         >
           <div className="relative m-2 filter drop-shadow-lg">
-            <div className="bg-balatro-lightgrey rounded-xl p-1 pb-1.5 border border-black/20">
-              <div className="bg-balatro-black rounded-lg p-3 shadow-inner">
+            <div className="absolute inset-0 bg-balatro-lightgreyshadow rounded-2xl translate-y-1" />
+            <div className="relative bg-balatro-lightgrey rounded-2xl p-1">
+              <div className="bg-balatro-black rounded-xl p-3 shadow-inner">
                 {type !== "card" &&
                   type !== "edition" &&
                   type !== "enhancement" && (
-                    <h3 className="text-xl mb-2 text-center text-white font-bold text-shadow tracking-wide leading-tight">
+                    <h3 className="text-2xl mb-2 text-center text-balatro-white text-shadow-pixel tracking-wide leading-tight">
                       {data.name || `New ${type}`}
                     </h3>
                   )}
 
                 <div className="relative mb-3">
-                  <div className="bg-balatro-white text-balatro-black font-medium px-3 py-2.5 rounded-lg text-center leading-5 text-sm min-h-12 flex items-center justify-center shadow-sm">
-                    <div>
+                  <div className="absolute inset-0 bg-balatro-whiteshadow rounded-xl translate-y-1" />
+                  <div className="relative bg-balatro-white text-balatro-black font-medium px-3 py-2.5 rounded-xl text-center leading-5 text-sm min-h-12 flex items-center justify-center overflow-visible">
+                    <div className="relative z-10">
                       <BalatroText
                         text={data.description || "No description provided."}
                         locVars={getLocVars()}
@@ -346,7 +363,7 @@ export function BalatroCard({
                   <div className="relative">
                     <div
                       className={cn(
-                        "absolute inset-0 rounded-lg translate-y-0.5",
+                        "absolute inset-0 rounded-xl translate-y-1",
                         isVanillaBadge ? badgeStyles.bg : "",
                       )}
                       style={
@@ -357,7 +374,7 @@ export function BalatroCard({
                     />
                     <div
                       className={cn(
-                        "relative rounded-lg px-4 py-1 text-center text-white font-bold text-shadow tracking-widest text-sm uppercase whitespace-nowrap",
+                        "relative rounded-xl px-4 py-1 text-center text-balatro-white font-bold text-shadow-pixel tracking-widest text-lg uppercase whitespace-nowrap",
                         isVanillaBadge ? badgeStyles.shadow : "",
                       )}
                       style={

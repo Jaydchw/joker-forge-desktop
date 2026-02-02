@@ -46,7 +46,6 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Jungle Green Palette */
   --color-jungle-green-50: #f1f8f5;
   --color-jungle-green-100: #dcefe5;
   --color-jungle-green-200: #bcdecd;
@@ -59,22 +58,62 @@
   --color-jungle-green-900: #193b31;
   --color-jungle-green-950: #0d211c;
 
-  /* Balatro Colors */
   --color-balatro-mult: #fe5f55;
   --color-balatro-chips: #009dff;
   --color-balatro-money: #f3b958;
   --color-balatro-attention: #ff9a00;
   --color-balatro-gold: #eac058;
+  --color-balatro-black: #374244;
+  --color-balatro-light-black: #4f6367;
+  --color-balatro-grey: #5f7377;
   --color-balatro-joker: #708b91;
   --color-balatro-tarot: #a782d1;
   --color-balatro-planet: #13afce;
   --color-balatro-spectral: #4584fa;
   --color-balatro-voucher: #fd682b;
+  --color-balatro-voucher_badgetag: #ff5611;
+  --color-balatro-voucher_badgetag_shadow: #a93202;
   --color-balatro-edition: #4ca893;
   --color-balatro-enhanced: #8389dd;
+  --color-balatro-red: #ff4c40;
+  --color-balatro-redshadow: #a92b23;
+  --color-balatro-blue: #009dff;
+  --color-balatro-blueshadow: #005caa;
+  --color-balatro-green: #35bd86;
+  --color-balatro-greenshadow: #1b7954;
   --color-balatro-purple: #aa5bb5;
+  --color-balatro-purpleshadow: #6d3574;
+  --color-balatro-orange: #fda200;
+  --color-balatro-brown: #d67a5a;
+  --color-balatro-shadowbrown: #bf5b48;
+  --color-balatro-transparentblack: #00000060;
+  --color-balatro-lightgrey: #b9c2d2;
+  --color-balatro-lightgreyshadow: #777e89;
+  --color-balatro-whiteshadow: #aaaaaa;
+  --color-balatro-buttonshadow: #1e2f32;
+  --color-balatro-blackshadow: #0b1415;
+  --color-balatro-white: #ffffff;
+  
+  --color-balatro-hearts: #fa2315;
+  --color-balatro-clubs: #0081e6;
+  --color-balatro-diamonds: #e18400;
+  --color-balatro-spades: #3a17b3;
 
-  /* Duotone Mappings */
+  --color-balatro-common: #0093ff;
+  --color-balatro-uncommon: #35bd86;
+  --color-balatro-rare: #ff4c40;
+  --color-balatro-legendary: #aa5bb5;
+  --color-balatro-enhanced-new: #757cdc;
+  --color-balatro-edition-new: #fff5ce;
+  --color-balatro-dark-edition: #6a6aed;
+  --color-balatro-gold-new: #eaba44;
+  --color-balatro-default: #3a5055;
+
+  --color-cost-border: #1e292c;
+  --color-cost-bg: #2e393d;
+  --color-cost-text: #e3af3e;
+  --color-cost-shadow: #1c2225;
+
   --color-joker-primary: #708b91;
   --color-joker-secondary: #cfd8da;
   
@@ -106,7 +145,6 @@
 :root {
   --radius: 0.625rem;
   
-  /* Neutral Light Mode */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -114,7 +152,6 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   
-  /* Jungle Green Primary */
   --primary: #3e8b70;
   --primary-foreground: #f1f8f5;
   
@@ -140,7 +177,6 @@
 }
 
 .dark {
-  /* Neutral Dark Mode */
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
@@ -148,7 +184,6 @@
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
   
-  /* Jungle Green Primary */
   --primary: #3e8b70;
   --primary-foreground: #f1f8f5;
   
@@ -200,5 +235,17 @@
 
   ::-webkit-scrollbar-corner {
     background-color: transparent;
+  }
+
+  .text-shadow-pixel {
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  .text-shadow-cost {
+    text-shadow: 0 1px 2px var(--color-cost-shadow);
+  }
+
+  .pixelated {
+    image-rendering: pixelated;
   }
 }
