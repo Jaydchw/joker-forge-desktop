@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import {
   FloppyDisk,
   Upload,
@@ -13,7 +14,8 @@ interface HeaderProps {
   title?: string;
 }
 
-export function Header({ title = "Joker Forge" }: HeaderProps) {
+export function Header({ title }: HeaderProps) {
+  const location = useLocation();
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
@@ -34,11 +36,42 @@ export function Header({ title = "Joker Forge" }: HeaderProps) {
     }
   };
 
+  const getPageTitle = (pathname: string) => {
+    switch (pathname) {
+      case "/":
+        return "Overview";
+      case "/metadata":
+        return "Mod Metadata";
+      case "/jokers":
+        return "Jokers";
+      case "/consumables":
+        return "Consumables";
+      case "/vouchers":
+        return "Vouchers";
+      case "/decks":
+        return "Decks";
+      case "/enhancements":
+        return "Enhancements";
+      case "/seals":
+        return "Seals";
+      case "/editions":
+        return "Editions";
+      case "/boosters":
+        return "Boosters";
+      case "/sounds":
+        return "Sounds";
+      default:
+        return "Joker Forge";
+    }
+  };
+
+  const displayTitle = title || getPageTitle(location.pathname);
+
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-3 bg-background/95 backdrop-blur-md border-b border-border transition-colors duration-300">
       <div className="flex items-center gap-2">
         <h2 className="text-lg font-bold tracking-tight text-foreground/80 pl-2">
-          {title}
+          {displayTitle}
         </h2>
       </div>
 
