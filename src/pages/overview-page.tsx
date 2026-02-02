@@ -26,91 +26,9 @@ import { useProjectData } from "@/lib/storage";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { motion, AnimatePresence } from "framer-motion";
-
-const StatButton = ({
-  title,
-  count,
-  icon: Icon,
-  colorClass,
-  href,
-}: {
-  title: string;
-  count: number;
-  icon: any;
-  colorClass: string;
-  href: string;
-}) => (
-  <Button
-    variant="outline"
-    className="h-24 flex flex-col items-start justify-center gap-2 border-dashed border-2 hover:border-primary hover:bg-primary/5 w-full relative group overflow-hidden cursor-pointer transition-all duration-200 "
-    onClick={() => (window.location.href = href)}
-  >
-    <div
-      className={`p-2 rounded-lg bg-background/50 absolute top-3 right-3 transition-transform duration-300`}
-    >
-      <Icon className={`h-6 w-6 ${colorClass}`} weight="duotone" />
-    </div>
-
-    <div className="flex flex-col items-start pl-1">
-      <span className="text-2xl font-bold font-game group-hover:text-primary transition-colors">
-        {count}
-      </span>
-      <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground/80">
-        {title}
-      </span>
-    </div>
-  </Button>
-);
-
-const ActionButton = ({
-  label,
-  icon: Icon,
-  onClick,
-}: {
-  label: string;
-  icon: any;
-  onClick?: () => void;
-}) => (
-  <Button
-    variant="outline"
-    onClick={onClick}
-    className="h-20 flex flex-col items-center justify-center gap-2 border-dashed border-2 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors duration-200"
-  >
-    <Icon className="h-5 w-5 text-primary" />
-    <span className="text-xs font-bold">{label}</span>
-  </Button>
-);
-
-const ResourceLink = ({
-  label,
-  icon: Icon,
-  href,
-  colorClass = "text-muted-foreground",
-}: {
-  label: string;
-  icon: any;
-  href: string;
-  colorClass?: string;
-}) => (
-  <a
-    href={href}
-    target="_blank"
-    rel="noreferrer"
-    className="flex items-center gap-3 p-4 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-all group cursor-pointer"
-  >
-    <div
-      className={`p-2 rounded-lg bg-accent group-hover:bg-background transition-colors`}
-    >
-      <Icon
-        className={`h-5 w-5 ${colorClass} group-hover:text-primary transition-colors`}
-        weight="duotone"
-      />
-    </div>
-    <span className="font-medium text-foreground/80 group-hover:text-foreground">
-      {label}
-    </span>
-  </a>
-);
+import { StatButton } from "@/components/ui/stat-button";
+import { ActionButton } from "@/components/ui/action-button";
+import { ResourceLink } from "@/components/ui/resource-link";
 
 export function OverviewPage() {
   const { data, updateMetadata } = useProjectData();
@@ -209,7 +127,10 @@ export function OverviewPage() {
           </h2>
           <div className="grid grid-cols-2 gap-3">
             <ActionButton label="New Project" icon={Plus} />
-            <ActionButton label="Import JSON" icon={DownloadSimple} />
+            <ActionButton
+              label="Import JSON / JokerForge"
+              icon={DownloadSimple}
+            />
           </div>
         </div>
       </div>
@@ -246,7 +167,7 @@ export function OverviewPage() {
                     className="text-xl font-bold h-auto py-2 cursor-text bg-background"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs uppercase font-bold text-muted-foreground">
                       Author
@@ -267,6 +188,18 @@ export function OverviewPage() {
                       value={editForm.version}
                       onChange={(e) =>
                         setEditForm({ ...editForm, version: e.target.value })
+                      }
+                      className="cursor-text bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase font-bold text-muted-foreground">
+                      Prefix
+                    </label>
+                    <Input
+                      value={editForm.prefix}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, prefix: e.target.value })
                       }
                       className="cursor-text bg-background"
                     />
@@ -317,11 +250,18 @@ export function OverviewPage() {
                 </Button>
               </div>
 
-              <div className="flex items-center gap-4 text-sm text-muted-foreground font-medium">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground font-medium">
                 <div className="flex items-center gap-1.5">
                   <span className="text-foreground/40">ID:</span>
                   <code className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono">
                     {metadata.id}
+                  </code>
+                </div>
+                <div className="w-1 h-1 rounded-full bg-border" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-foreground/40">Prefix:</span>
+                  <code className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono">
+                    {metadata.prefix}
                   </code>
                 </div>
                 <div className="w-1 h-1 rounded-full bg-border" />

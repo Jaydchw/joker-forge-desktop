@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   House,
   FileText,
@@ -162,6 +163,7 @@ export function Sidebar({
     decks: true,
     misc: true,
   });
+  const location = useLocation();
 
   const toggleGroup = (id: string) => {
     setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -175,7 +177,7 @@ export function Sidebar({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className={cn(
-        "fixed left-4 top-20 bottom-4 z-40 w-64 rounded-xl",
+        "fixed left-4 top-28 bottom-4 z-50 w-64 rounded-xl",
         "bg-sidebar backdrop-blur-xl shadow-2xl",
         "flex flex-col overflow-hidden border border-sidebar-border transition-colors duration-300",
       )}
@@ -206,13 +208,20 @@ export function Sidebar({
                 <motion.div key={item.label} variants={itemVariants}>
                   <Button
                     variant="ghost"
-                    className="w-full justify-start text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 h-10 px-3 cursor-pointer"
+                    asChild
+                    className={cn(
+                      "w-full justify-start text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 h-10 px-3 cursor-pointer",
+                      location.pathname === item.href &&
+                        "bg-sidebar-accent text-sidebar-foreground",
+                    )}
                   >
-                    <item.icon
-                      className={cn("mr-3 h-5 w-5 opacity-90", item.color)}
-                      weight="duotone"
-                    />
-                    {item.label}
+                    <Link to={item.href}>
+                      <item.icon
+                        className={cn("mr-3 h-5 w-5 opacity-90", item.color)}
+                        weight="duotone"
+                      />
+                      {item.label}
+                    </Link>
                   </Button>
                 </motion.div>
               ))}
@@ -260,13 +269,23 @@ export function Sidebar({
                               <Button
                                 key={subItem.label}
                                 variant="ghost"
-                                className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-primary hover:bg-sidebar-primary/10 h-9 text-sm cursor-pointer"
+                                asChild
+                                className={cn(
+                                  "w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-primary hover:bg-sidebar-primary/10 h-9 text-sm cursor-pointer",
+                                  location.pathname === subItem.href &&
+                                    "bg-sidebar-primary/10 text-sidebar-primary",
+                                )}
                               >
-                                <subItem.icon
-                                  className={cn("mr-3 h-4 w-4", subItem.color)}
-                                  weight="duotone"
-                                />
-                                {subItem.label}
+                                <Link to={subItem.href}>
+                                  <subItem.icon
+                                    className={cn(
+                                      "mr-3 h-4 w-4",
+                                      subItem.color,
+                                    )}
+                                    weight="duotone"
+                                  />
+                                  {subItem.label}
+                                </Link>
                               </Button>
                             ))}
                           </div>
