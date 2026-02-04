@@ -27,7 +27,7 @@ export default function DecksPage() {
       objectType: "deck",
       name: "New Deck",
       description: "Deck description",
-      imagePreview: "",
+      image: "",
       objectKey: "new_deck",
       unlocked: true,
       discovered: true,
@@ -71,9 +71,9 @@ export default function DecksPage() {
           idValue={deck.orderValue}
           onUpdate={(updates) => handleUpdate(deck.id, updates)}
           image={
-            deck.imagePreview ? (
+            deck.image ? (
               <img
-                src={deck.imagePreview}
+                src={deck.image}
                 className="w-full h-full object-contain [image-rendering:pixelated]"
               />
             ) : (

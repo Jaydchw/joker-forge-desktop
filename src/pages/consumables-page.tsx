@@ -22,7 +22,7 @@ export default function ConsumablesPage() {
       objectType: "consumable",
       name: "New Tarot",
       description: "Effect",
-      imagePreview: "",
+      image: "",
       orderValue: data.consumables.length + 1,
       set: "Tarot",
       cost: 3,
@@ -80,9 +80,9 @@ export default function ConsumablesPage() {
           idValue={item.orderValue}
           onUpdate={(updates) => handleUpdate(item.id, updates)}
           image={
-            item.imagePreview ? (
+            item.image ? (
               <img
-                src={item.imagePreview}
+                src={item.image}
                 className="w-full h-full object-contain [image-rendering:pixelated]"
               />
             ) : (

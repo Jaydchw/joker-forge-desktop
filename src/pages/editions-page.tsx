@@ -28,7 +28,7 @@ export default function EditionsPage() {
       weight: 10,
       sound: "",
       orderValue: data.editions.length + 1,
-      imagePreview: "",
+      image: "",
     };
     updateEditions([...data.editions, newEdition]);
   };

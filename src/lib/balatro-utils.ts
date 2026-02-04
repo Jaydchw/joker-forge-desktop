@@ -1,7 +1,4 @@
-import {
-  jokerUnlockOptions,
-  vouchersUnlockOptions,
-} from "@/lib/code-generation/unlock-utils";
+import { jokerUnlockOptions, vouchersUnlockOptions } from "@/lib/unlock-utils";
 import { Rule } from "@/lib/rule-builder-types";
 
 export const slugify = (text: string): string => {

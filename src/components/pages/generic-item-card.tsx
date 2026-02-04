@@ -1,11 +1,5 @@
 import { useState, useRef, useEffect, ReactNode } from "react";
-import {
-  CurrencyDollar,
-  Trash,
-  PencilSimple,
-  X,
-  Check,
-} from "@phosphor-icons/react";
+import { CurrencyDollar, Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +8,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export interface CardProperty {
@@ -227,7 +220,7 @@ export function GenericItemCard({
       {/* Right Column: Details & Properties */}
       <div className="flex-1 min-w-0 flex flex-col gap-4 relative">
         {/* Header: ID & Name */}
-        <div className="flex items-baseline gap-3 pb-2 border-b border-border/40 min-h-[3.5rem] pr-8">
+        <div className="flex items-baseline gap-3 pb-2 border-b border-border/40 min-h-14 pr-8">
           {/* ID Section */}
           {idValue !== undefined && (
             <div className="shrink-0 self-center">
@@ -277,7 +270,7 @@ export function GenericItemCard({
         </div>
 
         {/* Description Section */}
-        <div className="flex-1 relative min-h-[100px]">
+        <div className="flex-1 relative min-h-25">
           {editingField === "desc" ? (
             <Textarea
               ref={inputRef as React.RefObject<HTMLTextAreaElement>}
@@ -285,11 +278,11 @@ export function GenericItemCard({
               onChange={(e) => setTempValue(e.target.value)}
               onBlur={saveEdit}
               onKeyDown={handleKeyDown}
-              className="w-full h-full min-h-[120px] text-base resize-none font-medium leading-relaxed bg-transparent border-none focus-visible:ring-0 p-0"
+              className="w-full h-full min-h-30 text-base resize-none font-medium leading-relaxed bg-transparent border-none focus-visible:ring-0 p-0"
             />
           ) : (
             <div
-              className="w-full h-full cursor-pointer text-base leading-relaxed text-muted-foreground hover:text-foreground transition-colors break-words whitespace-pre-wrap"
+              className="w-full h-full cursor-pointer text-base leading-relaxed text-muted-foreground hover:text-foreground transition-colors wrap-break-word whitespace-pre-wrap"
               onClick={() => startEdit("desc", description)}
               dangerouslySetInnerHTML={{
                 __html: description || "No description provided...",

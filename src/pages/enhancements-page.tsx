@@ -21,7 +21,7 @@ export default function EnhancementsPage() {
       objectType: "enhancement",
       name: "New Enhancement",
       description: "Effect",
-      imagePreview: "",
+      image: "",
       objectKey: "new_enhancement",
       unlocked: true,
       discovered: true,
@@ -60,9 +60,9 @@ export default function EnhancementsPage() {
           idValue={item.orderValue}
           onUpdate={(updates) => handleUpdate(item.id, updates)}
           image={
-            item.imagePreview ? (
+            item.image ? (
               <img
-                src={item.imagePreview}
+                src={item.image}
                 className="w-full h-full object-contain [image-rendering:pixelated]"
               />
             ) : (

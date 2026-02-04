@@ -21,7 +21,7 @@ export default function SealsPage() {
       objectType: "seal",
       name: "New Seal",
       description: "Effect",
-      imagePreview: "",
+      image: "",
       objectKey: "new_seal",
       badge_colour: "HEX",
       unlocked: true,
@@ -60,9 +60,9 @@ export default function SealsPage() {
           idValue={item.orderValue}
           onUpdate={(updates) => handleUpdate(item.id, updates)}
           image={
-            item.imagePreview ? (
+            item.image ? (
               <img
-                src={item.imagePreview}
+                src={item.image}
                 className="w-full h-full object-contain [image-rendering:pixelated]"
               />
             ) : (

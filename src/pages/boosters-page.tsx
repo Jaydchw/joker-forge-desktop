@@ -22,7 +22,7 @@ export default function BoostersPage() {
       name: "Standard Pack",
       description: "Choose 1 of 3",
       orderValue: data.boosters.length + 1,
-      imagePreview: "",
+      image: "",
       cost: 4,
       weight: 1,
       draw_hand: true,
@@ -67,9 +67,9 @@ export default function BoostersPage() {
           idValue={item.orderValue}
           onUpdate={(updates) => handleUpdate(item.id, updates)}
           image={
-            item.imagePreview ? (
+            item.image ? (
               <img
-                src={item.imagePreview}
+                src={item.image}
                 className="w-full h-full object-contain [image-rendering:pixelated]"
               />
             ) : (
