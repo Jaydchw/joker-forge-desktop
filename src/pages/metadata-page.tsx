@@ -229,7 +229,7 @@ export default function MetadataPage() {
           <DialogTrigger asChild>
             <Button
               size="lg"
-              className="gap-2 font-bold shadow-md rounded-xl cursor-pointer"
+              className="gap-2 font-bold shadow-md cursor-pointer"
             >
               <BracketsCurly className="w-5 h-5" weight="bold" />
               View JSON
@@ -431,10 +431,10 @@ export default function MetadataPage() {
                 333x216px
               </span>
             </div>
-            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-colors min-h-[300px] relative group">
+            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-colors min-h-75 relative group">
               <img
                 src={gameImageSrc}
-                className="max-w-full max-h-[180px] object-contain shadow-xl rounded-lg [image-rendering:pixelated] transition-transform group-hover:scale-105 duration-300"
+                className="max-w-full max-h-45 object-contain shadow-xl rounded-lg [image-rendering:pixelated] transition-transform group-hover:scale-105 duration-300"
                 alt="Game Logo"
               />
 
@@ -482,7 +482,7 @@ export default function MetadataPage() {
                 34x34px
               </span>
             </div>
-            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-colors min-h-[300px] relative group">
+            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-colors min-h-75 relative group">
               <img
                 src={iconImageSrc}
                 className="w-24 h-24 object-contain shadow-xl rounded-lg [image-rendering:pixelated] scale-150 transition-transform group-hover:scale-[1.6] duration-300"
@@ -615,9 +615,9 @@ export default function MetadataPage() {
 
           <div className="flex flex-col gap-3">
             <Label className="text-base">Badge Preview</Label>
-            <div className="flex-1 flex items-center justify-center p-10 bg-muted/30 rounded-2xl border-2 border-dashed border-border min-h-[200px]">
+            <div className="flex-1 flex items-center justify-center p-10 bg-muted/30 rounded-2xl border-2 border-dashed border-border min-h-50">
               <div
-                className="px-6 py-2.5 rounded-[4px] text-4xl font-bold font-game tracking-wider border-[3px] shadow-2xl scale-125 transition-all duration-300"
+                className="px-6 py-2.5 rounded-lg text-4xl font-bold font-game tracking-wider border-[3px] shadow-2xl scale-125 transition-all duration-300"
                 style={{
                   backgroundColor: `#${metadata.badge_colour}`,
                   color: `#${metadata.badge_text_colour}`,

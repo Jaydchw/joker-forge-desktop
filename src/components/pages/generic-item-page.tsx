@@ -140,7 +140,7 @@ function GenericItemPageInternal<T extends { id: string }>({
           <Button
             onClick={onAddNew}
             size="lg"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg hover:shadow-primary/20 transition-all cursor-pointer rounded-xl"
+            className="font-bold shadow-md cursor-pointer transition-colors"
           >
             <Plus className="mr-2 h-5 w-5" weight="bold" />
             {addNewLabel}
