@@ -21,13 +21,22 @@ export function SettingsPopover() {
   useEffect(() => {
     const storedScale = localStorage.getItem("app-ui-scale") || "1";
     setScale(storedScale);
-    (document.body.style as any).zoom = storedScale;
+    applyScale(storedScale);
   }, []);
+
+  const applyScale = (value: string) => {
+    const root = document.documentElement;
+    root.style.fontSize = `${parseFloat(value) * 16}px`;
+    document.body.style.transform = "";
+    document.body.style.width = "";
+    document.body.style.height = "";
+    document.body.style.transformOrigin = "";
+  };
 
   const handleScaleChange = (value: string) => {
     setScale(value);
     localStorage.setItem("app-ui-scale", value);
-    (document.body.style as any).zoom = value;
+    applyScale(value);
   };
 
   return (
@@ -56,7 +65,7 @@ export function SettingsPopover() {
                 UI Scaling
               </Label>
               <Select value={scale} onValueChange={handleScaleChange}>
-                <SelectTrigger id="ui-scale" className="w-[140px] h-8">
+                <SelectTrigger id="ui-scale" className="w-35 h-9">
                   <SelectValue placeholder="Select scale" />
                 </SelectTrigger>
                 <SelectContent>
