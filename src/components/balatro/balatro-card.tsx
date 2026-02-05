@@ -145,9 +145,9 @@ export function BalatroCard({
   };
 
   const sizeClasses = {
-    sm: { image: "w-28 h-36", infoWidth: "min-w-40" },
-    md: { image: "w-40 h-52", infoWidth: "min-w-48" },
-    lg: { image: "w-48 h-64", infoWidth: "min-w-64" },
+    sm: { image: "w-28 h-36" },
+    md: { image: "w-40 h-52" },
+    lg: { image: "w-48 h-64" },
   };
 
   const currentSize = sizeClasses[size];
@@ -330,7 +330,7 @@ export function BalatroCard({
 
         <div
           className={cn(
-            currentSize.infoWidth,
+            "w-fit min-w-48 max-w-none",
             "shrink-0 absolute top-[95%] left-1/2 transform -translate-x-1/2 z-20 hover:z-30",
           )}
         >
@@ -341,7 +341,7 @@ export function BalatroCard({
                 {type !== "card" &&
                   type !== "edition" &&
                   type !== "enhancement" && (
-                    <h3 className="text-2xl mb-2 text-center text-balatro-white text-shadow-pixel tracking-wide leading-tight">
+                    <h3 className="text-2xl mb-2 text-center text-balatro-white text-shadow-pixel tracking-wide leading-tight whitespace-nowrap px-2">
                       {data.name || `New ${type}`}
                     </h3>
                   )}
@@ -349,11 +349,11 @@ export function BalatroCard({
                 <div className="relative mb-3">
                   <div className="absolute inset-0 bg-balatro-whiteshadow rounded-xl translate-y-1" />
                   <div className="relative bg-balatro-white text-balatro-black font-medium px-3 py-2.5 rounded-xl text-center leading-5 text-sm min-h-12 flex items-center justify-center overflow-visible">
-                    <div className="relative z-10">
+                    <div className="relative z-10 whitespace-nowrap">
                       <BalatroText
                         text={data.description || "No description provided."}
                         locVars={getLocVars()}
-                        className="block"
+                        className="block whitespace-nowrap"
                       />
                     </div>
                   </div>

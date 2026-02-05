@@ -1,17 +1,25 @@
-import { useState, useEffect, ReactNode, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  ReactNode,
+  useRef,
+  useCallback,
+  memo,
+} from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -21,23 +29,36 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
+import { Separator as UiSeparator } from "@/components/ui/separator";
+import {
+  Panel,
+  Group,
+  Separator as PanelSeparator,
+} from "react-resizable-panels";
 import {
   Upload,
-  TextT,
-  ArrowsClockwise,
   Sparkle,
-  Lightning,
-  ArrowUUpLeft,
   Trash,
+  Image as ImageIcon,
+  MagnifyingGlassMinus,
+  MagnifyingGlassPlus,
 } from "@phosphor-icons/react";
 import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
+import { slugify } from "@/lib/balatro-utils";
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export type FieldType =
   | "text"
@@ -95,6 +116,7 @@ interface GenericItemDialogProps<T> {
 }
 
 const getNestedValue = (obj: any, path: string) => {
+  if (!obj) return undefined;
   return path.split(".").reduce((acc, part) => acc && acc[part], obj);
 };
 
@@ -161,214 +183,471 @@ const BG_BUTTONS = [
   },
 ];
 
-const RichTextarea = ({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  placeholder?: string;
-}) => {
-  const [autoFormat, setAutoFormat] = useState(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+const RichTextarea = memo(
+  ({
+    value,
+    onChange,
+    placeholder,
+  }: {
+    value: string;
+    onChange: (val: string) => void;
+    placeholder?: string;
+  }) => {
+    const [autoFormat, setAutoFormat] = useState(true);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const insertTag = (tag: string, autoClose = true) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+    const insertTag = useCallback(
+      (tag: string, autoClose = true) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const currentVal = textarea.value;
-    const selected = currentVal.substring(start, end);
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const currentVal = textarea.value;
+        const selected = currentVal.substring(start, end);
 
-    let newVal = "";
-    let newCursor = 0;
+        let newVal = "";
+        let newCursor = 0;
 
-    if (selected) {
-      newVal =
-        currentVal.substring(0, start) +
-        tag +
-        selected +
-        (autoClose ? "{}" : "") +
-        currentVal.substring(end);
-      newCursor = start + tag.length + selected.length + (autoClose ? 2 : 0);
-    } else {
-      newVal =
-        currentVal.substring(0, start) +
-        tag +
-        (autoClose ? "{}" : "") +
-        currentVal.substring(end);
-      newCursor = start + tag.length;
-    }
+        if (selected) {
+          newVal =
+            currentVal.substring(0, start) +
+            tag +
+            selected +
+            (autoClose ? "{}" : "") +
+            currentVal.substring(end);
+          newCursor =
+            start + tag.length + selected.length + (autoClose ? 2 : 0);
+        } else {
+          newVal =
+            currentVal.substring(0, start) +
+            tag +
+            (autoClose ? "{}" : "") +
+            currentVal.substring(end);
+          newCursor = start + tag.length;
+        }
 
-    handleTextChange(newVal, false);
+        const formattedVal = autoFormat
+          ? applyAutoFormatting(newVal, value).formatted
+          : newVal;
+        onChange(formattedVal);
 
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(newCursor, newCursor);
-    }, 0);
-  };
+        requestAnimationFrame(() => {
+          if (textarea) {
+            textarea.focus();
+            textarea.setSelectionRange(newCursor, newCursor);
+          }
+        });
+      },
+      [autoFormat, onChange, value],
+    );
 
-  const handleTextChange = (val: string, allowAutoFormat = true) => {
-    if (autoFormat && allowAutoFormat) {
-      const { formatted } = applyAutoFormatting(val, value);
-      onChange(formatted);
-    } else {
-      onChange(val);
-    }
-  };
+    const handleTextChange = useCallback(
+      (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value;
+        if (autoFormat) {
+          const { formatted } = applyAutoFormatting(val, value);
+          onChange(formatted);
+        } else {
+          onChange(val);
+        }
+      },
+      [autoFormat, onChange, value],
+    );
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newVal = value.substring(0, start) + "[s]" + value.substring(end);
-
-      handleTextChange(newVal, false);
-
-      setTimeout(() => {
-        textarea.setSelectionRange(start + 3, start + 3);
-      }, 0);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-muted/30 border border-border rounded-xl p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground/80">
-            <TextT className="h-4 w-4 text-primary" />
-            Formatting Tools
-          </h4>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline-block">
-              Ctrl+Z to undo
-            </span>
-            <div className="h-4 w-px bg-border mx-2" />
-            <Button
-              variant={autoFormat ? "default" : "outline"}
-              size="sm"
-              onClick={() => setAutoFormat(!autoFormat)}
-              className={cn(
-                "h-7 text-xs gap-1.5",
-                autoFormat &&
-                  "bg-primary/20 text-primary hover:bg-primary/30 border-primary/20",
-              )}
-            >
-              <Sparkle
-                className="h-3 w-3"
-                weight={autoFormat ? "fill" : "regular"}
-              />
-              Auto Format {autoFormat ? "On" : "Off"}
-            </Button>
+    return (
+      <div className="space-y-2">
+        <div className="bg-muted/40 border border-border rounded-md p-2 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                variant={autoFormat ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setAutoFormat(!autoFormat)}
+                className="h-6 text-[10px] px-2 cursor-pointer"
+              >
+                <Sparkle
+                  className={cn("h-3 w-3 mr-1", autoFormat && "text-primary")}
+                  weight={autoFormat ? "fill" : "regular"}
+                />
+                Auto Format: {autoFormat ? "ON" : "OFF"}
+              </Button>
+            </div>
           </div>
-        </div>
-
-        <Separator className="bg-border/50" />
-
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Text Colors
-          </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1">
             {COLOR_BUTTONS.map((btn) => (
-              <Tooltip key={btn.name}>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => insertTag(btn.tag)}
-                    className={cn(
-                      "w-6 h-6 rounded shadow-sm border border-border/50 hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
-                      btn.color,
-                    )}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{btn.name}</p>
-                </TooltipContent>
-              </Tooltip>
+              <button
+                key={btn.name}
+                type="button"
+                onClick={() => insertTag(btn.tag)}
+                className={cn(
+                  "w-4 h-4 rounded border border-border/50 hover:scale-110 transition-transform cursor-pointer",
+                  btn.color,
+                )}
+                title={btn.name}
+              />
             ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Backgrounds
-          </p>
-          <div className="flex flex-wrap gap-2">
+            <div className="w-px h-4 bg-border mx-1" />
             {BG_BUTTONS.map((btn) => (
-              <Tooltip key={btn.name}>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => insertTag(btn.tag)}
-                    className={cn(
-                      "w-6 h-6 rounded shadow-sm border-2 border-background/80 hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
-                      btn.color,
-                    )}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{btn.name}</p>
-                </TooltipContent>
-              </Tooltip>
+              <button
+                key={btn.name}
+                type="button"
+                onClick={() => insertTag(btn.tag)}
+                className={cn(
+                  "w-4 h-4 rounded border-2 border-background/80 hover:scale-110 transition-transform cursor-pointer",
+                  btn.color,
+                )}
+                title={btn.name}
+              />
             ))}
           </div>
         </div>
+        <Textarea
+          ref={textareaRef}
+          value={value || ""}
+          onChange={handleTextChange}
+          placeholder={placeholder}
+          className="font-mono text-sm min-h-30 resize-y bg-background border-muted-foreground/20 cursor-text"
+        />
+      </div>
+    );
+  },
+);
 
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Effects</p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => insertTag("[s]", false)}
-              className="h-7 text-xs"
+const MemoizedField = memo(
+  ({
+    field,
+    value,
+    onChange,
+    fullItem,
+    inGrid,
+  }: {
+    field: DialogField<any>;
+    value: any;
+    onChange: (id: string, val: any) => void;
+    fullItem: any;
+    inGrid?: boolean;
+  }) => {
+    const safeValue =
+      field.type === "number" &&
+      (value === undefined || value === null || Number.isNaN(Number(value)))
+        ? ""
+        : value;
+
+    const content = (() => {
+      switch (field.type) {
+        case "text":
+          return (
+            <Input
+              value={String(safeValue || "")}
+              onChange={(e) => onChange(field.id, e.target.value)}
+              placeholder={field.placeholder}
+              className="cursor-text"
+            />
+          );
+        case "number":
+          return (
+            <Input
+              type="number"
+              value={safeValue}
+              onChange={(e) => {
+                const val = e.target.value;
+                onChange(field.id, val === "" ? undefined : Number(val));
+              }}
+              placeholder={field.placeholder}
+              min={field.min}
+              max={field.max}
+              step={field.step}
+              className="cursor-text"
+            />
+          );
+        case "textarea":
+          return (
+            <Textarea
+              value={String(safeValue || "")}
+              onChange={(e) => onChange(field.id, e.target.value)}
+              placeholder={field.placeholder}
+              className="min-h-20 cursor-text"
+            />
+          );
+        case "rich-textarea":
+          return (
+            <RichTextarea
+              value={String(safeValue || "")}
+              onChange={(val) => onChange(field.id, val)}
+              placeholder={field.placeholder}
+            />
+          );
+        case "switch":
+          return (
+            <Switch
+              checked={!!safeValue}
+              onCheckedChange={(checked) => onChange(field.id, checked)}
+              className="cursor-pointer"
+            />
+          );
+        case "select":
+          return (
+            <Select
+              value={String(safeValue || "")}
+              onValueChange={(val) =>
+                onChange(field.id, isNaN(Number(val)) ? val : Number(val))
+              }
             >
-              <ArrowUUpLeft className="mr-1.5 h-3 w-3" /> New Line
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => insertTag("{s:1.1}")}
-              className="h-7 text-xs"
-            >
-              <ArrowsClockwise className="mr-1.5 h-3 w-3" /> Scale
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => insertTag("{E:1}")}
-              className="h-7 text-xs"
-            >
-              <Lightning className="mr-1.5 h-3 w-3" /> Float
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => insertTag("{}")}
-              className="h-7 text-xs"
-            >
-              Reset
-            </Button>
+              <SelectTrigger className="cursor-pointer">
+                <SelectValue placeholder={field.placeholder} />
+              </SelectTrigger>
+              <SelectContent>
+                {field.options?.map((opt) => (
+                  <SelectItem
+                    key={opt.value}
+                    value={String(opt.value)}
+                    className="cursor-pointer"
+                  >
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        case "image":
+          return (
+            <div className="flex items-start gap-4 p-3 hover:bg-muted/5 transition-colors">
+              <div className="relative w-20 h-28 shrink-0 rounded-md overflow-hidden flex items-center justify-center group">
+                {safeValue ? (
+                  <img
+                    src={String(safeValue)}
+                    alt="Preview"
+                    className="w-full h-full object-contain [image-rendering:pixelated]"
+                  />
+                ) : (
+                  <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                )}
+              </div>
+              <div className="flex-1 space-y-3">
+                <Label
+                  htmlFor={`upload-${field.id}`}
+                  className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 px-4 py-2 w-full"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {safeValue ? "Change Image" : "Upload Image"}
+                </Label>
+                <input
+                  id={`upload-${field.id}`}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) =>
+                        onChange(field.id, event.target?.result);
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+
+                {safeValue && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                    onClick={() => onChange(field.id, "")}
+                  >
+                    <Trash className="mr-2 h-4 w-4" />
+                    Remove
+                  </Button>
+                )}
+
+                {field.description && (
+                  <p className="text-[10px] text-muted-foreground leading-tight text-center">
+                    {field.description}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        case "custom":
+          return field.render
+            ? field.render(
+                safeValue,
+                (val) => onChange(field.id, val),
+                fullItem,
+              )
+            : null;
+        default:
+          return null;
+      }
+    })();
+
+    if (field.type === "switch") {
+      return (
+        <div
+          className={cn(
+            "flex items-center justify-between py-2 cursor-pointer group/toggle",
+            inGrid ? "h-full" : "",
+          )}
+          onClick={() => onChange(field.id, !safeValue)}
+        >
+          <div className="space-y-0.5 max-w-[70%]">
+            <Label className="text-sm font-bold text-foreground/80 leading-none cursor-pointer">
+              {field.label}
+            </Label>
+            {field.description && (
+              <p className="text-[0.8rem] text-muted-foreground">
+                {field.description}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center h-full">
+            <div onClick={(e) => e.stopPropagation()}>{content}</div>
           </div>
         </div>
-      </div>
+      );
+    }
 
-      <Textarea
-        ref={textareaRef}
-        value={value || ""}
-        onChange={(e) => handleTextChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        className="font-mono text-sm min-h-40 resize-y bg-background"
-      />
-    </div>
-  );
-};
+    if (inGrid) {
+      return (
+        <div className="space-y-2">
+          <Label className="text-sm font-bold text-foreground/80 block">
+            {field.label}
+          </Label>
+          {content}
+          {field.description && (
+            <p className="text-[0.7rem] text-muted-foreground mt-1 leading-snug">
+              {field.description}
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-4 gap-4 items-start py-3 border-b border-border/20 last:border-0">
+        <div className="col-span-1 pt-2 pr-2">
+          <Label className="text-sm font-bold text-foreground/80 block wrap-break-word">
+            {field.label}
+          </Label>
+          {field.description && (
+            <p className="text-[0.7rem] text-muted-foreground mt-1.5 leading-snug">
+              {field.description}
+            </p>
+          )}
+        </div>
+        <div className="col-span-3 space-y-1">{content}</div>
+      </div>
+    );
+  },
+  (prev, next) => {
+    if (prev.value !== next.value) return false;
+    if (prev.field.id !== next.field.id) return false;
+    if (prev.inGrid !== next.inGrid) return false;
+
+    const prevHidden = prev.field.hidden
+      ? prev.field.hidden(prev.fullItem)
+      : false;
+    const nextHidden = next.field.hidden
+      ? next.field.hidden(next.fullItem)
+      : false;
+    if (prevHidden !== nextHidden) return false;
+
+    if (prev.field.type === "custom") {
+      return prev.fullItem === next.fullItem;
+    }
+
+    return true;
+  },
+);
+
+const PreviewPanel = memo(
+  ({
+    item,
+    renderPreview,
+    isCollapsed,
+  }: {
+    item: any;
+    renderPreview: (item: any) => ReactNode;
+    isCollapsed: boolean;
+  }) => {
+    const [scale, setScale] = useState([1.0]);
+    const previewContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      const container = previewContainerRef.current;
+      if (!container) return;
+
+      const handleWheel = (e: WheelEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+
+          const delta = -e.deltaY * 0.001;
+          setScale((prev) => {
+            const newScale = Math.max(0.5, Math.min(1.5, prev[0] + delta));
+            return [newScale];
+          });
+        }
+      };
+
+      container.addEventListener("wheel", handleWheel, { passive: false });
+      return () => container.removeEventListener("wheel", handleWheel);
+    }, []);
+
+    if (!item) return null;
+
+    return (
+      <Panel defaultSize={30} minSize={0}>
+        <div className="h-full bg-muted/10 flex flex-col border-l border-border/40 relative">
+          <div
+            className="slider-container absolute top-4 right-4 z-50 flex items-center gap-2 bg-background/80 p-2 rounded-lg border border-border shadow-sm"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <MagnifyingGlassMinus className="w-4 h-4 text-muted-foreground" />
+            <Slider
+              value={scale}
+              onValueChange={setScale}
+              min={0.5}
+              max={1.5}
+              step={0.1}
+              className="w-24 cursor-pointer"
+            />
+            <MagnifyingGlassPlus className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-mono w-8 text-right">
+              {(scale[0] * 100).toFixed(0)}%
+            </span>
+          </div>
+
+          <div
+            ref={previewContainerRef}
+            className={cn(
+              "flex-1 flex items-center justify-center p-8 overflow-auto bg-size-[16px_16px] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] transition-opacity duration-200",
+              isCollapsed && "opacity-0",
+            )}
+          >
+            <div
+              className="transform transition-transform duration-200 ease-out"
+              style={{ transform: `scale(${scale[0]})` }}
+            >
+              {renderPreview(item)}
+            </div>
+          </div>
+          <div
+            className={cn(
+              "p-3 border-t border-border/40 bg-background/50 text-center text-xs text-muted-foreground font-mono transition-opacity duration-200",
+              isCollapsed && "opacity-0",
+            )}
+          >
+            Live Preview (Ctrl/Cmd + Scroll to zoom)
+          </div>
+        </div>
+      </Panel>
+    );
+  },
+);
 
 export function GenericItemDialog<T extends { id: string }>({
   open,
@@ -381,21 +660,45 @@ export function GenericItemDialog<T extends { id: string }>({
   renderPreview,
 }: GenericItemDialogProps<T>) {
   const [formData, setFormData] = useState<T | null>(null);
-  const [activeTab, setActiveTab] = useState<string>(tabs[0]?.id || "");
+  const [activeTab, setActiveTab] = useState<string>("");
+  const [panelSize, setPanelSize] = useState<number>(70);
+
+  const debouncedFormData = useDebounce(formData, 200);
+
+  const isPreviewCollapsed = panelSize > 95;
 
   useEffect(() => {
-    if (item) {
+    if (open && item) {
       setFormData(JSON.parse(JSON.stringify(item)));
-      if (tabs.length > 0) {
+      if (tabs.length > 0 && !activeTab) {
         setActiveTab(tabs[0].id);
       }
     }
-  }, [item, open]);
+  }, [open, item]);
 
-  const handleChange = (path: string, value: any) => {
-    if (!formData) return;
-    setFormData((prev) => (prev ? setNestedValue(prev, path, value) : null));
-  };
+  const handleChange = useCallback((path: string, value: any) => {
+    setFormData((prev: any) => {
+      if (!prev) return null;
+      let newData = setNestedValue(prev, path, value);
+
+      if (path === "name" && typeof value === "string") {
+        const currentName = prev.name || "";
+        const currentKey = prev.objectKey || "";
+        const oldSlug = slugify(currentName);
+
+        if (
+          !currentKey ||
+          currentKey === oldSlug ||
+          currentKey.startsWith("new_") ||
+          currentKey === "unnamed_item"
+        ) {
+          newData = setNestedValue(newData, "objectKey", slugify(value));
+        }
+      }
+
+      return newData;
+    });
+  }, []);
 
   const handleSave = () => {
     if (formData && formData.id) {
@@ -404,316 +707,162 @@ export function GenericItemDialog<T extends { id: string }>({
     }
   };
 
-  const handleImageUpload = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    fieldId: string,
-  ) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        handleChange(fieldId, event.target?.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const renderField = (field: DialogField<T>) => {
-    if (!formData || (field.hidden && field.hidden(formData))) return null;
-
-    const value = getNestedValue(formData, field.id);
-
-    switch (field.type) {
-      case "rich-textarea":
-        return (
-          <RichTextarea
-            value={value || ""}
-            onChange={(val) => handleChange(field.id, val)}
-            placeholder={field.placeholder}
-          />
-        );
-      case "textarea":
-        return (
-          <Textarea
-            value={value || ""}
-            onChange={(e) => handleChange(field.id, e.target.value)}
-            placeholder={field.placeholder}
-            className="min-h-25 resize-none"
-          />
-        );
-      case "number":
-        return (
-          <Input
-            type="number"
-            value={value ?? ""}
-            onChange={(e) => handleChange(field.id, parseFloat(e.target.value))}
-            placeholder={field.placeholder}
-            min={field.min}
-            max={field.max}
-            step={field.step}
-          />
-        );
-      case "switch":
-        return (
-          <div className="flex items-center justify-between p-3 border border-border/50 rounded-lg bg-card hover:bg-accent/10 transition-colors">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium">{field.label}</Label>
-              {field.description && (
-                <p className="text-xs text-muted-foreground">
-                  {field.description}
-                </p>
-              )}
-            </div>
-            <Switch
-              checked={!!value}
-              onCheckedChange={(checked) => handleChange(field.id, checked)}
-            />
-          </div>
-        );
-      case "select":
-        return (
-          <Select
-            value={String(value ?? "")}
-            onValueChange={(val) => {
-              const numVal = Number(val);
-              handleChange(field.id, isNaN(numVal) ? val : numVal);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={field.placeholder} />
-            </SelectTrigger>
-            <SelectContent>
-              {field.options?.map((opt) => (
-                <SelectItem key={opt.value} value={String(opt.value)}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-      case "image":
-        return (
-          <div className="space-y-3">
-            <div className="flex items-center gap-4">
-              <div className="relative w-28 h-28 border-2 border-dashed border-border rounded-xl flex items-center justify-center bg-muted/10 overflow-hidden group hover:border-primary/50 transition-colors">
-                {value ? (
-                  <img
-                    src={value}
-                    alt="Preview"
-                    className="w-full h-full object-contain [image-rendering:pixelated]"
-                  />
-                ) : (
-                  <Upload className="h-8 w-8 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
-                )}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Label
-                    htmlFor={`upload-${field.id}`}
-                    className="cursor-pointer text-white text-xs font-bold px-3 py-1.5 bg-background/20 backdrop-blur-sm rounded-full border border-white/20 hover:bg-background/40 transition-colors"
-                  >
-                    Change
-                  </Label>
-                </div>
-              </div>
-              <div className="flex-1 space-y-2">
-                <Input
-                  id={`upload-${field.id}`}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleImageUpload(e, field.id)}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() =>
-                    document.getElementById(`upload-${field.id}`)?.click()
-                  }
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  {value ? "Change Image" : "Upload Image"}
-                </Button>
-                {value && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleChange(field.id, "")}
-                  >
-                    <Trash className="mr-2 h-4 w-4" />
-                    Remove
-                  </Button>
-                )}
-              </div>
-            </div>
-            {field.description && (
-              <p className="text-xs text-muted-foreground pl-1">
-                {field.description}
-              </p>
-            )}
-          </div>
-        );
-      case "custom":
-        return field.render
-          ? field.render(value, (val) => handleChange(field.id, val), formData)
-          : null;
-      case "text":
-      default:
-        return (
-          <Input
-            value={value || ""}
-            onChange={(e) => handleChange(field.id, e.target.value)}
-            placeholder={field.placeholder}
-          />
-        );
-    }
-  };
-
-  if (!item || !formData) return null;
+  if (open && !formData) return null;
+  if (!formData) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw]! w-[95vw]! h-[92vh] flex flex-col p-0 bg-background/95 backdrop-blur-xl border-border/50 gap-0 overflow-hidden shadow-2xl">
-        <DialogHeader className="px-8 py-5 border-b border-border/40 shrink-0 bg-muted/5">
-          <DialogTitle className="text-2xl font-bold tracking-tight text-foreground">
-            {title}
-          </DialogTitle>
-          {description && (
-            <DialogDescription className="text-base mt-1.5">
-              {description}
-            </DialogDescription>
-          )}
+      <DialogContent
+        className="max-w-[95vw]! w-[95vw]! h-[90vh]! max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden shadow-2xl bg-background border-border/50"
+        showCloseButton={false}
+        onInteractOutside={(e) => {
+          e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          e.preventDefault();
+        }}
+      >
+        <DialogHeader className="px-6 py-4 border-b border-border/40 shrink-0 bg-muted/10">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <DialogTitle className="text-xl font-bold tracking-tight">
+                {title}
+              </DialogTitle>
+              {description && (
+                <DialogDescription>{description}</DialogDescription>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => onOpenChange(false)}
+                className="cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                size="lg"
+                className="cursor-pointer px-8"
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="flex-1 flex overflow-hidden min-h-0">
-          <div className="flex-1 flex h-full">
-            <div
-              className={cn(
-                "flex flex-col h-full border-r border-border/40 bg-background/50",
-                renderPreview ? "w-[65%]" : "w-full",
-              )}
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="flex-1 flex overflow-hidden min-h-0"
+          orientation="vertical"
+        >
+          <Group orientation="horizontal" className="flex-1">
+            <Panel
+              defaultSize={renderPreview ? 70 : 100}
+              minSize={renderPreview ? 50 : 100}
+              onResize={(size) =>
+                setPanelSize(
+                  typeof size === "number"
+                    ? size
+                    : Array.isArray(size)
+                      ? size[0]
+                      : 0,
+                )
+              }
             >
-              <div className="flex flex-1 overflow-hidden">
-                <div className="w-64 border-r border-border/40 bg-muted/10 flex flex-col shrink-0">
+              <div className="flex h-full">
+                <div className="w-56 border-r border-border/40 bg-muted/5 flex flex-col shrink-0">
                   <ScrollArea className="flex-1">
-                    <Tabs
-                      value={activeTab}
-                      onValueChange={setActiveTab}
-                      orientation="vertical"
-                      className="flex flex-col h-full"
-                    >
-                      <TabsList className="flex flex-col h-full w-full justify-start gap-1 p-3 bg-transparent">
-                        {tabs.map((tab) => (
-                          <TabsTrigger
-                            key={tab.id}
-                            value={tab.id}
-                            className="w-full justify-start gap-3 px-4 py-3 text-sm font-medium data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border-l-4 data-[state=active]:border-primary transition-all rounded-r-lg rounded-l-none"
-                          >
-                            {tab.icon && (
-                              <tab.icon
-                                className="h-5 w-5 opacity-70"
-                                weight="duotone"
-                              />
-                            )}
-                            {tab.label}
-                          </TabsTrigger>
-                        ))}
-                      </TabsList>
+                    <TabsList className="flex flex-col w-full bg-transparent p-2 gap-1 h-auto">
+                      {tabs.map((tab) => (
+                        <TabsTrigger
+                          key={tab.id}
+                          value={tab.id}
+                          className="w-full justify-start gap-3 px-3 py-2.5 text-sm font-medium border-transparent border-l-4 transition-all cursor-pointer rounded-r-md rounded-l-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary hover:bg-primary/5 hover:text-primary"
+                        >
+                          {tab.icon && (
+                            <tab.icon className="h-4 w-4 opacity-70" />
+                          )}
+                          {tab.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </ScrollArea>
+                </div>
+
+                <div className="flex-1 bg-background flex flex-col min-w-0">
+                  <ScrollArea className="flex-1">
+                    <div className="px-6 py-8 max-w-4xl mx-auto w-full">
                       {tabs.map((tab) => (
                         <TabsContent
                           key={tab.id}
                           value={tab.id}
-                          className="hidden"
-                        />
-                      ))}
-                    </Tabs>
-                  </ScrollArea>
-                </div>
-
-                <ScrollArea className="flex-1 bg-background/30">
-                  <div className="p-8 max-w-4xl mx-auto">
-                    {tabs.map(
-                      (tab) =>
-                        activeTab === tab.id && (
-                          <div
-                            key={tab.id}
-                            className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300"
-                          >
-                            {tab.groups.map((group) => (
-                              <div
-                                key={group.id}
-                                className={cn("space-y-5", group.className)}
-                              >
+                          className="mt-0 space-y-10 outline-none"
+                        >
+                          {activeTab === tab.id &&
+                            tab.groups.map((group) => (
+                              <div key={group.id} className="space-y-4">
                                 {group.label && (
                                   <div className="space-y-2 pb-2">
-                                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                    <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
                                       {group.label}
                                     </h4>
-                                    <Separator className="bg-border/60" />
+                                    <UiSeparator className="bg-primary/20 h-0.5" />
                                   </div>
                                 )}
-                                <div className="grid grid-cols-1 gap-6">
-                                  {group.fields.map((field) => (
-                                    <div
-                                      key={field.id}
-                                      className={cn(
-                                        "space-y-2.5",
-                                        field.className,
-                                      )}
-                                    >
-                                      {field.type !== "switch" &&
-                                        field.label && (
-                                          <Label className="text-sm font-semibold text-foreground/80 pl-0.5">
-                                            {field.label}
-                                          </Label>
+                                <div
+                                  className={cn(group.className || "space-y-0")}
+                                >
+                                  {group.fields.map((field) => {
+                                    if (field.hidden && field.hidden(formData!))
+                                      return null;
+                                    return (
+                                      <MemoizedField
+                                        key={field.id}
+                                        field={field}
+                                        value={getNestedValue(
+                                          formData,
+                                          field.id,
                                         )}
-                                      {renderField(field)}
-                                      {field.type !== "switch" &&
-                                        field.description && (
-                                          <p className="text-[0.8rem] text-muted-foreground pl-1">
-                                            {field.description}
-                                          </p>
-                                        )}
-                                    </div>
-                                  ))}
+                                        onChange={handleChange}
+                                        fullItem={formData}
+                                        inGrid={
+                                          !!group.className?.includes("grid")
+                                        }
+                                      />
+                                    );
+                                  })}
                                 </div>
                               </div>
                             ))}
-                          </div>
-                        ),
-                    )}
-                  </div>
-                </ScrollArea>
+                        </TabsContent>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
               </div>
-            </div>
+            </Panel>
 
             {renderPreview && (
-              <div className="w-[35%] bg-muted/20 flex flex-col items-center justify-center p-8 relative overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,var(--tw-gradient-stops))] from-muted/50 to-transparent pointer-events-none" />
-                <div className="relative z-10 w-full flex items-center justify-center scale-110">
-                  {renderPreview(formData)}
-                </div>
-                <div className="absolute bottom-6 text-xs text-muted-foreground font-mono opacity-50">
-                  Live Preview
-                </div>
-              </div>
+              <PanelSeparator className="w-1.5 bg-border/40 hover:bg-primary/50 transition-colors flex items-center justify-center cursor-col-resize z-50 focus:outline-none">
+                <div className="h-8 w-1 bg-muted-foreground/30 rounded-full" />
+              </PanelSeparator>
             )}
-          </div>
-        </div>
 
-        <DialogFooter className="px-8 py-5 border-t border-border/40 bg-muted/10 shrink-0 gap-3">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => onOpenChange(false)}
-            className="px-6"
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleSave} size="lg" className="px-8 shadow-md">
-            Save Changes
-          </Button>
-        </DialogFooter>
+            {renderPreview && debouncedFormData && (
+              <PreviewPanel
+                item={debouncedFormData}
+                renderPreview={renderPreview}
+                isCollapsed={isPreviewCollapsed}
+              />
+            )}
+          </Group>
+        </Tabs>
+
+        <DialogFooter className="hidden" />
       </DialogContent>
     </Dialog>
   );

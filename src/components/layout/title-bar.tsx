@@ -13,7 +13,9 @@ export function TitleBar() {
 
   useEffect(() => {
     const init = async () => {
-      setIsMaximized(await appWindow.isMaximized());
+      try {
+        setIsMaximized(await appWindow.isMaximized());
+      } catch (e) {}
       try {
         const v = await getVersion();
         setAppVersion(v);
@@ -24,14 +26,42 @@ export function TitleBar() {
 
     init();
 
-    const unlisten = appWindow.listen("tauri://resize", async () => {
-      setIsMaximized(await appWindow.isMaximized());
-    });
+    let unlisten: (() => void) | undefined;
+
+    const setupListener = async () => {
+      try {
+        unlisten = await appWindow.listen("tauri://resize", async () => {
+          try {
+            setIsMaximized(await appWindow.isMaximized());
+          } catch (e) {}
+        });
+      } catch (e) {}
+    };
+
+    setupListener();
 
     return () => {
-      unlisten.then((f) => f());
+      if (unlisten) unlisten();
     };
   }, []);
+
+  const handleMinimize = async () => {
+    try {
+      await appWindow.minimize();
+    } catch (e) {}
+  };
+
+  const handleMaximize = async () => {
+    try {
+      await appWindow.toggleMaximize();
+    } catch (e) {}
+  };
+
+  const handleClose = async () => {
+    try {
+      await appWindow.close();
+    } catch (e) {}
+  };
 
   return (
     <div
@@ -65,13 +95,13 @@ export function TitleBar() {
 
       <div className="flex items-center h-full">
         <button
-          onClick={() => appWindow.minimize()}
+          onClick={handleMinimize}
           className="h-full w-12 flex items-center justify-center hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none cursor-pointer"
         >
           <Minus className="h-4 w-4" weight="bold" />
         </button>
         <button
-          onClick={() => appWindow.toggleMaximize()}
+          onClick={handleMaximize}
           className="h-full w-12 flex items-center justify-center hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none cursor-pointer"
         >
           {isMaximized ? (
@@ -81,7 +111,7 @@ export function TitleBar() {
           )}
         </button>
         <button
-          onClick={() => appWindow.close()}
+          onClick={handleClose}
           className="h-full w-12 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors focus:outline-none cursor-pointer"
         >
           <X className="h-4 w-4" weight="bold" />

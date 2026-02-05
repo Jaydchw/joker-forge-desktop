@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
-import { 
-  JokerData, 
-  ConsumableData, 
-  DeckData, 
-  VoucherData, 
-  BoosterData, 
-  SealData, 
-  EditionData, 
-  EnhancementData, 
-  SoundData 
+import {
+  JokerData,
+  ConsumableData,
+  DeckData,
+  VoucherData,
+  BoosterData,
+  SealData,
+  EditionData,
+  EnhancementData,
+  SoundData,
 } from "@/lib/types";
 
 export interface ProjectStats {
@@ -117,7 +117,9 @@ export const useProjectData = () => {
   const saveData = (newData: ProjectData) => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
-      window.dispatchEvent(new Event(EVENT_KEY));
+      setTimeout(() => {
+        window.dispatchEvent(new Event(EVENT_KEY));
+      }, 0);
     } catch (error) {
       console.warn("Error saving to localStorage", error);
     }
@@ -134,33 +136,43 @@ export const useProjectData = () => {
     });
   }, []);
 
-  const updateCollection = useCallback(<K extends keyof ProjectData>(key: K, items: ProjectData[K]) => {
-    setData((prev) => {
-      const newData = {
-        ...prev,
-        [key]: items,
-        stats: {
-          ...prev.stats,
-          [key]: Array.isArray(items) ? items.length : prev.stats[key as keyof ProjectStats]
-        }
-      };
-      saveData(newData);
-      return newData;
-    });
-  }, []);
+  const updateCollection = useCallback(
+    <K extends keyof ProjectData>(key: K, items: ProjectData[K]) => {
+      setData((prev) => {
+        const newData = {
+          ...prev,
+          [key]: items,
+          stats: {
+            ...prev.stats,
+            [key]: Array.isArray(items)
+              ? items.length
+              : prev.stats[key as keyof ProjectStats],
+          },
+        };
+        saveData(newData);
+        return newData;
+      });
+    },
+    [],
+  );
 
-  return { 
-    data, 
+  return {
+    data,
     updateMetadata,
-    updateJokers: (items: JokerData[]) => updateCollection('jokers', items),
-    updateConsumables: (items: ConsumableData[]) => updateCollection('consumables', items),
-    updateDecks: (items: DeckData[]) => updateCollection('decks', items),
-    updateVouchers: (items: VoucherData[]) => updateCollection('vouchers', items),
-    updateBoosters: (items: BoosterData[]) => updateCollection('boosters', items),
-    updateSeals: (items: SealData[]) => updateCollection('seals', items),
-    updateEditions: (items: EditionData[]) => updateCollection('editions', items),
-    updateEnhancements: (items: EnhancementData[]) => updateCollection('enhancements', items),
-    updateSounds: (items: SoundData[]) => updateCollection('sounds', items),
+    updateJokers: (items: JokerData[]) => updateCollection("jokers", items),
+    updateConsumables: (items: ConsumableData[]) =>
+      updateCollection("consumables", items),
+    updateDecks: (items: DeckData[]) => updateCollection("decks", items),
+    updateVouchers: (items: VoucherData[]) =>
+      updateCollection("vouchers", items),
+    updateBoosters: (items: BoosterData[]) =>
+      updateCollection("boosters", items),
+    updateSeals: (items: SealData[]) => updateCollection("seals", items),
+    updateEditions: (items: EditionData[]) =>
+      updateCollection("editions", items),
+    updateEnhancements: (items: EnhancementData[]) =>
+      updateCollection("enhancements", items),
+    updateSounds: (items: SoundData[]) => updateCollection("sounds", items),
   };
 };
 

@@ -782,14 +782,19 @@ export default function JokersPage() {
         description="Modify the properties of your custom Joker."
         tabs={jokerDialogTabs}
         onSave={handleUpdate}
-        renderPreview={(item) => (
-          <BalatroCard
-            type="joker"
-            data={item}
-            rarityName={getRarityLabel(item.rarity)}
-            rarityColor={getRarityColorHex(item.rarity)}
-          />
-        )}
+        renderPreview={(item) => {
+          if (!item) return null;
+          return (
+            <BalatroCard
+              type="joker"
+              data={item}
+              rarityName={item?.rarity ? getRarityLabel(item.rarity) : "Common"}
+              rarityColor={
+                item?.rarity ? getRarityColorHex(item.rarity) : "#009dff"
+              }
+            />
+          );
+        }}
       />
     </>
   );
