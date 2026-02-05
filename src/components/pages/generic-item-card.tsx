@@ -315,7 +315,7 @@ export function GenericItemCard({
               {properties.map((prop) => (
                 <Tooltip
                   key={prop.id}
-                  open={tooltipStates[prop.id]}
+                  open={!!tooltipStates[prop.id]} // FIXED: Forced boolean
                   onOpenChange={(open) =>
                     setTooltipStates((prev) => ({ ...prev, [prop.id]: open }))
                   }

@@ -10,6 +10,7 @@ import {
   EnhancementData,
   SoundData,
 } from "@/lib/types";
+import { ModMetadata } from "@/lib/balatro-utils";
 
 export interface ProjectStats {
   jokers: number;
@@ -21,15 +22,6 @@ export interface ProjectStats {
   sounds: number;
   vouchers: number;
   boosters: number;
-}
-
-export interface ModMetadata {
-  name: string;
-  author: string;
-  version: string;
-  description: string;
-  id: string;
-  prefix: string;
 }
 
 export interface ProjectData {
@@ -63,12 +55,24 @@ const DEFAULT_STATS: ProjectStats = {
 };
 
 const DEFAULT_METADATA: ModMetadata = {
-  name: "My Custom Mod",
-  author: "Anonymous",
-  version: "1.0.0",
-  description: "A Balatro mod created with Joker Forge.",
   id: "my_custom_mod",
+  name: "My Custom Mod",
+  author: ["Anonymous"],
+  description: "A Balatro mod created with Joker Forge.",
   prefix: "jkr",
+  version: "1.0.0",
+  main_file: "main.lua",
+  priority: 0,
+  badge_colour: "4584fa",
+  badge_text_colour: "ffffff",
+  display_name: "My Mod",
+  dependencies: [],
+  conflicts: [],
+  provides: [],
+  iconImage: "",
+  gameImage: "",
+  hasUserUploadedIcon: false,
+  hasUserUploadedGameIcon: false,
 };
 
 const DEFAULT_DATA: ProjectData = {
@@ -86,13 +90,50 @@ const DEFAULT_DATA: ProjectData = {
   sounds: [],
 };
 
+// --- Sanitization Logic ---
+
+const forceStringArray = (val: any): string[] => {
+  if (Array.isArray(val)) return val.map(String);
+  if (typeof val === "string" && val.trim() !== "") return [val];
+  return [];
+};
+
+const sanitizeMetadata = (input: any): ModMetadata => {
+  if (!input || typeof input !== "object") return DEFAULT_METADATA;
+
+  return {
+    ...DEFAULT_METADATA,
+    ...input,
+    // Fix string vs array mismatches from old saves
+    author: forceStringArray(input.author || DEFAULT_METADATA.author),
+    dependencies: forceStringArray(input.dependencies),
+    conflicts: forceStringArray(input.conflicts),
+    provides: forceStringArray(input.provides),
+    // Ensure numeric types
+    priority:
+      typeof input.priority === "number"
+        ? input.priority
+        : parseInt(input.priority) || 0,
+  };
+};
+
 const getStoredData = (): ProjectData => {
   if (typeof window === "undefined") return DEFAULT_DATA;
   try {
     const item = window.localStorage.getItem(STORAGE_KEY);
-    return item ? { ...DEFAULT_DATA, ...JSON.parse(item) } : DEFAULT_DATA;
+    if (!item) return DEFAULT_DATA;
+
+    const parsed = JSON.parse(item);
+
+    // Deep merge / Sanitize critical sections
+    return {
+      ...DEFAULT_DATA,
+      ...parsed,
+      metadata: sanitizeMetadata(parsed.metadata),
+      stats: { ...DEFAULT_DATA.stats, ...(parsed.stats || {}) },
+    };
   } catch (error) {
-    console.warn("Error reading from localStorage", error);
+    console.warn("Error reading/sanitizing localStorage", error);
     return DEFAULT_DATA;
   }
 };

@@ -1,4 +1,4 @@
-import { useState, useMemo, ReactNode } from "react";
+import { useState, useMemo, ReactNode, memo } from "react";
 import {
   Plus,
   MagnifyingGlass,
@@ -52,7 +52,7 @@ interface GenericItemPageProps<T> {
   headerContent?: ReactNode; // For extra custom stats/info if needed
 }
 
-export function GenericItemPage<T extends { id: string }>({
+function GenericItemPageInternal<T extends { id: string }>({
   title,
   subtitle,
   items,
@@ -178,7 +178,7 @@ export function GenericItemPage<T extends { id: string }>({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                className="gap-3 h-12 px-4 bg-card border-border hover:bg-accent hover:border-primary/50 text-foreground font-medium shadow-sm transition-all rounded-xl min-w-[180px] justify-between cursor-pointer group"
+                className="gap-3 h-12 px-4 bg-card border-border hover:bg-accent hover:border-primary/50 text-foreground font-medium shadow-sm transition-all rounded-xl min-w-45 justify-between cursor-pointer group"
               >
                 <span className="flex items-center gap-2">
                   <ArrowsDownUp
@@ -353,3 +353,7 @@ export function GenericItemPage<T extends { id: string }>({
     </div>
   );
 }
+
+export const GenericItemPage = memo(
+  GenericItemPageInternal,
+) as typeof GenericItemPageInternal;

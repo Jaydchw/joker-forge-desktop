@@ -10,6 +10,7 @@ import EditionsPage from "@/pages/editions-page";
 import BoostersPage from "@/pages/boosters-page";
 import VouchersPage from "@/pages/vouchers-page";
 import SoundsPage from "@/pages/sounds-page";
+import MetadataPage from "@/pages/metadata-page";
 
 function App() {
   return (
@@ -26,10 +27,7 @@ function App() {
           <Route path="/boosters" element={<BoostersPage />} />
           <Route path="/vouchers" element={<VouchersPage />} />
           <Route path="/sounds" element={<SoundsPage />} />
-          <Route
-            path="/metadata"
-            element={<div className="p-8">Metadata Page Placeholder</div>}
-          />
+          <Route path="/metadata" element={<MetadataPage />} />
         </Routes>
       </MainLayout>
     </Router>
