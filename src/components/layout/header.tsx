@@ -1,14 +1,8 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import {
-  FloppyDisk,
-  Upload,
-  Export,
-  Sun,
-  Moon,
-  Gear,
-} from "@phosphor-icons/react";
+import { FloppyDisk, Upload, Export, Sun, Moon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { SettingsPopover } from "@/components/settings/settings-popover";
 
 interface HeaderProps {
   title?: string;
@@ -76,13 +70,7 @@ export function Header({ title }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
-        >
-          <Gear className="h-5 w-5" weight="duotone" />
-        </Button>
+        <SettingsPopover />
         <Button
           variant="ghost"
           size="icon"
