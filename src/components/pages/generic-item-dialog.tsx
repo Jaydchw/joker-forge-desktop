@@ -46,6 +46,7 @@ import {
 } from "@phosphor-icons/react";
 import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
 import { slugify } from "@/lib/balatro-utils";
+import { RaritySelect } from "@/components/balatro/rarity-select";
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -85,6 +86,8 @@ export interface DialogField<T> {
   render?: (value: any, onChange: (val: any) => void, item: T) => ReactNode;
   className?: string;
   hidden?: (item: T) => boolean;
+  validate?: (value: any, item: T) => string | null;
+  processFile?: (file: File) => Promise<string>;
   min?: number;
   max?: number;
   step?: number;
@@ -188,10 +191,12 @@ const RichTextarea = memo(
     value,
     onChange,
     placeholder,
+    error,
   }: {
     value: string;
     onChange: (val: string) => void;
     placeholder?: string;
+    error?: string;
   }) => {
     const [autoFormat, setAutoFormat] = useState(true);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -307,8 +312,12 @@ const RichTextarea = memo(
           value={value || ""}
           onChange={handleTextChange}
           placeholder={placeholder}
-          className="font-mono text-sm min-h-30 resize-y bg-background border-muted-foreground/20 cursor-text"
+          className={cn(
+            "font-mono text-sm min-h-30 resize-y bg-background border-muted-foreground/20 cursor-text",
+            error && "border-destructive focus-visible:ring-destructive",
+          )}
         />
+        {error && <p className="text-xs text-destructive mt-1">{error}</p>}
       </div>
     );
   },
@@ -321,12 +330,14 @@ const MemoizedField = memo(
     onChange,
     fullItem,
     inGrid,
+    error,
   }: {
     field: DialogField<any>;
     value: any;
     onChange: (id: string, val: any) => void;
     fullItem: any;
     inGrid?: boolean;
+    error?: string;
   }) => {
     const safeValue =
       field.type === "number" &&
@@ -338,37 +349,61 @@ const MemoizedField = memo(
       switch (field.type) {
         case "text":
           return (
-            <Input
-              value={String(safeValue || "")}
-              onChange={(e) => onChange(field.id, e.target.value)}
-              placeholder={field.placeholder}
-              className="cursor-text"
-            />
+            <div>
+              <Input
+                value={String(safeValue || "")}
+                onChange={(e) => onChange(field.id, e.target.value)}
+                placeholder={field.placeholder}
+                className={cn(
+                  "cursor-text",
+                  error && "border-destructive focus-visible:ring-destructive",
+                )}
+              />
+              {error && (
+                <p className="text-xs text-destructive mt-1">{error}</p>
+              )}
+            </div>
           );
         case "number":
           return (
-            <Input
-              type="number"
-              value={safeValue}
-              onChange={(e) => {
-                const val = e.target.value;
-                onChange(field.id, val === "" ? undefined : Number(val));
-              }}
-              placeholder={field.placeholder}
-              min={field.min}
-              max={field.max}
-              step={field.step}
-              className="cursor-text"
-            />
+            <div>
+              <Input
+                type="number"
+                value={safeValue}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  onChange(field.id, val === "" ? undefined : Number(val));
+                }}
+                placeholder={field.placeholder}
+                min={field.min}
+                max={field.max}
+                step={field.step}
+                className={cn(
+                  "cursor-text",
+                  error && "border-destructive focus-visible:ring-destructive",
+                )}
+              />
+              {error && (
+                <p className="text-xs text-destructive mt-1">{error}</p>
+              )}
+            </div>
           );
         case "textarea":
           return (
-            <Textarea
-              value={String(safeValue || "")}
-              onChange={(e) => onChange(field.id, e.target.value)}
-              placeholder={field.placeholder}
-              className="min-h-20 cursor-text"
-            />
+            <div>
+              <Textarea
+                value={String(safeValue || "")}
+                onChange={(e) => onChange(field.id, e.target.value)}
+                placeholder={field.placeholder}
+                className={cn(
+                  "min-h-20 cursor-text",
+                  error && "border-destructive focus-visible:ring-destructive",
+                )}
+              />
+              {error && (
+                <p className="text-xs text-destructive mt-1">{error}</p>
+              )}
+            </div>
           );
         case "rich-textarea":
           return (
@@ -376,6 +411,7 @@ const MemoizedField = memo(
               value={String(safeValue || "")}
               onChange={(val) => onChange(field.id, val)}
               placeholder={field.placeholder}
+              error={error}
             />
           );
         case "switch":
@@ -387,28 +423,49 @@ const MemoizedField = memo(
             />
           );
         case "select":
+          if (field.id === "rarity") {
+            return (
+              <RaritySelect
+                value={String(safeValue || "")}
+                onChange={(val) =>
+                  onChange(field.id, isNaN(Number(val)) ? val : Number(val))
+                }
+              />
+            );
+          }
           return (
-            <Select
-              value={String(safeValue || "")}
-              onValueChange={(val) =>
-                onChange(field.id, isNaN(Number(val)) ? val : Number(val))
-              }
-            >
-              <SelectTrigger className="cursor-pointer">
-                <SelectValue placeholder={field.placeholder} />
-              </SelectTrigger>
-              <SelectContent>
-                {field.options?.map((opt) => (
-                  <SelectItem
-                    key={opt.value}
-                    value={String(opt.value)}
-                    className="cursor-pointer"
-                  >
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div>
+              <Select
+                value={String(safeValue || "")}
+                onValueChange={(val) =>
+                  onChange(field.id, isNaN(Number(val)) ? val : Number(val))
+                }
+              >
+                <SelectTrigger
+                  className={cn(
+                    "cursor-pointer",
+                    error &&
+                      "border-destructive focus-visible:ring-destructive",
+                  )}
+                >
+                  <SelectValue placeholder={field.placeholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.options?.map((opt) => (
+                    <SelectItem
+                      key={opt.value}
+                      value={String(opt.value)}
+                      className="cursor-pointer"
+                    >
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {error && (
+                <p className="text-xs text-destructive mt-1">{error}</p>
+              )}
+            </div>
           );
         case "image":
           return (
@@ -437,13 +494,22 @@ const MemoizedField = memo(
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (event) =>
-                        onChange(field.id, event.target?.result);
-                      reader.readAsDataURL(file);
+                      if (field.processFile) {
+                        try {
+                          const result = await field.processFile(file);
+                          onChange(field.id, result);
+                        } catch (err) {
+                          console.error("Image processing failed", err);
+                        }
+                      } else {
+                        const reader = new FileReader();
+                        reader.onload = (event) =>
+                          onChange(field.id, event.target?.result);
+                        reader.readAsDataURL(file);
+                      }
                     }
                   }}
                 />
@@ -543,6 +609,7 @@ const MemoizedField = memo(
     if (prev.value !== next.value) return false;
     if (prev.field.id !== next.field.id) return false;
     if (prev.inGrid !== next.inGrid) return false;
+    if (prev.error !== next.error) return false;
 
     const prevHidden = prev.field.hidden
       ? prev.field.hidden(prev.fullItem)
@@ -662,6 +729,7 @@ export function GenericItemDialog<T extends { id: string }>({
   const [formData, setFormData] = useState<T | null>(null);
   const [activeTab, setActiveTab] = useState<string>("");
   const [panelSize, setPanelSize] = useState<number>(70);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const debouncedFormData = useDebounce(formData, 200);
 
@@ -670,6 +738,7 @@ export function GenericItemDialog<T extends { id: string }>({
   useEffect(() => {
     if (open && item) {
       setFormData(JSON.parse(JSON.stringify(item)));
+      setErrors({});
       if (tabs.length > 0 && !activeTab) {
         setActiveTab(tabs[0].id);
       }
@@ -698,12 +767,55 @@ export function GenericItemDialog<T extends { id: string }>({
 
       return newData;
     });
+
+    setErrors((prev) => {
+      if (prev[path]) {
+        const newErrors = { ...prev };
+        delete newErrors[path];
+        return newErrors;
+      }
+      return prev;
+    });
   }, []);
 
   const handleSave = () => {
-    if (formData && formData.id) {
+    if (!formData || !formData.id) return;
+
+    const newErrors: Record<string, string> = {};
+    let hasError = false;
+
+    tabs.forEach((tab) => {
+      tab.groups.forEach((group) => {
+        group.fields.forEach((field) => {
+          if (field.validate) {
+            const error = field.validate(
+              getNestedValue(formData, field.id),
+              formData,
+            );
+            if (error) {
+              newErrors[field.id] = error;
+              hasError = true;
+            }
+          }
+        });
+      });
+    });
+
+    setErrors(newErrors);
+
+    if (!hasError) {
       onSave(formData.id, formData);
       onOpenChange(false);
+    } else {
+      const firstErrorField = Object.keys(newErrors)[0];
+      for (const tab of tabs) {
+        for (const group of tab.groups) {
+          if (group.fields.some((f) => f.id === firstErrorField)) {
+            setActiveTab(tab.id);
+            return;
+          }
+        }
+      }
     }
   };
 
@@ -832,6 +944,7 @@ export function GenericItemDialog<T extends { id: string }>({
                                         inGrid={
                                           !!group.className?.includes("grid")
                                         }
+                                        error={errors[field.id]}
                                       />
                                     );
                                   })}

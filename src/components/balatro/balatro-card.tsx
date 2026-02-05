@@ -254,7 +254,7 @@ export function BalatroCard({
             )}
           </>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-muted/20 border-2 border-dashed border-muted-foreground/20 rounded-xl">
+          <div className="w-full h-full flex flex-col items-center justify-center bg-muted/20 border-2 border-dashed border-muted-foreground/20 rounded-lg">
             <ImageIcon className="h-16 w-16 text-muted-foreground/30" />
             <span className="text-xs text-muted-foreground/50 font-mono mt-2">
               NO IMAGE
@@ -322,7 +322,7 @@ export function BalatroCard({
           className={cn(
             currentSize.image,
             "mb-2 flex items-center justify-center overflow-hidden relative z-10 transition-transform hover:scale-[1.02] duration-200",
-            showCost && cost !== undefined ? "rounded-t-none" : "rounded-xl",
+            showCost && cost !== undefined ? "rounded-t-none" : "rounded-lg",
           )}
         >
           {renderCardImage()}
@@ -337,7 +337,7 @@ export function BalatroCard({
           <div className="relative m-2 filter drop-shadow-lg">
             <div className="absolute inset-0 bg-balatro-lightgreyshadow rounded-2xl translate-y-1" />
             <div className="relative bg-balatro-lightgrey rounded-2xl p-1">
-              <div className="bg-balatro-black rounded-xl p-3 shadow-inner">
+              <div className="bg-balatro-black rounded-lg p-3 shadow-inner">
                 {type !== "card" &&
                   type !== "edition" &&
                   type !== "enhancement" && (
@@ -347,8 +347,8 @@ export function BalatroCard({
                   )}
 
                 <div className="relative mb-3">
-                  <div className="absolute inset-0 bg-balatro-whiteshadow rounded-xl translate-y-1" />
-                  <div className="relative bg-balatro-white text-balatro-black font-medium px-3 py-2.5 rounded-xl text-center leading-5 text-sm min-h-12 flex items-center justify-center overflow-visible">
+                  <div className="absolute inset-0 bg-balatro-whiteshadow rounded-lg translate-y-1" />
+                  <div className="relative bg-balatro-white text-balatro-black font-medium px-3 py-2.5 rounded-lg text-center leading-5 text-sm min-h-12 flex items-center justify-center overflow-visible">
                     <div className="relative z-10 whitespace-nowrap">
                       <BalatroText
                         text={data.description || "No description provided."}
@@ -363,7 +363,7 @@ export function BalatroCard({
                   <div className="relative">
                     <div
                       className={cn(
-                        "absolute inset-0 rounded-xl translate-y-1",
+                        "absolute inset-0 rounded-lg translate-y-1",
                         isVanillaBadge ? badgeStyles.bg : "",
                       )}
                       style={
@@ -374,7 +374,7 @@ export function BalatroCard({
                     />
                     <div
                       className={cn(
-                        "relative rounded-xl px-4 py-1 text-center text-balatro-white font-bold text-shadow-pixel tracking-widest text-lg uppercase whitespace-nowrap",
+                        "relative rounded-lg px-4 py-1 text-center text-balatro-white text-shadow-pixel  text-lg whitespace-nowrap",
                         isVanillaBadge ? badgeStyles.shadow : "",
                       )}
                       style={

@@ -33,21 +33,44 @@ import {
   Plus,
   Minus,
 } from "@phosphor-icons/react";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BalatroCard } from "@/components/balatro/balatro-card";
+import { jokerUnlockOptions } from "@/lib/unlock-utils";
 
 export default function JokersPage() {
   const { data, updateJokers } = useProjectData();
   const modName = useModName();
   const [editingItem, setEditingItem] = useState<JokerData | null>(null);
+
+  const processJokerImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          if (img.width === 71 && img.height === 95) {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = 142;
+            canvas.height = 190;
+            if (ctx) {
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(img, 0, 0, 142, 190);
+              resolve(canvas.toDataURL("image/png"));
+            } else {
+              reject(new Error("Canvas context failed"));
+            }
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleUpdate = (id: string, updates: Partial<JokerData>) => {
     updateJokers(
@@ -82,22 +105,6 @@ export default function JokersPage() {
     updateJokers(data.jokers.filter((j) => j.id !== id));
   };
 
-  const getRarityColor = (rarity: number | string) => {
-    const r = typeof rarity === "string" ? parseInt(rarity) : rarity;
-    switch (r) {
-      case 1:
-        return "bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20";
-      case 2:
-        return "bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20";
-      case 3:
-        return "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20";
-      case 4:
-        return "bg-purple-500/10 text-purple-500 border-purple-500/20 hover:bg-purple-500/20";
-      default:
-        return "bg-zinc-500/10 text-zinc-500 border-zinc-500/20 hover:bg-zinc-500/20";
-    }
-  };
-
   const getRarityLabel = (rarity: number | string) => {
     const r = typeof rarity === "string" ? parseInt(rarity) : rarity;
     switch (r) {
@@ -129,13 +136,15 @@ export default function JokersPage() {
               id: "image",
               type: "image",
               label: "Main Sprite",
-              description: "71x95px or 142x190px",
+              description: "71x95px (auto-upscaled) or 142x190px",
+              processFile: processJokerImage,
             },
             {
               id: "overlayImage",
               type: "image",
               label: "Overlay Sprite",
               description: "Optional overlay layer",
+              processFile: processJokerImage,
             },
             {
               id: "scale_w",
@@ -162,6 +171,7 @@ export default function JokersPage() {
               label: "Name",
               placeholder: "Joker Name",
               className: "col-span-2",
+              validate: (val) => (!val ? "Name is required" : null),
             },
             {
               id: "objectKey",
@@ -206,6 +216,7 @@ export default function JokersPage() {
               label: "Joker Effect Description",
               placeholder:
                 "Use {C:attention}colors{} and {X:mult,C:white}XMult{} formatting...",
+              validate: (val) => (!val ? "Description is required" : null),
             },
           ],
         },
@@ -343,50 +354,79 @@ export default function JokersPage() {
               type: "custom",
               label: "Properties",
               hidden: (item) => item.unlocked || !item.unlockTrigger,
-              render: (value, onChange) => {
+              render: (value, onChange, item) => {
                 const props = Array.isArray(value) ? value : [];
+                const currentTrigger = item.unlockTrigger || "";
+                const availableOptions =
+                  jokerUnlockOptions[currentTrigger]?.categories || [];
+
                 return (
                   <div className="space-y-3 bg-muted/20 p-4 rounded-lg border border-border/50">
-                    {props.map((prop: any, idx: number) => (
-                      <div key={idx} className="flex gap-2 items-center">
-                        <Input
-                          value={prop.category}
-                          onChange={(e) => {
-                            const newProps = [...props];
-                            newProps[idx] = {
-                              ...newProps[idx],
-                              category: e.target.value,
-                            };
-                            onChange(newProps);
-                          }}
-                          placeholder="Category"
-                          className="bg-background"
-                        />
-                        <Input
-                          value={prop.property}
-                          onChange={(e) => {
-                            const newProps = [...props];
-                            newProps[idx] = {
-                              ...newProps[idx],
-                              property: e.target.value,
-                            };
-                            onChange(newProps);
-                          }}
-                          placeholder="Property"
-                          className="bg-background"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                          onClick={() =>
-                            onChange(props.filter((_, i) => i !== idx))
-                          }
-                        >
-                          <Minus className="h-4 w-4" weight="bold" />
-                        </Button>
-                      </div>
-                    ))}
+                    {props.map((prop: any, idx: number) => {
+                      const categoryOptions = availableOptions;
+                      const selectedCategory = categoryOptions.find(
+                        (c: any) => c.value === prop.category,
+                      );
+                      const propertyOptions = selectedCategory?.options || [];
+
+                      return (
+                        <div key={idx} className="flex gap-2 items-center">
+                          <div className="flex-1">
+                            <select
+                              value={prop.category}
+                              onChange={(e) => {
+                                const newProps = [...props];
+                                newProps[idx] = {
+                                  ...newProps[idx],
+                                  category: e.target.value,
+                                  property: "",
+                                };
+                                onChange(newProps);
+                              }}
+                              className="w-full h-9 bg-background border rounded px-2 text-sm"
+                            >
+                              <option value="">Select Category</option>
+                              {categoryOptions.map((opt: any) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex-1">
+                            <select
+                              value={prop.property}
+                              onChange={(e) => {
+                                const newProps = [...props];
+                                newProps[idx] = {
+                                  ...newProps[idx],
+                                  property: e.target.value,
+                                };
+                                onChange(newProps);
+                              }}
+                              className="w-full h-9 bg-background border rounded px-2 text-sm"
+                            >
+                              <option value="">Select Property</option>
+                              {propertyOptions.map((opt: any) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                            onClick={() =>
+                              onChange(props.filter((_, i) => i !== idx))
+                            }
+                          >
+                            <Minus className="h-4 w-4" weight="bold" />
+                          </Button>
+                        </div>
+                      );
+                    })}
                     <Button
                       variant="outline"
                       size="sm"
@@ -582,7 +622,18 @@ export default function JokersPage() {
             description={formatBalatroText(joker.description)}
             cost={joker.cost}
             idValue={joker.orderValue}
+            rarity={joker.rarity}
             onUpdate={(updates) => handleUpdate(joker.id, updates)}
+            onDuplicate={() => {
+              const duplicatedJoker: JokerData = {
+                ...joker,
+                id: crypto.randomUUID(),
+                name: `${joker.name} (Copy)`,
+                objectKey: `${joker.objectKey}_copy`,
+                orderValue: data.jokers.length + 1,
+              };
+              updateJokers([...data.jokers, duplicatedJoker]);
+            }}
             image={
               <div className="w-full h-full relative group cursor-pointer rounded-lg overflow-hidden flex items-center justify-center">
                 {joker.image ? (
@@ -597,40 +648,6 @@ export default function JokersPage() {
                   </div>
                 )}
               </div>
-            }
-            badges={
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Badge
-                    variant="outline"
-                    className={`px-3 py-1 text-xs font-bold uppercase tracking-wider cursor-pointer transition-all border-2 ${getRarityColor(joker.rarity)}`}
-                  >
-                    {getRarityLabel(joker.rarity)}
-                  </Badge>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem
-                    onClick={() => handleUpdate(joker.id, { rarity: 1 })}
-                  >
-                    Common
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleUpdate(joker.id, { rarity: 2 })}
-                  >
-                    Uncommon
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleUpdate(joker.id, { rarity: 3 })}
-                  >
-                    Rare
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleUpdate(joker.id, { rarity: 4 })}
-                  >
-                    Legendary
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             }
             properties={[
               {
