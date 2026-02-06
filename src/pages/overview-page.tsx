@@ -175,7 +175,7 @@ export function OverviewPage() {
                     <Input
                       value={editForm.author}
                       onChange={(e) =>
-                        setEditForm({ ...editForm, author: e.target.value })
+                        setEditForm({ ...editForm, author: [e.target.value] })
                       }
                       className="cursor-text bg-background"
                     />

@@ -41,7 +41,9 @@
       "nsis": {
         "installMode": "currentUser",
         "displayLanguageSelector": false,
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "sidebarImage": "icons/installer-banner.bmp",
+        "headerImage": "icons/installer-header.bmp"
       }
     }
   }

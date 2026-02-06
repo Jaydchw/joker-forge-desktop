@@ -43,6 +43,7 @@ export default function JokersPage() {
   const modName = useModName();
   const [editingItem, setEditingItem] = useState<JokerData | null>(null);
 
+  // 1. Stable Image Processor
   const processJokerImage = useCallback((file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -72,6 +73,7 @@ export default function JokersPage() {
     });
   }, []);
 
+  // 2. Stable Handlers
   const handleUpdate = useCallback(
     (id: string, updates: Partial<JokerData>) => {
       updateJokers(
@@ -142,6 +144,8 @@ export default function JokersPage() {
     }
   };
 
+  // 3. Memoized Dialog Tabs
+  // This prevents the GenericItemDialog from re-rendering its internals unnecessarily
   const jokerDialogTabs: DialogTab<JokerData>[] = useMemo(
     () => [
       {
@@ -580,6 +584,7 @@ export default function JokersPage() {
     [processJokerImage],
   );
 
+  // 4. Stable Props for Search/Sort/Filter
   const searchProps = useMemo(
     () => ({
       searchFn: (item: JokerData, term: string) =>
@@ -633,7 +638,10 @@ export default function JokersPage() {
     [],
   );
 
-  // Use callback for renderCard so the function reference stays stable
+  // 5. Stable Render Card Function
+  // CRITICAL: This was missing 'useCallback'.
+  // Without this, every time 'editingItem' changed, this function was recreated,
+  // causing GenericItemPage to re-render ALL cards in the background.
   const renderCard = useCallback(
     (joker: JokerData) => (
       <GenericItemCard
@@ -808,7 +816,7 @@ export default function JokersPage() {
       />
     ),
     [handleUpdate, handleDelete, data.jokers, updateJokers],
-  ); // Dependencies include data.jokers for duplication
+  );
 
   return (
     <>
