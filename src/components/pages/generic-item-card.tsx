@@ -228,7 +228,9 @@ export function GenericItemCard({
           {rarity !== undefined ? (
             <RaritySelect
               value={String(rarity)}
-              onChange={(val) => onUpdate({ rarity: Number(val) })}
+              onChange={(val) =>
+                onUpdate({ rarity: isNaN(Number(val)) ? val : Number(val) })
+              }
             />
           ) : (
             badges

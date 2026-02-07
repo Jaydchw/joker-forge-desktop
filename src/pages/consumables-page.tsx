@@ -95,26 +95,32 @@ export default function ConsumablesPage() {
     [data.consumables, updateConsumables],
   );
 
-  const getCurrentSetName = useCallback((setKey: string): string => {
-    const set = getConsumableSetByKey(setKey);
-    return set?.label || setKey;
-  }, []);
+  const getCurrentSetName = useCallback(
+    (setKey: string): string => {
+      const set = getConsumableSetByKey(setKey, data.consumableSets);
+      return set?.label || setKey;
+    },
+    [data.consumableSets],
+  );
 
-  const getCurrentSetColor = useCallback((setKey: string): string => {
-    const custom = getCustomConsumableSetData(setKey);
-    if (custom?.primary_colour) {
-      return custom.primary_colour.startsWith("#")
-        ? custom.primary_colour
-        : `#${custom.primary_colour}`;
-    }
-    return setKey === "Tarot"
-      ? "#b26cbb"
-      : setKey === "Planet"
-        ? "#13afce"
-        : setKey === "Spectral"
-          ? "#4584fa"
-          : "#666666";
-  }, []);
+  const getCurrentSetColor = useCallback(
+    (setKey: string): string => {
+      const custom = getCustomConsumableSetData(setKey, data.consumableSets);
+      if (custom?.primary_colour) {
+        return custom.primary_colour.startsWith("#")
+          ? custom.primary_colour
+          : `#${custom.primary_colour}`;
+      }
+      return setKey === "Tarot"
+        ? "#b26cbb"
+        : setKey === "Planet"
+          ? "#13afce"
+          : setKey === "Spectral"
+            ? "#4584fa"
+            : "#666666";
+    },
+    [data.consumableSets],
+  );
 
   const consumableDialogTabs: DialogTab<ConsumableData>[] = useMemo(
     () => [
@@ -169,7 +175,7 @@ export default function ConsumablesPage() {
                 id: "set",
                 type: "select",
                 label: "Set",
-                options: getConsumableSetDropdownOptions(),
+                options: getConsumableSetDropdownOptions(data.consumableSets),
               },
               {
                 id: "cost",
@@ -227,7 +233,7 @@ export default function ConsumablesPage() {
         ],
       },
     ],
-    [processConsumableImage],
+    [processConsumableImage, data.consumableSets],
   );
 
   const searchProps = useMemo(
@@ -261,11 +267,11 @@ export default function ConsumablesPage() {
       {
         id: "set",
         label: "Type",
-        options: getConsumableSetDropdownOptions(),
+        options: getConsumableSetDropdownOptions(data.consumableSets),
         predicate: (item: ConsumableData, val: string) => item.set === val,
       },
     ],
-    [],
+    [data.consumableSets],
   );
 
   const renderPreview = useCallback(

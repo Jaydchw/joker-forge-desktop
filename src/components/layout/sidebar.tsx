@@ -17,6 +17,7 @@ import {
   ListNumbers,
   Palette,
   Star,
+  Sparkle,
   CaretDown,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -40,15 +41,47 @@ const PROJECT_MAIN = [
     href: "/metadata",
     color: "text-foreground",
   },
-  {
-    label: "Jokers",
-    icon: Smiley,
-    href: "/jokers",
-    color: "text-joker-primary",
-  },
 ];
 
 const COLLAPSIBLE_GROUPS = [
+  {
+    id: "jokers",
+    title: "Jokers",
+    icon: Smiley,
+    items: [
+      {
+        label: "Jokers",
+        icon: Smiley,
+        href: "/jokers",
+        color: "text-joker-primary",
+      },
+      {
+        label: "Rarities",
+        icon: Sparkle,
+        href: "/rarities",
+        color: "text-joker-primary",
+      },
+    ],
+  },
+  {
+    id: "consumables",
+    title: "Consumables",
+    icon: Flask,
+    items: [
+      {
+        label: "Consumables",
+        icon: Flask,
+        href: "/consumables",
+        color: "text-consumable-primary",
+      },
+      {
+        label: "Consumable Sets",
+        icon: Palette,
+        href: "/consumable-sets",
+        color: "text-consumable-primary",
+      },
+    ],
+  },
   {
     id: "card_mod",
     title: "Card Modification",
@@ -76,15 +109,9 @@ const COLLAPSIBLE_GROUPS = [
   },
   {
     id: "shop",
-    title: "Shop & Consumables",
+    title: "Shop",
     icon: Storefront,
     items: [
-      {
-        label: "Consumables",
-        icon: Flask,
-        href: "/consumables",
-        color: "text-consumable-primary",
-      },
       {
         label: "Booster Packs",
         icon: Package,
@@ -158,6 +185,8 @@ export function Sidebar({
   onMouseLeave,
 }: SidebarProps) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    jokers: true,
+    consumables: true,
     card_mod: true,
     shop: true,
     decks: true,
@@ -200,7 +229,7 @@ export function Sidebar({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 px-3 py-4">
+      <ScrollArea className="flex-1 px-3 py-4 sidebar-scroll">
         <motion.div variants={menuListVariants} className="space-y-6">
           <div>
             <div className="space-y-1">

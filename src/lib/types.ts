@@ -247,7 +247,7 @@ export interface ConsumableSetData {
   primary_colour: string;
   secondary_colour: string;
   shop_rate: number;
-  collection_rows: number[];
+  collection_rows: [number, number];
   collection_name: string;
   default_card?: any;
 }

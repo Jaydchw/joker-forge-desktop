@@ -362,7 +362,12 @@ export const applyAutoFormatting = (
       const capitalizedWord = word.charAt(0).toUpperCase() + word.slice(1);
       words[i] = `{C:dark_edition}${capitalizedWord}{}`;
       hasChanges = true;
-    } else if (word.match(/^-\d+(\.\d+)?$/)) {
+    } else if (
+      word.match(/^-\d+(\.\d+)?$/) &&
+      i < words.length - 1 &&
+      words[i + 1] &&
+      words[i + 1].match(/^\s+$/)
+    ) {
       words[i] = `{C:red}${word}{}`;
       hasChanges = true;
     }

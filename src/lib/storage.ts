@@ -9,8 +9,10 @@ import {
   EditionData,
   EnhancementData,
   SoundData,
+  RarityData,
+  ConsumableSetData,
 } from "@/lib/types";
-import { ModMetadata } from "@/lib/balatro-utils";
+import { ModMetadata, updateDataRegistry } from "@/lib/balatro-utils";
 
 export interface ProjectStats {
   jokers: number;
@@ -22,6 +24,8 @@ export interface ProjectStats {
   sounds: number;
   vouchers: number;
   boosters: number;
+  rarities: number;
+  consumableSets: number;
 }
 
 export interface ProjectData {
@@ -30,6 +34,8 @@ export interface ProjectData {
   recentActivity: string[];
   jokers: JokerData[];
   consumables: ConsumableData[];
+  rarities: RarityData[];
+  consumableSets: ConsumableSetData[];
   decks: DeckData[];
   vouchers: VoucherData[];
   boosters: BoosterData[];
@@ -52,6 +58,8 @@ const DEFAULT_STATS: ProjectStats = {
   sounds: 0,
   vouchers: 0,
   boosters: 0,
+  rarities: 0,
+  consumableSets: 0,
 };
 
 const DEFAULT_METADATA: ModMetadata = {
@@ -81,6 +89,8 @@ const DEFAULT_DATA: ProjectData = {
   recentActivity: [],
   jokers: [],
   consumables: [],
+  rarities: [],
+  consumableSets: [],
   decks: [],
   vouchers: [],
   boosters: [],
@@ -155,6 +165,22 @@ export const useProjectData = () => {
     };
   }, []);
 
+  useEffect(() => {
+    updateDataRegistry(
+      data.rarities,
+      data.consumableSets,
+      data.sounds,
+      data.consumables,
+      data.boosters,
+      data.enhancements,
+      data.seals,
+      data.editions,
+      data.vouchers,
+      data.decks,
+      data.metadata.prefix || "",
+    );
+  }, [data]);
+
   const saveData = (newData: ProjectData) => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
@@ -203,6 +229,10 @@ export const useProjectData = () => {
     updateJokers: (items: JokerData[]) => updateCollection("jokers", items),
     updateConsumables: (items: ConsumableData[]) =>
       updateCollection("consumables", items),
+    updateRarities: (items: RarityData[]) =>
+      updateCollection("rarities", items),
+    updateConsumableSets: (items: ConsumableSetData[]) =>
+      updateCollection("consumableSets", items),
     updateDecks: (items: DeckData[]) => updateCollection("decks", items),
     updateVouchers: (items: VoucherData[]) =>
       updateCollection("vouchers", items),

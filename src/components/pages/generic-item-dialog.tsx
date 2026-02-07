@@ -46,13 +46,14 @@ import {
   MagnifyingGlassPlus,
 } from "@phosphor-icons/react";
 import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
-import { slugify } from "@/lib/balatro-utils";
+import { slugify, type UserVariable } from "@/lib/balatro-utils";
 import { RaritySelect } from "@/components/balatro/rarity-select";
 import { ListInput } from "@/components/ui/list-input";
 
 export type FieldType =
   | "text"
   | "number"
+  | "slider"
   | "textarea"
   | "rich-textarea"
   | "select"
@@ -73,7 +74,12 @@ export interface DialogField<T> {
   description?: string;
   options?: FieldOption[];
   placeholder?: string;
-  render?: (value: any, onChange: (val: any) => void, item: T) => ReactNode;
+  render?: (
+    value: any,
+    onChange: (val: any) => void,
+    item: T,
+    setField: (id: string, val: any) => void,
+  ) => ReactNode;
   className?: string;
   hidden?: (item: T) => boolean;
   validate?: (value: any, item: T) => string | null;
@@ -97,13 +103,15 @@ export interface DialogTab<T> {
   groups: FieldGroup<T>[];
 }
 
-interface GenericItemDialogProps<T> {
+export interface GenericItemDialogProps<T> {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: T | null;
   title: string;
   description?: string;
-  tabs: DialogTab<T>[];
+  tabs?: DialogTab<T>[];
+  groups?: FieldGroup<T>[];
+  variant?: "default" | "mini";
   onSave: (id: string, updates: Partial<T>) => void;
   renderPreview?: (item: T) => ReactNode;
 }
@@ -136,9 +144,10 @@ const COLOR_BUTTONS = [
   { tag: "{C:purple}", color: "bg-balatro-purple", name: "Purple" },
   { tag: "{C:attention}", color: "bg-balatro-attention", name: "Orange" },
   { tag: "{C:money}", color: "bg-balatro-money", name: "Money" },
-  { tag: "{C:gold}", color: "bg-balatro-gold", name: "Gold" },
-  { tag: "{C:white}", color: "bg-white", name: "White" },
-  { tag: "{C:inactive}", color: "bg-balatro-secondary", name: "Inactive" },
+  { tag: "{C:gold}", color: "bg-balatro-gold-new", name: "Gold" },
+  { tag: "{C:white}", color: "bg-balatro-white", name: "White" },
+  { tag: "{C:inactive}", color: "bg-balatro-grey", name: "Inactive" },
+  { tag: "{C:default}", color: "bg-balatro-default", name: "Default" },
   { tag: "{C:hearts}", color: "bg-balatro-hearts", name: "Hearts" },
   { tag: "{C:clubs}", color: "bg-balatro-clubs", name: "Clubs" },
   { tag: "{C:diamonds}", color: "bg-balatro-diamonds", name: "Diamonds" },
@@ -146,9 +155,21 @@ const COLOR_BUTTONS = [
   { tag: "{C:tarot}", color: "bg-balatro-tarot", name: "Tarot" },
   { tag: "{C:planet}", color: "bg-balatro-planet", name: "Planet" },
   { tag: "{C:spectral}", color: "bg-balatro-spectral", name: "Spectral" },
-  { tag: "{C:enhanced}", color: "bg-balatro-enhanced", name: "Enhanced" },
-  { tag: "{C:legendary}", color: "bg-balatro-purple", name: "Legendary" },
-  { tag: "{C:edition}", color: "bg-balatro-edition", name: "Edition" },
+  { tag: "{C:enhanced}", color: "bg-balatro-enhanced-new", name: "Enhanced" },
+  { tag: "{C:common}", color: "bg-balatro-common", name: "Common" },
+  { tag: "{C:uncommon}", color: "bg-balatro-uncommon", name: "Uncommon" },
+  { tag: "{C:rare}", color: "bg-balatro-rare", name: "Rare" },
+  { tag: "{C:legendary}", color: "bg-balatro-legendary", name: "Legendary" },
+  {
+    tag: "{C:edition}",
+    color: "bg-gradient-to-r from-purple-400 to-pink-400",
+    name: "Edition",
+  },
+  {
+    tag: "{C:dark_edition}",
+    color: "bg-balatro-dark-edition border border-white/60",
+    name: "Dark Edition",
+  },
 ];
 
 const BG_BUTTONS = [
@@ -171,8 +192,23 @@ const BG_BUTTONS = [
   },
   {
     tag: "{X:enhanced,C:white}",
-    color: "bg-balatro-enhanced",
+    color: "bg-balatro-enhanced-new",
     name: "Enhanced BG",
+  },
+  {
+    tag: "{X:legendary,C:white}",
+    color: "bg-balatro-legendary",
+    name: "Legendary BG",
+  },
+  {
+    tag: "{X:edition,C:white}",
+    color: "bg-gradient-to-r from-purple-400 to-pink-400",
+    name: "Edition BG",
+  },
+  {
+    tag: "{X:dark_edition,C:white}",
+    color: "bg-balatro-dark-edition",
+    name: "Dark Edition BG",
   },
 ];
 
@@ -182,14 +218,20 @@ const RichTextarea = memo(
     onChange,
     placeholder,
     error,
+    item,
   }: {
     value: string;
     onChange: (val: string) => void;
     placeholder?: string;
     error?: string;
+    item?: { userVariables?: UserVariable[] };
   }) => {
     const [autoFormat, setAutoFormat] = useState(true);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const variables = useMemo(
+      () => (Array.isArray(item?.userVariables) ? item?.userVariables : []),
+      [item],
+    );
 
     const insertTag = useCallback(
       (tag: string, autoClose = true) => {
@@ -251,50 +293,135 @@ const RichTextarea = memo(
     );
 
     return (
-      <div className="space-y-2">
-        <div className="bg-muted/40 border border-border rounded-md p-2 space-y-2">
-          <div className="flex items-center justify-between">
+      <div className="space-y-3">
+        <div className="bg-muted/40 border border-border rounded-md p-3 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs font-medium text-muted-foreground">
+              Formatting Tools
+            </div>
             <div className="flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                Ctrl+Z to undo
+              </span>
               <Button
-                variant={autoFormat ? "secondary" : "ghost"}
+                variant={autoFormat ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setAutoFormat(!autoFormat)}
-                className="h-6 text-[10px] px-2 cursor-pointer"
+                className="h-7 text-[11px] px-2 cursor-pointer"
               >
                 <Sparkle
                   className={cn("h-3 w-3 mr-1", autoFormat && "text-primary")}
                   weight={autoFormat ? "fill" : "regular"}
                 />
-                Auto Format: {autoFormat ? "ON" : "OFF"}
+                Auto Format
               </Button>
             </div>
           </div>
-          <div className="flex flex-wrap gap-1">
-            {COLOR_BUTTONS.map((btn) => (
-              <button
-                key={btn.name}
-                type="button"
-                onClick={() => insertTag(btn.tag)}
-                className={cn(
-                  "w-4 h-4 rounded border border-border/50 hover:scale-110 transition-transform cursor-pointer",
-                  btn.color,
-                )}
-                title={btn.name}
-              />
-            ))}
-            <div className="w-px h-4 bg-border mx-1" />
-            {BG_BUTTONS.map((btn) => (
-              <button
-                key={btn.name}
-                type="button"
-                onClick={() => insertTag(btn.tag)}
-                className={cn(
-                  "w-4 h-4 rounded border-2 border-background/80 hover:scale-110 transition-transform cursor-pointer",
-                  btn.color,
-                )}
-                title={btn.name}
-              />
-            ))}
+
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                Text Colors
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_BUTTONS.map((btn) => (
+                  <button
+                    key={btn.name}
+                    type="button"
+                    onClick={() => insertTag(btn.tag)}
+                    className={cn(
+                      "w-6 h-6 rounded border border-border/60 hover:scale-110 transition-transform cursor-pointer",
+                      btn.color,
+                    )}
+                    title={btn.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                Backgrounds
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {BG_BUTTONS.map((btn) => (
+                  <button
+                    key={btn.name}
+                    type="button"
+                    onClick={() => insertTag(btn.tag)}
+                    className={cn(
+                      "w-6 h-6 rounded border-2 border-background/80 hover:scale-110 transition-transform cursor-pointer",
+                      btn.color,
+                    )}
+                    title={btn.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {variables.length > 0 && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  Variables
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {variables.map((variable, index) => (
+                    <button
+                      key={variable.id ?? `${variable.name}-${index}`}
+                      type="button"
+                      onClick={() => insertTag(`#${index + 1}#`, false)}
+                      className="px-2 py-1 text-[11px] rounded-md border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 transition-colors"
+                      title={
+                        variable.description ||
+                        `Insert ${variable.name} variable`
+                      }
+                    >
+                      {variable.name} (#{index + 1}#)
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                Special Effects
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => insertTag("[s]", false)}
+                >
+                  New Line
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => insertTag("{s:1.1}")}
+                >
+                  Scale
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => insertTag("{E:1}")}
+                >
+                  Float
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => insertTag("{}", false)}
+                >
+                  Reset
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
         <Textarea
@@ -378,6 +505,39 @@ const MemoizedField = memo(
               )}
             </div>
           );
+        case "slider": {
+          const sliderValue =
+            typeof safeValue === "number" ? safeValue : (field.min ?? 0);
+          return (
+            <div>
+              <div className="flex items-center gap-3">
+                <Slider
+                  value={[sliderValue]}
+                  min={field.min}
+                  max={field.max}
+                  step={field.step}
+                  onValueChange={(val) => onChange(field.id, val[0])}
+                  className="flex-1 cursor-pointer"
+                />
+                <Input
+                  type="number"
+                  value={Number.isNaN(sliderValue) ? "" : sliderValue}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onChange(field.id, val === "" ? undefined : Number(val));
+                  }}
+                  min={field.min}
+                  max={field.max}
+                  step={field.step}
+                  className="h-8 w-24 text-right font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+              {error && (
+                <p className="text-xs text-destructive mt-1">{error}</p>
+              )}
+            </div>
+          );
+        }
         case "textarea":
           return (
             <div>
@@ -402,6 +562,7 @@ const MemoizedField = memo(
               onChange={(val) => onChange(field.id, val)}
               placeholder={field.placeholder}
               error={error}
+              item={fullItem}
             />
           );
         case "switch":
@@ -540,6 +701,7 @@ const MemoizedField = memo(
                 safeValue,
                 (val) => onChange(field.id, val),
                 fullItem,
+                onChange,
               )
             : null;
         default:
@@ -731,6 +893,8 @@ function GenericItemDialogInternal<T extends { id: string }>({
   title,
   description,
   tabs,
+  groups,
+  variant = "default",
   onSave,
   renderPreview,
 }: GenericItemDialogProps<T>) {
@@ -740,24 +904,39 @@ function GenericItemDialogInternal<T extends { id: string }>({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const modalRef = useRef<HTMLDivElement>(null);
   const handleSaveRef = useRef<() => void>(() => {});
+  const isMini = variant === "mini";
+
+  const resolvedTabs = useMemo(
+    () => (tabs && tabs.length > 0 ? tabs : []),
+    [tabs],
+  );
+  const hasTabs = resolvedTabs.length > 0;
+  const resolvedGroups = useMemo(
+    () => (!hasTabs ? groups || [] : []),
+    [groups, hasTabs],
+  );
 
   const isPreviewCollapsed = panelSize > 95;
-  const resolvedActiveTab = activeTab || tabs[0]?.id || "";
+  const resolvedActiveTab = hasTabs
+    ? activeTab || resolvedTabs[0]?.id || ""
+    : "";
   const activeTabConfig = useMemo(
-    () => tabs.find((tab) => tab.id === resolvedActiveTab),
-    [tabs, resolvedActiveTab],
+    () => resolvedTabs.find((tab) => tab.id === resolvedActiveTab),
+    [resolvedTabs, resolvedActiveTab],
   );
 
   useEffect(() => {
     if (open && item) {
-      if (tabs.length > 0) setActiveTab(tabs[0].id);
+      if (hasTabs && resolvedTabs.length > 0) {
+        setActiveTab(resolvedTabs[0].id);
+      }
 
       setFormData({ ...item });
       setErrors({});
     } else {
       setFormData(null);
     }
-  }, [open, item, tabs]);
+  }, [open, item, hasTabs, resolvedTabs]);
 
   const handleChange = useCallback((path: string, value: any) => {
     setFormData((prev: any) => {
@@ -797,20 +976,22 @@ function GenericItemDialogInternal<T extends { id: string }>({
     const newErrors: Record<string, string> = {};
     let hasError = false;
 
-    tabs.forEach((tab) => {
-      tab.groups.forEach((group) => {
-        group.fields.forEach((field) => {
-          if (field.validate) {
-            const error = field.validate(
-              getNestedValue(formData, field.id),
-              formData,
-            );
-            if (error) {
-              newErrors[field.id] = error;
-              hasError = true;
-            }
+    const validationGroups = hasTabs
+      ? resolvedTabs.flatMap((tab) => tab.groups)
+      : resolvedGroups;
+
+    validationGroups.forEach((group) => {
+      group.fields.forEach((field) => {
+        if (field.validate) {
+          const error = field.validate(
+            getNestedValue(formData, field.id),
+            formData,
+          );
+          if (error) {
+            newErrors[field.id] = error;
+            hasError = true;
           }
-        });
+        }
       });
     });
 
@@ -819,9 +1000,9 @@ function GenericItemDialogInternal<T extends { id: string }>({
     if (!hasError) {
       onSave(formData.id, formData);
       onOpenChange(false);
-    } else {
+    } else if (hasTabs) {
       const firstErrorField = Object.keys(newErrors)[0];
-      for (const tab of tabs) {
+      for (const tab of resolvedTabs) {
         for (const group of tab.groups) {
           if (group.fields.some((f) => f.id === firstErrorField)) {
             setActiveTab(tab.id);
@@ -830,7 +1011,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
         }
       }
     }
-  }, [formData, onSave, onOpenChange, tabs]);
+  }, [formData, onSave, onOpenChange, hasTabs, resolvedTabs, resolvedGroups]);
 
   useEffect(() => {
     handleSaveRef.current = handleSave;
@@ -864,11 +1045,56 @@ function GenericItemDialogInternal<T extends { id: string }>({
 
   if (!open || !item || !formData) return null;
 
+  const contentContainerClass = cn(
+    "px-6 py-8 max-w-4xl mx-auto w-full",
+    isMini && "max-w-3xl",
+  );
+
+  const renderGroups = (groupList: FieldGroup<T>[]) => (
+    <div className={contentContainerClass}>
+      {groupList.map((group) => (
+        <div key={group.id} className="space-y-4">
+          {group.label && (
+            <div className="space-y-2 pb-2">
+              <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                {group.label}
+              </h4>
+              <UiSeparator className="bg-primary/20 h-0.5" />
+            </div>
+          )}
+          <div className={cn(group.className || "space-y-0")}>
+            {group.fields.map((field) => {
+              if (field.hidden && field.hidden(formData!)) return null;
+              return (
+                <MemoizedField
+                  key={field.id}
+                  field={field}
+                  value={getNestedValue(formData, field.id)}
+                  onChange={handleChange}
+                  fullItem={formData}
+                  inGrid={!!group.className?.includes("grid")}
+                  error={errors[field.id]}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const dialogSizeClass = isMini
+    ? "max-w-[85vw]! w-[85vw]! h-[80vh]! max-h-[80vh]"
+    : "max-w-[95vw]! w-[95vw]! h-[90vh]! max-h-[90vh]";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         ref={modalRef}
-        className="max-w-[95vw]! w-[95vw]! h-[90vh]! max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden shadow-2xl bg-background border-border/50"
+        className={cn(
+          dialogSizeClass,
+          "flex flex-col p-0 gap-0 overflow-hidden shadow-2xl bg-background border-border/50",
+        )}
         showCloseButton={false}
         onInteractOutside={(e) => {
           e.preventDefault();
@@ -908,110 +1134,91 @@ function GenericItemDialogInternal<T extends { id: string }>({
           </div>
         </DialogHeader>
 
-        <Tabs
-          value={resolvedActiveTab}
-          onValueChange={setActiveTab}
-          className="flex-1 flex overflow-hidden min-h-0"
-          orientation="vertical"
-        >
-          <Group orientation="horizontal" className="flex-1">
-            <Panel
-              defaultSize={renderPreview ? 70 : 100}
-              minSize={renderPreview ? 50 : 100}
-              onResize={(size) =>
-                setPanelSize(
-                  typeof size === "number"
-                    ? size
-                    : Array.isArray(size)
-                      ? size[0]
-                      : 0,
-                )
-              }
-            >
-              <div className="flex h-full">
-                <div className="w-56 border-r border-border/40 bg-muted/5 flex flex-col shrink-0">
-                  <ScrollArea className="flex-1">
-                    <TabsList className="flex flex-col w-full bg-transparent p-2 gap-1 h-auto">
-                      {tabs.map((tab) => (
-                        <TabsTrigger
-                          key={tab.id}
-                          value={tab.id}
-                          className="w-full justify-start gap-3 px-3 py-2.5 text-sm font-medium border-transparent border-l-4 transition-all cursor-pointer rounded-r-md rounded-l-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary hover:bg-primary/5 hover:text-primary"
-                        >
-                          {tab.icon && (
-                            <tab.icon className="h-4 w-4 opacity-70" />
-                          )}
-                          {tab.label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                  </ScrollArea>
-                </div>
+        {hasTabs ? (
+          <Tabs
+            value={resolvedActiveTab}
+            onValueChange={setActiveTab}
+            className="flex-1 flex overflow-hidden min-h-0"
+            orientation="vertical"
+          >
+            <Group orientation="horizontal" className="flex-1">
+              <Panel
+                defaultSize={renderPreview ? 70 : 100}
+                minSize={renderPreview ? 50 : 100}
+                onResize={(size) =>
+                  setPanelSize(
+                    typeof size === "number"
+                      ? size
+                      : Array.isArray(size)
+                        ? size[0]
+                        : 0,
+                  )
+                }
+              >
+                <div className="flex h-full">
+                  <div
+                    className={cn(
+                      "border-r border-border/40 bg-muted/5 flex flex-col shrink-0",
+                      isMini ? "w-48" : "w-56",
+                    )}
+                  >
+                    <ScrollArea className="flex-1">
+                      <TabsList className="flex flex-col w-full bg-transparent p-2 gap-1 h-auto">
+                        {resolvedTabs.map((tab) => (
+                          <TabsTrigger
+                            key={tab.id}
+                            value={tab.id}
+                            className="w-full justify-start gap-3 px-3 py-2.5 text-sm font-medium border-transparent border-l-4 transition-all cursor-pointer rounded-r-md rounded-l-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary hover:bg-primary/5 hover:text-primary"
+                          >
+                            {tab.icon && (
+                              <tab.icon className="h-4 w-4 opacity-70" />
+                            )}
+                            {tab.label}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                    </ScrollArea>
+                  </div>
 
-                <div className="flex-1 bg-background flex flex-col min-w-0">
-                  <ScrollArea className="flex-1">
-                    <div className="px-6 py-8 max-w-4xl mx-auto w-full">
+                  <div className="flex-1 bg-background flex flex-col min-w-0">
+                    <ScrollArea className="flex-1">
                       {activeTabConfig && (
                         <TabsContent
                           value={activeTabConfig.id}
                           className="mt-0 space-y-10 outline-none"
                         >
-                          {activeTabConfig.groups.map((group) => (
-                            <div key={group.id} className="space-y-4">
-                              {group.label && (
-                                <div className="space-y-2 pb-2">
-                                  <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                    {group.label}
-                                  </h4>
-                                  <UiSeparator className="bg-primary/20 h-0.5" />
-                                </div>
-                              )}
-                              <div
-                                className={cn(group.className || "space-y-0")}
-                              >
-                                {group.fields.map((field) => {
-                                  if (field.hidden && field.hidden(formData!))
-                                    return null;
-                                  return (
-                                    <MemoizedField
-                                      key={field.id}
-                                      field={field}
-                                      value={getNestedValue(formData, field.id)}
-                                      onChange={handleChange}
-                                      fullItem={formData}
-                                      inGrid={
-                                        !!group.className?.includes("grid")
-                                      }
-                                      error={errors[field.id]}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
+                          {renderGroups(activeTabConfig.groups)}
                         </TabsContent>
                       )}
-                    </div>
-                  </ScrollArea>
+                    </ScrollArea>
+                  </div>
                 </div>
-              </div>
-            </Panel>
+              </Panel>
 
-            {renderPreview && (
-              <PanelSeparator className="w-1.5 bg-border/40 hover:bg-primary/50 transition-colors flex items-center justify-center cursor-col-resize z-50 focus:outline-none">
-                <div className="h-8 w-1 bg-muted-foreground/30 rounded-full" />
-              </PanelSeparator>
-            )}
+              {renderPreview && (
+                <PanelSeparator className="w-1.5 bg-border/40 hover:bg-primary/50 transition-colors flex items-center justify-center cursor-col-resize z-50 focus:outline-none">
+                  <div className="h-8 w-1 bg-muted-foreground/30 rounded-full" />
+                </PanelSeparator>
+              )}
 
-            {renderPreview && (
-              <PreviewPanel
-                item={formData}
-                renderPreview={renderPreview}
-                isCollapsed={isPreviewCollapsed}
-              />
-            )}
-          </Group>
-        </Tabs>
+              {renderPreview && (
+                <PreviewPanel
+                  item={formData}
+                  renderPreview={renderPreview}
+                  isCollapsed={isPreviewCollapsed}
+                />
+              )}
+            </Group>
+          </Tabs>
+        ) : (
+          <div className="flex-1 flex min-h-0">
+            <div className="flex-1 bg-background flex flex-col min-w-0">
+              <ScrollArea className="flex-1">
+                {renderGroups(resolvedGroups)}
+              </ScrollArea>
+            </div>
+          </div>
+        )}
 
         <DialogFooter className="hidden" />
       </DialogContent>
