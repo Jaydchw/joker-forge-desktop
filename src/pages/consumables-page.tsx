@@ -22,6 +22,11 @@ import {
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
 import { BalatroCard } from "@/components/balatro/balatro-card";
+import {
+  getConsumableSetByKey,
+  getConsumableSetDropdownOptions,
+  getCustomConsumableSetData,
+} from "@/lib/balatro-utils";
 
 export default function ConsumablesPage() {
   const { data, updateConsumables } = useProjectData();
@@ -90,9 +95,18 @@ export default function ConsumablesPage() {
     [data.consumables, updateConsumables],
   );
 
-  const getCurrentSetName = useCallback((setKey: string): string => setKey, []);
+  const getCurrentSetName = useCallback((setKey: string): string => {
+    const set = getConsumableSetByKey(setKey);
+    return set?.label || setKey;
+  }, []);
 
   const getCurrentSetColor = useCallback((setKey: string): string => {
+    const custom = getCustomConsumableSetData(setKey);
+    if (custom?.primary_colour) {
+      return custom.primary_colour.startsWith("#")
+        ? custom.primary_colour
+        : `#${custom.primary_colour}`;
+    }
     return setKey === "Tarot"
       ? "#b26cbb"
       : setKey === "Planet"
@@ -155,11 +169,7 @@ export default function ConsumablesPage() {
                 id: "set",
                 type: "select",
                 label: "Set",
-                options: [
-                  { label: "Tarot", value: "Tarot" },
-                  { label: "Planet", value: "Planet" },
-                  { label: "Spectral", value: "Spectral" },
-                ],
+                options: getConsumableSetDropdownOptions(),
               },
               {
                 id: "cost",
@@ -182,6 +192,16 @@ export default function ConsumablesPage() {
                 id: "discovered",
                 type: "switch",
                 label: "Discovered by Default",
+              },
+              {
+                id: "hidden",
+                type: "switch",
+                label: "Hidden",
+              },
+              {
+                id: "can_repeat_soul",
+                type: "switch",
+                label: "Can Repeat Soul",
               },
             ],
           },
@@ -241,11 +261,7 @@ export default function ConsumablesPage() {
       {
         id: "set",
         label: "Type",
-        options: [
-          { label: "Tarot", value: "Tarot" },
-          { label: "Planet", value: "Planet" },
-          { label: "Spectral", value: "Spectral" },
-        ],
+        options: getConsumableSetDropdownOptions(),
         predicate: (item: ConsumableData, val: string) => item.set === val,
       },
     ],

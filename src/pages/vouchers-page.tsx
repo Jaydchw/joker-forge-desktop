@@ -19,11 +19,21 @@ import {
   Prohibit,
 } from "@phosphor-icons/react";
 import { formatBalatroText } from "@/lib/balatro-text-formatter";
+import { Button } from "@/components/ui/button";
 import {
   GenericItemDialog,
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
 import { BalatroCard } from "@/components/balatro/balatro-card";
+import {
+  COMPARISON_OPERATORS,
+  CUSTOM_SHADERS,
+  VANILLA_SHADERS,
+} from "@/lib/balatro-utils";
+import {
+  unlockTriggerOptions,
+  vouchersUnlockOptions,
+} from "@/lib/unlock-utils";
 
 export default function VouchersPage() {
   const { data, updateVouchers } = useProjectData();
@@ -62,7 +72,18 @@ export default function VouchersPage() {
   const handleUpdate = useCallback(
     (id: string, updates: Partial<VoucherData>) => {
       updateVouchers(
-        data.vouchers.map((v) => (v.id === id ? { ...v, ...updates } : v)),
+        data.vouchers.map((v) =>
+          v.id === id
+            ? {
+                ...v,
+                ...updates,
+                draw_shader_sprite:
+                  updates.draw_shader_sprite === ""
+                    ? false
+                    : updates.draw_shader_sprite,
+              }
+            : v,
+        ),
       );
     },
     [data.vouchers, updateVouchers],
@@ -107,6 +128,13 @@ export default function VouchersPage() {
                 type: "image",
                 label: "Main Sprite",
                 description: "71x95px (auto-upscaled) or 142x190px",
+                processFile: processVoucherImage,
+              },
+              {
+                id: "overlayImage",
+                type: "image",
+                label: "Overlay Sprite",
+                description: "Optional overlay layer",
                 processFile: processVoucherImage,
               },
             ],
@@ -164,6 +192,11 @@ export default function VouchersPage() {
                 type: "switch",
                 label: "Requires Voucher",
               },
+              {
+                id: "can_repeat_soul",
+                type: "switch",
+                label: "Can Repeat Soul",
+              },
             ],
           },
           {
@@ -176,6 +209,147 @@ export default function VouchersPage() {
                 label: "Required Voucher ID",
                 placeholder: "v_overstock_norm",
                 hidden: (item) => !item.requires_activetor,
+              },
+            ],
+          },
+          {
+            id: "unlock",
+            label: "Unlock Requirements",
+            fields: [
+              {
+                id: "unlockTrigger",
+                type: "select",
+                label: "Trigger",
+                options: [
+                  { label: "None", value: "" },
+                  ...unlockTriggerOptions,
+                ],
+                hidden: (item) => item.unlocked,
+              },
+              {
+                id: "unlockOperator",
+                type: "select",
+                label: "Operator",
+                options: COMPARISON_OPERATORS.map((op) => ({
+                  value: op.value,
+                  label: op.label,
+                })),
+                hidden: (item) => item.unlocked || !item.unlockTrigger,
+              },
+              {
+                id: "unlockCount",
+                type: "number",
+                label: "Amount",
+                min: 0,
+                hidden: (item) => item.unlocked || !item.unlockTrigger,
+              },
+              {
+                id: "unlockProperties",
+                type: "custom",
+                label: "Properties",
+                hidden: (item) => item.unlocked || !item.unlockTrigger,
+                render: (value, onChange, item) => {
+                  const props = Array.isArray(value) ? value : [];
+                  const currentTrigger = item.unlockTrigger || "";
+                  const availableOptions =
+                    vouchersUnlockOptions[currentTrigger]?.categories || [];
+                  const addPropertyHidden =
+                    (currentTrigger === "career_stat" && props.length > 0) ||
+                    !currentTrigger ||
+                    currentTrigger === "chip_score";
+
+                  return (
+                    <div className="space-y-3 bg-muted/20 p-4 rounded-lg border border-border/50">
+                      {props.map((prop: any, idx: number) => {
+                        const selectedCategory = availableOptions.find(
+                          (c: any) => c.value === prop.category,
+                        );
+                        const propertyOptions = selectedCategory?.options || [];
+
+                        return (
+                          <div key={idx} className="flex gap-2 items-center">
+                            <div className="flex-1">
+                              <select
+                                value={prop.category}
+                                onChange={(e) => {
+                                  const newProps = [...props];
+                                  newProps[idx] = {
+                                    ...newProps[idx],
+                                    category: e.target.value,
+                                    property: "",
+                                  };
+                                  onChange(newProps);
+                                }}
+                                className="w-full h-9 bg-background border rounded px-2 text-sm"
+                              >
+                                <option value="">Select Category</option>
+                                {availableOptions.map((opt: any) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex-1">
+                              <select
+                                value={prop.property}
+                                onChange={(e) => {
+                                  const newProps = [...props];
+                                  newProps[idx] = {
+                                    ...newProps[idx],
+                                    property: e.target.value,
+                                  };
+                                  onChange(newProps);
+                                }}
+                                className="w-full h-9 bg-background border rounded px-2 text-sm"
+                              >
+                                <option value="">Select Property</option>
+                                {propertyOptions.map((opt: any) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                              onClick={() =>
+                                onChange(
+                                  props.filter(
+                                    (_: any, i: number) => i !== idx,
+                                  ),
+                                )
+                              }
+                            >
+                              <Trash className="h-4 w-4" weight="bold" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                      {!addPropertyHidden && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            onChange([...props, { category: "", property: "" }])
+                          }
+                          className="w-full border-dashed"
+                        >
+                          <Sparkle className="mr-2 h-4 w-4" /> Add Property
+                        </Button>
+                      )}
+                    </div>
+                  );
+                },
+              },
+              {
+                id: "unlockDescription",
+                type: "textarea",
+                label: "Unlock Text",
+                placeholder: "Describe how to unlock this voucher...",
+                hidden: (item) => item.unlocked,
               },
             ],
           },
@@ -214,10 +388,14 @@ export default function VouchersPage() {
                 label: "Shader",
                 options: [
                   { value: "", label: "None" },
-                  { value: "holographic", label: "Holographic" },
-                  { value: "foil", label: "Foil" },
-                  { value: "polychrome", label: "Polychrome" },
-                  { value: "negative", label: "Negative" },
+                  ...VANILLA_SHADERS.map((shader) => ({
+                    value: shader.key,
+                    label: shader.label,
+                  })),
+                  ...CUSTOM_SHADERS.map((shader) => ({
+                    value: shader.key,
+                    label: shader.label,
+                  })),
                 ],
                 description: "Applies shader effect to the sprite",
               },

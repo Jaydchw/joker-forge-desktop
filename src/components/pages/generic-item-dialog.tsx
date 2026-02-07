@@ -48,6 +48,7 @@ import {
 import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
 import { slugify } from "@/lib/balatro-utils";
 import { RaritySelect } from "@/components/balatro/rarity-select";
+import { ListInput } from "@/components/ui/list-input";
 
 export type FieldType =
   | "text"
@@ -55,6 +56,7 @@ export type FieldType =
   | "textarea"
   | "rich-textarea"
   | "select"
+  | "list"
   | "switch"
   | "image"
   | "custom";
@@ -455,6 +457,14 @@ const MemoizedField = memo(
               )}
             </div>
           );
+        case "list":
+          return (
+            <ListInput
+              value={Array.isArray(safeValue) ? safeValue : []}
+              onChange={(val) => onChange(field.id, val)}
+              placeholder={field.placeholder}
+            />
+          );
         case "image":
           return (
             <div className="flex items-start gap-4 p-3 hover:bg-muted/5 transition-colors">
@@ -830,6 +840,14 @@ function GenericItemDialogInternal<T extends { id: string }>({
     if (!open) return;
 
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (
+        target?.closest(
+          "[data-radix-popper-content-wrapper], [data-radix-portal], [data-radix-select-content], [data-radix-select-viewport]",
+        )
+      ) {
+        return;
+      }
       if (
         modalRef.current &&
         !modalRef.current.contains(event.target as Node)

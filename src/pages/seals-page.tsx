@@ -23,6 +23,7 @@ import {
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
 import { BalatroCard } from "@/components/balatro/balatro-card";
+import { SOUNDS } from "@/lib/balatro-utils";
 
 export default function SealsPage() {
   const { data, updateSeals } = useProjectData();
@@ -213,6 +214,22 @@ export default function SealsPage() {
                         "#DDA0DD",
                         "#FFB347",
                         "#FF69B4",
+                        "#87CEEB",
+                        "#98FB98",
+                        "#F0E68C",
+                        "#DEB887",
+                        "#FF4500",
+                        "#32CD32",
+                        "#1E90FF",
+                        "#FF1493",
+                        "#FFD700",
+                        "#8A2BE2",
+                        "#DC143C",
+                        "#00CED1",
+                        "#FF6347",
+                        "#40E0D0",
+                        "#EE82EE",
+                        "#90EE90",
                       ].map((color) => (
                         <button
                           key={color}
@@ -238,12 +255,10 @@ export default function SealsPage() {
                 id: "sound",
                 type: "select",
                 label: "Sound Effect",
-                options: [
-                  { value: "gold_seal", label: "Gold Seal" },
-                  { value: "red_seal", label: "Red Seal" },
-                  { value: "blue_seal", label: "Blue Seal" },
-                  { value: "purple_seal", label: "Purple Seal" },
-                ],
+                options: SOUNDS().map((sound) => ({
+                  value: sound.key,
+                  label: sound.label,
+                })),
               },
               {
                 id: "pitch",

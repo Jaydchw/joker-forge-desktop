@@ -1,10 +1,16 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import {
+  GenericItemDialog,
+  DialogTab,
+} from "@/components/pages/generic-item-dialog";
 import { useProjectData, useModName } from "@/lib/storage";
 import { EnhancementData } from "@/lib/types";
 import {
   Star,
+  Image as ImageIcon,
+  TextT,
   PencilSimple,
   Sparkle,
   Trash,
@@ -19,10 +25,41 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { formatBalatroText } from "@/lib/balatro-text-formatter";
+import { BalatroCard } from "@/components/balatro/balatro-card";
 
 export default function EnhancementsPage() {
   const { data, updateEnhancements } = useProjectData();
   const modName = useModName();
+  const [editingItem, setEditingItem] = useState<EnhancementData | null>(null);
+
+  const processEnhancementImage = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          if (img.width === 71 && img.height === 95) {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = 142;
+            canvas.height = 190;
+            if (ctx) {
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(img, 0, 0, 142, 190);
+              resolve(canvas.toDataURL("image/png"));
+            } else {
+              reject(new Error("Canvas context failed"));
+            }
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, []);
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<EnhancementData>) => {
@@ -54,6 +91,159 @@ export default function EnhancementsPage() {
     (id: string) =>
       updateEnhancements(data.enhancements.filter((e) => e.id !== id)),
     [data.enhancements, updateEnhancements],
+  );
+
+  const enhancementDialogTabs: DialogTab<EnhancementData>[] = useMemo(
+    () => [
+      {
+        id: "visual",
+        label: "Visual & Data",
+        icon: ImageIcon,
+        groups: [
+          {
+            id: "assets",
+            label: "Assets",
+            className: "grid grid-cols-2 gap-6",
+            fields: [
+              {
+                id: "image",
+                type: "image",
+                label: "Main Sprite",
+                description: "71x95px (auto-upscaled) or 142x190px",
+                processFile: processEnhancementImage,
+              },
+            ],
+          },
+          {
+            id: "data",
+            label: "Basic Data",
+            className: "grid grid-cols-2 gap-6",
+            fields: [
+              {
+                id: "name",
+                type: "text",
+                label: "Name",
+                placeholder: "Enhancement Name",
+                className: "col-span-2",
+                validate: (val) => (!val ? "Name is required" : null),
+              },
+              {
+                id: "objectKey",
+                type: "text",
+                label: "Object Key",
+                placeholder: "m_enhancement",
+                className: "col-span-2",
+              },
+            ],
+          },
+          {
+            id: "weight",
+            label: "Appearance Weight",
+            fields: [
+              {
+                id: "weight",
+                type: "custom",
+                render: (value, onChange) => (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={20}
+                        step={0.25}
+                        value={typeof value === "number" ? value : 0}
+                        onChange={(e) => onChange(parseFloat(e.target.value))}
+                        className="flex-1 h-2 bg-muted rounded appearance-none cursor-pointer"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.25}
+                        value={typeof value === "number" ? value : 0}
+                        onChange={(e) =>
+                          onChange(parseFloat(e.target.value) || 0)
+                        }
+                        className="w-20 h-9 px-2 rounded border bg-background text-sm"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Higher values appear more frequently.
+                    </p>
+                  </div>
+                ),
+              },
+            ],
+          },
+          {
+            id: "properties",
+            label: "Properties",
+            className: "grid grid-cols-2 gap-6",
+            fields: [
+              {
+                id: "unlocked",
+                type: "switch",
+                label: "Unlocked by Default",
+              },
+              {
+                id: "discovered",
+                type: "switch",
+                label: "Discovered by Default",
+              },
+              {
+                id: "no_collection",
+                type: "switch",
+                label: "Hidden from Collection",
+              },
+              {
+                id: "any_suit",
+                type: "switch",
+                label: "Works with Any Suit",
+              },
+              {
+                id: "replace_base_card",
+                type: "switch",
+                label: "Replaces Base Card",
+              },
+              {
+                id: "always_scores",
+                type: "switch",
+                label: "Always Scores",
+              },
+              {
+                id: "no_rank",
+                type: "switch",
+                label: "Remove Rank",
+              },
+              {
+                id: "no_suit",
+                type: "switch",
+                label: "Remove Suit",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "description",
+        label: "Description",
+        icon: TextT,
+        groups: [
+          {
+            id: "desc",
+            fields: [
+              {
+                id: "description",
+                type: "rich-textarea",
+                label: "Effect Description",
+                validate: (val) => (!val ? "Description is required" : null),
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    [processEnhancementImage],
   );
 
   const searchProps = useMemo(
@@ -179,7 +369,7 @@ export default function EnhancementsPage() {
             id: "edit",
             label: "Edit",
             icon: <PencilSimple className="h-4 w-4" />,
-            onClick: () => {},
+            onClick: () => setEditingItem(item),
           },
           {
             id: "rules",
@@ -201,15 +391,34 @@ export default function EnhancementsPage() {
   );
 
   return (
-    <GenericItemPage<EnhancementData>
-      title="Enhancements"
-      subtitle={modName}
-      items={data.enhancements}
-      onAddNew={handleCreate}
-      addNewLabel="Create Enhancement"
-      searchProps={searchProps}
-      sortOptions={sortOptions}
-      renderCard={renderCard}
-    />
+    <>
+      <GenericItemPage<EnhancementData>
+        title="Enhancements"
+        subtitle={modName}
+        items={data.enhancements}
+        onAddNew={handleCreate}
+        addNewLabel="Create Enhancement"
+        searchProps={searchProps}
+        sortOptions={sortOptions}
+        renderCard={renderCard}
+      />
+      <GenericItemDialog
+        open={!!editingItem}
+        onOpenChange={(open) => !open && setEditingItem(null)}
+        item={editingItem}
+        title={`Edit ${editingItem?.name || "Enhancement"}`}
+        description="Modify enhancement properties."
+        tabs={enhancementDialogTabs}
+        onSave={handleUpdate}
+        renderPreview={(item) => (
+          <BalatroCard
+            type="card"
+            data={item || {}}
+            enhancementReplaceBase={item?.replace_base_card === true}
+            size="lg"
+          />
+        )}
+      />
+    </>
   );
 }

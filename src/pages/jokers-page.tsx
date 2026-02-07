@@ -9,6 +9,12 @@ import { useProjectData, useModName } from "@/lib/storage";
 import { JokerData } from "@/lib/types";
 import { formatBalatroText } from "@/lib/balatro-text-formatter";
 import {
+  COMPARISON_OPERATORS,
+  getRarityBadgeColor,
+  getRarityDisplayName,
+  getRarityDropdownOptions,
+} from "@/lib/balatro-utils";
+import {
   Star,
   Clock,
   Lightning,
@@ -37,40 +43,8 @@ import {
   Tag,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { BalatroCard } from "@/components/balatro/balatro-card";
-import { jokerUnlockOptions } from "@/lib/unlock-utils";
-
-const getRarityLabel = (rarity: number | string) => {
-  const r = typeof rarity === "string" ? parseInt(rarity) : rarity;
-  switch (r) {
-    case 1:
-      return "Common";
-    case 2:
-      return "Uncommon";
-    case 3:
-      return "Rare";
-    case 4:
-      return "Legendary";
-    default:
-      return "Custom";
-  }
-};
-
-const getRarityColorHex = (rarity: number | string) => {
-  switch (Number(rarity)) {
-    case 1:
-      return "#009dff";
-    case 2:
-      return "#4BC292";
-    case 3:
-      return "#fe5f55";
-    case 4:
-      return "#b26cbb";
-    default:
-      return "#009dff";
-  }
-};
+import { jokerUnlockOptions, unlockTriggerOptions } from "@/lib/unlock-utils";
 
 export default function JokersPage() {
   const { data, updateJokers } = useProjectData();
@@ -153,11 +127,21 @@ export default function JokersPage() {
       <BalatroCard
         type="joker"
         data={item}
-        rarityName={item?.rarity ? getRarityLabel(item.rarity) : "Common"}
-        rarityColor={item?.rarity ? getRarityColorHex(item.rarity) : "#009dff"}
+        rarityName={getRarityDisplayName(item.rarity)}
+        rarityColor={getRarityBadgeColor(item.rarity)}
       />
     );
   }, []);
+
+  const rarityOptions = useMemo(() => getRarityDropdownOptions(), []);
+  const unlockOperatorOptions = useMemo(
+    () =>
+      COMPARISON_OPERATORS.map((op) => ({
+        value: op.value,
+        label: op.label,
+      })),
+    [],
+  );
 
   // 3. Memoized Dialog Tabs
   // This prevents the GenericItemDialog from re-rendering its internals unnecessarily
@@ -168,6 +152,41 @@ export default function JokersPage() {
         label: "Visual & Data",
         icon: ImageIcon,
         groups: [
+          {
+            id: "data",
+            label: "Basic Data",
+            className: "grid grid-cols-2 gap-6",
+            fields: [
+              {
+                id: "name",
+                type: "text",
+                label: "Name",
+                placeholder: "Joker Name",
+                className: "col-span-2",
+                validate: (val) => (!val ? "Name is required" : null),
+              },
+              {
+                id: "objectKey",
+                type: "text",
+                label: "Object Key",
+                placeholder: "j_my_joker",
+                description: "Internal ID for the game code",
+                className: "col-span-2",
+              },
+              {
+                id: "rarity",
+                type: "select",
+                label: "Rarity",
+                options: rarityOptions,
+              },
+              {
+                id: "cost",
+                type: "number",
+                label: "Cost ($)",
+                min: 0,
+              },
+            ],
+          },
           {
             id: "assets",
             label: "Assets",
@@ -198,46 +217,6 @@ export default function JokersPage() {
                 type: "number",
                 label: "Scale Height (%)",
                 placeholder: "100",
-              },
-            ],
-          },
-          {
-            id: "data",
-            label: "Basic Data",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "text",
-                label: "Name",
-                placeholder: "Joker Name",
-                className: "col-span-2",
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "objectKey",
-                type: "text",
-                label: "Object Key",
-                placeholder: "j_my_joker",
-                description: "Internal ID for the game code",
-                className: "col-span-2",
-              },
-              {
-                id: "rarity",
-                type: "select",
-                label: "Rarity",
-                options: [
-                  { label: "Common", value: 1 },
-                  { label: "Uncommon", value: 2 },
-                  { label: "Rare", value: 3 },
-                  { label: "Legendary", value: 4 },
-                ],
-              },
-              {
-                id: "cost",
-                type: "number",
-                label: "Cost ($)",
-                min: 0,
               },
             ],
           },
@@ -322,6 +301,24 @@ export default function JokersPage() {
                 label: "Force Negative",
                 description: "Always spawns as Negative",
               },
+              {
+                id: "force_foil",
+                type: "switch",
+                label: "Force Foil",
+                description: "Always spawns as Foil",
+              },
+              {
+                id: "force_holographic",
+                type: "switch",
+                label: "Force Holographic",
+                description: "Always spawns as Holographic",
+              },
+              {
+                id: "force_polychrome",
+                type: "switch",
+                label: "Force Polychrome",
+                description: "Always spawns as Polychrome",
+              },
             ],
           },
           {
@@ -370,12 +367,16 @@ export default function JokersPage() {
                 label: "Trigger Condition",
                 options: [
                   { label: "None", value: "" },
-                  { label: "Hand Played", value: "round_played" },
-                  { label: "Discard", value: "discard" },
-                  { label: "Money", value: "c_dollars" },
-                  { label: "Ante Reached", value: "ante_reached" },
+                  ...unlockTriggerOptions,
                 ],
                 hidden: (item) => item.unlocked,
+              },
+              {
+                id: "unlockOperator",
+                type: "select",
+                label: "Operator",
+                options: unlockOperatorOptions,
+                hidden: (item) => item.unlocked || !item.unlockTrigger,
               },
               {
                 id: "unlockCount",
@@ -400,6 +401,10 @@ export default function JokersPage() {
                   const currentTrigger = item.unlockTrigger || "";
                   const availableOptions =
                     jokerUnlockOptions[currentTrigger]?.categories || [];
+                  const addPropertyHidden =
+                    (currentTrigger === "career_stat" && props.length > 0) ||
+                    !currentTrigger ||
+                    currentTrigger === "chip_score";
 
                   return (
                     <div className="space-y-3 bg-muted/20 p-4 rounded-lg border border-border/50">
@@ -468,16 +473,18 @@ export default function JokersPage() {
                           </div>
                         );
                       })}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          onChange([...props, { category: "", property: "" }])
-                        }
-                        className="w-full border-dashed"
-                      >
-                        <Plus className="mr-2 h-4 w-4" /> Add Property
-                      </Button>
+                      {!addPropertyHidden && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            onChange([...props, { category: "", property: "" }])
+                          }
+                          className="w-full border-dashed"
+                        >
+                          <Plus className="mr-2 h-4 w-4" /> Add Property
+                        </Button>
+                      )}
                     </div>
                   );
                 },
@@ -519,12 +526,47 @@ export default function JokersPage() {
                 type: "switch",
                 label: "The Soul",
                 description: "From The Soul Spectral",
+                hidden: (item) => Number(item.rarity) !== 4,
               },
               {
                 id: "cardAppearance.wra",
                 type: "switch",
                 label: "The Wraith",
                 description: "From The Wraith Spectral",
+                hidden: (item) => Number(item.rarity) !== 3,
+              },
+              {
+                id: "cardAppearance.rif",
+                type: "switch",
+                label: "Riff Raff",
+                description: "From Riff Raff",
+                hidden: (item) => Number(item.rarity) !== 1,
+              },
+              {
+                id: "cardAppearance.rta",
+                type: "switch",
+                label: "Rare Tag",
+                description: "From Rare Tag",
+                hidden: (item) => Number(item.rarity) !== 3,
+              },
+              {
+                id: "cardAppearance.uta",
+                type: "switch",
+                label: "Uncommon Tag",
+                description: "From Uncommon Tag",
+                hidden: (item) => Number(item.rarity) !== 2,
+              },
+            ],
+          },
+          {
+            id: "flags",
+            label: "Flags",
+            fields: [
+              {
+                id: "appearFlags",
+                type: "list",
+                label: "Flags Required",
+                placeholder: "custom_flag1, not custom_flag2",
               },
             ],
           },
@@ -541,26 +583,8 @@ export default function JokersPage() {
             fields: [
               {
                 id: "pools",
-                type: "custom",
-                render: (value, onChange) => (
-                  <div className="space-y-2">
-                    <Input
-                      value={Array.isArray(value) ? value.join(", ") : ""}
-                      onChange={(e) =>
-                        onChange(
-                          e.target.value
-                            .split(",")
-                            .map((s: string) => s.trim())
-                            .filter(Boolean),
-                        )
-                      }
-                      placeholder="Pool names separated by comma..."
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      This joker will be available in these custom pools.
-                    </p>
-                  </div>
-                ),
+                type: "list",
+                placeholder: "pool_one, pool_two",
               },
             ],
           },
@@ -570,33 +594,26 @@ export default function JokersPage() {
             fields: [
               {
                 id: "info_queues",
-                type: "custom",
-                render: (value, onChange) => (
-                  <div className="space-y-2">
-                    <Input
-                      value={Array.isArray(value) ? value.join(", ") : ""}
-                      onChange={(e) =>
-                        onChange(
-                          e.target.value
-                            .split(",")
-                            .map((s: string) => s.trim())
-                            .filter(Boolean),
-                        )
-                      }
-                      placeholder="j_joker, c_tarot..."
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Related items to display in the tooltip.
-                    </p>
-                  </div>
-                ),
+                type: "list",
+                placeholder: "j_joker, c_tarot, v_voucher",
+              },
+            ],
+          },
+          {
+            id: "dependencies",
+            label: "Mod Dependencies",
+            fields: [
+              {
+                id: "card_dependencies",
+                type: "list",
+                placeholder: "Cryptid, Bunco, MoreFluff",
               },
             ],
           },
         ],
       },
     ],
-    [processJokerImage],
+    [processJokerImage, rarityOptions, unlockOperatorOptions],
   );
 
   // 4. Stable Props for Search/Sort/Filter
