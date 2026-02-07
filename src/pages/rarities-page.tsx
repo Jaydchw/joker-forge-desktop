@@ -5,10 +5,12 @@ import { DialogTab } from "@/components/pages/generic-item-dialog";
 import { GenericItemDialogMini } from "@/components/pages/generic-item-dialog-mini";
 import { BadgePreview } from "@/components/balatro/badge-preview";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useModName, useProjectData } from "@/lib/storage";
 import { slugify } from "@/lib/balatro-utils";
 import { RarityData } from "@/lib/types";
 import { Copy, Palette, PencilSimple, Trash } from "@phosphor-icons/react";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 
 const DEFAULT_BADGE_COLOR = "6A7A8B";
 const VANILLA_RATES = [
@@ -75,6 +77,14 @@ export default function RaritiesPage() {
       updateRarities(data.rarities.filter((rarity) => rarity.id !== id)),
     [data.rarities, updateRarities],
   );
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDelete);
 
   const handleDuplicate = useCallback(
     (rarity: RarityData) => {
@@ -317,13 +327,13 @@ export default function RaritiesPage() {
             id: "delete",
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
-            onClick: () => handleDelete(item.id),
+            onClick: () => requestDelete(item.id, item.name),
             variant: "destructive",
           },
         ]}
       />
     ),
-    [handleDelete, handleDuplicate, handleUpdate],
+    [handleDelete, handleDuplicate, handleUpdate, requestDelete],
   );
 
   return (
@@ -346,6 +356,23 @@ export default function RaritiesPage() {
         description="Adjust custom rarity settings."
         tabs={rarityDialogTabs}
         onSave={handleUpdate}
+      />
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this rarity?"
+        description={
+          <span>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this rarity"}
+            </span>
+            . This action cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
       />
     </>
   );

@@ -5,6 +5,8 @@ import {
   GenericItemDialog,
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { useProjectData, useModName } from "@/lib/storage";
 import { EnhancementData } from "@/lib/types";
 import {
@@ -92,6 +94,14 @@ export default function EnhancementsPage() {
       updateEnhancements(data.enhancements.filter((e) => e.id !== id)),
     [data.enhancements, updateEnhancements],
   );
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDelete);
 
   const enhancementDialogTabs: DialogTab<EnhancementData>[] = useMemo(
     () => [
@@ -382,12 +392,12 @@ export default function EnhancementsPage() {
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
             variant: "destructive",
-            onClick: () => handleDelete(item.id),
+            onClick: () => requestDelete(item.id, item.name),
           },
         ]}
       />
     ),
-    [handleUpdate, handleDelete],
+    [handleUpdate, requestDelete],
   );
 
   return (
@@ -418,6 +428,23 @@ export default function EnhancementsPage() {
             size="lg"
           />
         )}
+      />
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this enhancement?"
+        description={
+          <span>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this enhancement"}
+            </span>
+            . This action cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
       />
     </>
   );

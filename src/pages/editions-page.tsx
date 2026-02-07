@@ -5,6 +5,8 @@ import {
   GenericItemDialog,
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { useProjectData, useModName } from "@/lib/storage";
 import { EditionData } from "@/lib/types";
 import {
@@ -70,6 +72,14 @@ export default function EditionsPage() {
     (id: string) => updateEditions(data.editions.filter((e) => e.id !== id)),
     [data.editions, updateEditions],
   );
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDelete);
 
   const editionDialogTabs: DialogTab<EditionData>[] = useMemo(
     () => [
@@ -395,12 +405,12 @@ export default function EditionsPage() {
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
             variant: "destructive",
-            onClick: () => handleDelete(item.id),
+            onClick: () => requestDelete(item.id, item.name),
           },
         ]}
       />
     ),
-    [handleUpdate, handleDelete],
+    [handleUpdate, requestDelete],
   );
 
   return (
@@ -434,6 +444,23 @@ export default function EditionsPage() {
             size="lg"
           />
         )}
+      />
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this edition?"
+        description={
+          <span>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this edition"}
+            </span>
+            . This action cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
       />
     </>
   );

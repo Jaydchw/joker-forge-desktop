@@ -3,6 +3,7 @@ import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { TitleBar } from "./title-bar";
 import { motion } from "framer-motion";
+import { GlobalAlerts } from "./global-alerts";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -65,6 +66,7 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
           animate={{ paddingLeft: isPinned ? "288px" : "32px" }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
         >
+          <GlobalAlerts />
           {children}
         </motion.main>
       </div>

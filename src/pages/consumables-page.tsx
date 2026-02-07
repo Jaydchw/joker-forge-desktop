@@ -21,6 +21,8 @@ import {
   GenericItemDialog,
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import {
   getConsumableSetByKey,
@@ -94,6 +96,14 @@ export default function ConsumablesPage() {
       updateConsumables(data.consumables.filter((c) => c.id !== id)),
     [data.consumables, updateConsumables],
   );
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDelete);
 
   const getCurrentSetName = useCallback(
     (setKey: string): string => {
@@ -361,12 +371,12 @@ export default function ConsumablesPage() {
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
             variant: "destructive",
-            onClick: () => handleDelete(item.id),
+            onClick: () => requestDelete(item.id, item.name),
           },
         ]}
       />
     ),
-    [handleUpdate, handleDelete],
+    [handleUpdate, requestDelete],
   );
 
   return (
@@ -391,6 +401,23 @@ export default function ConsumablesPage() {
         tabs={consumableDialogTabs}
         onSave={handleUpdate}
         renderPreview={renderPreview}
+      />
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this consumable?"
+        description={
+          <span>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this consumable"}
+            </span>
+            . This action cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
       />
     </>
   );

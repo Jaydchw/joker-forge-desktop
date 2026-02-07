@@ -27,6 +27,8 @@ import {
   GenericItemDialog,
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import { Input } from "@/components/ui/input";
 
@@ -93,6 +95,14 @@ export default function DecksPage() {
     (id: string) => updateDecks(data.decks.filter((d) => d.id !== id)),
     [data.decks, updateDecks],
   );
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDelete);
 
   const deckDialogTabs: DialogTab<DeckData>[] = useMemo(
     () => [
@@ -392,12 +402,12 @@ export default function DecksPage() {
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
             variant: "destructive",
-            onClick: () => handleDelete(deck.id),
+            onClick: () => requestDelete(deck.id, deck.name),
           },
         ]}
       />
     ),
-    [handleUpdate, handleDelete],
+    [handleUpdate, requestDelete],
   );
 
   return (
@@ -421,6 +431,23 @@ export default function DecksPage() {
         tabs={deckDialogTabs}
         onSave={handleUpdate}
         renderPreview={renderPreview}
+      />
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this deck?"
+        description={
+          <span>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this deck"}
+            </span>
+            . This action cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
       />
     </>
   );

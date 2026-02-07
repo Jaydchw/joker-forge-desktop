@@ -1,13 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { getVersion } from "@tauri-apps/api/app";
-import { Minus, Square, X, Copy } from "@phosphor-icons/react";
+import {
+  Minus,
+  Square,
+  X,
+  Copy,
+  ArrowsOut,
+  ArrowsIn,
+} from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useModName } from "@/lib/storage";
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [appVersion, setAppVersion] = useState("");
+  const f11LockRef = useRef(false);
+  const f11UnlockTimeoutRef = useRef<number | null>(null);
   const appWindow = getCurrentWindow();
   const modName = useModName();
 
@@ -15,6 +26,9 @@ export function TitleBar() {
     const init = async () => {
       try {
         setIsMaximized(await appWindow.isMaximized());
+      } catch (e) {}
+      try {
+        setIsFullscreen(await appWindow.isFullscreen());
       } catch (e) {}
       try {
         const v = await getVersion();
@@ -34,14 +48,48 @@ export function TitleBar() {
           try {
             setIsMaximized(await appWindow.isMaximized());
           } catch (e) {}
+          try {
+            setIsFullscreen(await appWindow.isFullscreen());
+          } catch (e) {}
         });
       } catch (e) {}
     };
 
     setupListener();
 
+    const setupShortcut = async () => {
+      try {
+        await register("F11", async () => {
+          if (f11LockRef.current) return;
+          f11LockRef.current = true;
+          if (f11UnlockTimeoutRef.current) {
+            window.clearTimeout(f11UnlockTimeoutRef.current);
+          }
+          f11UnlockTimeoutRef.current = window.setTimeout(() => {
+            f11LockRef.current = false;
+            f11UnlockTimeoutRef.current = null;
+          }, 250);
+          try {
+            const next = !(await appWindow.isFullscreen());
+            await appWindow.setFullscreen(next);
+            setIsFullscreen(next);
+          } catch (e) {}
+        });
+      } catch (e) {}
+    };
+
+    setupShortcut();
+
     return () => {
       if (unlisten) unlisten();
+      try {
+        unregister("F11");
+      } catch (e) {}
+      if (f11UnlockTimeoutRef.current) {
+        window.clearTimeout(f11UnlockTimeoutRef.current);
+        f11UnlockTimeoutRef.current = null;
+      }
+      f11LockRef.current = false;
     };
   }, []);
 
@@ -54,6 +102,14 @@ export function TitleBar() {
   const handleMaximize = async () => {
     try {
       await appWindow.toggleMaximize();
+    } catch (e) {}
+  };
+
+  const handleFullscreen = async () => {
+    try {
+      const next = !isFullscreen;
+      await appWindow.setFullscreen(next);
+      setIsFullscreen(next);
     } catch (e) {}
   };
 
@@ -94,6 +150,16 @@ export function TitleBar() {
       </div>
 
       <div className="flex items-center h-full">
+        <button
+          onClick={handleFullscreen}
+          className="h-full w-12 flex items-center justify-center hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none cursor-pointer"
+        >
+          {isFullscreen ? (
+            <ArrowsIn className="h-4 w-4" weight="bold" />
+          ) : (
+            <ArrowsOut className="h-4 w-4" weight="bold" />
+          )}
+        </button>
         <button
           onClick={handleMinimize}
           className="h-full w-12 flex items-center justify-center hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none cursor-pointer"

@@ -47,6 +47,11 @@ export interface ProjectData {
 
 const STORAGE_KEY = "joker_forge_project_data";
 const EVENT_KEY = "joker_forge_update";
+const CONFIRM_DELETE_KEY = "joker_forge_confirm_delete";
+const UI_SCALE_KEY = "app-ui-scale";
+const BALATRO_PATH_KEY = "joker_forge_balatro_path";
+const BALATRO_AUTOFIND_KEY = "joker_forge_balatro_autofind";
+const BALATRO_AUTOFIND_ALERT_KEY = "joker_forge_balatro_autofind_alert";
 
 const DEFAULT_STATS: ProjectStats = {
   jokers: 0,
@@ -245,6 +250,64 @@ export const useProjectData = () => {
       updateCollection("enhancements", items),
     updateSounds: (items: SoundData[]) => updateCollection("sounds", items),
   };
+};
+
+export const resetProjectData = () => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(CONFIRM_DELETE_KEY);
+  window.localStorage.removeItem(UI_SCALE_KEY);
+  window.localStorage.removeItem(BALATRO_PATH_KEY);
+  window.localStorage.removeItem(BALATRO_AUTOFIND_KEY);
+  window.localStorage.removeItem(BALATRO_AUTOFIND_ALERT_KEY);
+  window.dispatchEvent(new Event(EVENT_KEY));
+};
+
+export const getConfirmDeleteEnabled = (): boolean => {
+  if (typeof window === "undefined") return true;
+  const stored = window.localStorage.getItem(CONFIRM_DELETE_KEY);
+  if (stored === null) return true;
+  return stored === "true";
+};
+
+export const setConfirmDeleteEnabled = (value: boolean) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(CONFIRM_DELETE_KEY, value ? "true" : "false");
+};
+
+export const getBalatroInstallPath = (): string => {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(BALATRO_PATH_KEY) || "";
+};
+
+export const setBalatroInstallPath = (value: string) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(BALATRO_PATH_KEY, value);
+};
+
+export const getBalatroAutofindResult = (): "success" | "failure" | null => {
+  if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(BALATRO_AUTOFIND_KEY);
+  if (stored === "success" || stored === "failure") return stored;
+  return null;
+};
+
+export const setBalatroAutofindResult = (value: "success" | "failure") => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(BALATRO_AUTOFIND_KEY, value);
+};
+
+export const getBalatroAutofindAlertShown = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(BALATRO_AUTOFIND_ALERT_KEY) === "true";
+};
+
+export const setBalatroAutofindAlertShown = (value: boolean) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    BALATRO_AUTOFIND_ALERT_KEY,
+    value ? "true" : "false",
+  );
 };
 
 export const useModName = () => {

@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { ListInput } from "@/components/ui/list-input";
 import {
   Dialog,
   DialogContent,
@@ -40,8 +41,8 @@ const validateModMetadata = (metadata: ModMetadata) => {
 
   if (!metadata.id) {
     errors.id = "Mod ID is required";
-  } else if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(metadata.id)) {
-    errors.id = "Must start with letter, alphanumeric + underscore only";
+  } else if (!/^[A-Za-z0-9_]+$/.test(metadata.id)) {
+    errors.id = "Only letters, numbers, and underscores allowed";
   }
 
   if (!metadata.name?.trim()) errors.name = "Mod name is required";
@@ -55,14 +56,18 @@ const validateModMetadata = (metadata: ModMetadata) => {
 
   if (!metadata.description?.trim())
     errors.description = "Description is required";
-  if (!metadata.prefix) errors.prefix = "Prefix is required";
+  if (!metadata.prefix) {
+    errors.prefix = "Prefix is required";
+  } else if (!/^[A-Za-z0-9_]+$/.test(metadata.prefix)) {
+    errors.prefix = "Only letters, numbers, and underscores allowed";
+  }
 
   if (metadata.main_file && !metadata.main_file.endsWith(".lua")) {
     errors.main_file = "Must end with .lua";
   }
 
-  if (metadata.version && !/^\d+\.\d+\.\d+.*$/.test(metadata.version)) {
-    warnings.version = "Should follow format (major).(minor).(patch)";
+  if (metadata.version && !/^\d+\.\d+\.\d+$/.test(metadata.version)) {
+    warnings.version = "Should follow format x.y.z";
   }
 
   const hexRegex = /^[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/;
@@ -79,14 +84,26 @@ const validateModMetadata = (metadata: ModMetadata) => {
   return { isValid: Object.keys(errors).length === 0, errors, warnings };
 };
 
-const generateModIdFromName = (name: string) =>
-  name
+const generateModIdFromName = (name: string) => {
+  const sanitized = name
     .toLowerCase()
-    .replace(/[^a-zA-Z0-9\s]/g, "")
-    .replace(/\s+/g, "")
-    .replace(/^[0-9]+/, "") || "mycustommod";
+    .replace(/[^a-z0-9_\s]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return sanitized || "my_custom_mod";
+};
 
 const generatePrefixFromId = (id: string) => id.toLowerCase().substring(0, 8);
+
+const sanitizeIdentifier = (value: string) =>
+  value.replace(/[^A-Za-z0-9_]/g, "");
+
+const sanitizeVersionInput = (value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  const parts = cleaned.split(".").slice(0, 3);
+  return parts.join(".");
+};
 
 const processImage = (
   file: File,
@@ -121,12 +138,6 @@ export default function MetadataPage() {
   const [isCopied, setIsCopied] = useState(false);
 
   const [authorsRaw, setAuthorsRaw] = useState(metadata.author.join(", "));
-  const [depsRaw, setDepsRaw] = useState(metadata.dependencies.join("\n"));
-  const [conflictsRaw, setConflictsRaw] = useState(
-    metadata.conflicts.join("\n"),
-  );
-  const [providesRaw, setProvidesRaw] = useState(metadata.provides.join("\n"));
-
   const previousNameRef = useRef(metadata.name);
 
   const gameImageSrc = metadata.gameImage || "/images/balatro.png";
@@ -151,18 +162,13 @@ export default function MetadataPage() {
 
   const validation = validateModMetadata(metadata);
 
-  const handleArrayChange = (
-    raw: string,
-    setRaw: (val: string) => void,
-    field: keyof ModMetadata,
-    separator: string | RegExp,
-  ) => {
-    setRaw(raw);
-    const parsed = raw
-      .split(separator)
-      .map((s) => s.trim())
+  const handleAuthorsChange = (value: string) => {
+    setAuthorsRaw(value);
+    const parsed = value
+      .split(",")
+      .map((item) => item.trim())
       .filter(Boolean);
-    updateMetadata({ [field]: parsed });
+    updateMetadata({ author: parsed });
   };
 
   const handleImageUpload = async (file: File, type: "icon" | "game") => {
@@ -311,7 +317,9 @@ export default function MetadataPage() {
               <Hash className="absolute left-4 top-3.5 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
                 value={metadata.id}
-                onChange={(e) => updateMetadata({ id: e.target.value })}
+                onChange={(e) =>
+                  updateMetadata({ id: sanitizeIdentifier(e.target.value) })
+                }
                 className={cn(
                   "pl-12 h-12 text-lg font-mono rounded-xl",
                   validation.errors.id && "border-destructive",
@@ -332,14 +340,7 @@ export default function MetadataPage() {
               <User className="absolute left-4 top-3.5 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
                 value={authorsRaw}
-                onChange={(e) =>
-                  handleArrayChange(
-                    e.target.value,
-                    setAuthorsRaw,
-                    "author",
-                    ",",
-                  )
-                }
+                onChange={(e) => handleAuthorsChange(e.target.value)}
                 className="pl-12 h-12 text-lg rounded-xl"
                 placeholder="Separate with commas..."
               />
@@ -352,7 +353,9 @@ export default function MetadataPage() {
               <Code className="absolute left-4 top-3.5 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
                 value={metadata.prefix}
-                onChange={(e) => updateMetadata({ prefix: e.target.value })}
+                onChange={(e) =>
+                  updateMetadata({ prefix: sanitizeIdentifier(e.target.value) })
+                }
                 className="pl-12 h-12 text-lg font-mono rounded-xl"
                 maxLength={10}
               />
@@ -646,8 +649,13 @@ export default function MetadataPage() {
             <Label className="text-base">Version</Label>
             <Input
               value={metadata.version}
-              onChange={(e) => updateMetadata({ version: e.target.value })}
+              onChange={(e) =>
+                updateMetadata({
+                  version: sanitizeVersionInput(e.target.value),
+                })
+              }
               className="h-12 font-mono text-base rounded-xl"
+              placeholder="x.y.z"
             />
           </div>
           <div className="space-y-3">
@@ -671,49 +679,27 @@ export default function MetadataPage() {
                 (one per line)
               </span>
             </Label>
-            <Textarea
-              value={depsRaw}
-              onChange={(e) =>
-                handleArrayChange(
-                  e.target.value,
-                  setDepsRaw,
-                  "dependencies",
-                  "\n",
-                )
-              }
-              className="font-mono text-sm min-h-32 bg-muted/30 rounded-xl p-4"
-              placeholder="Steamodded (>=1.0.0)"
+            <ListInput
+              value={metadata.dependencies}
+              onChange={(value) => updateMetadata({ dependencies: value })}
+              placeholder="Steamodded (>=1.0.0), AnotherMod"
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-3">
               <Label className="text-base">Conflicts</Label>
-              <Textarea
-                value={conflictsRaw}
-                onChange={(e) =>
-                  handleArrayChange(
-                    e.target.value,
-                    setConflictsRaw,
-                    "conflicts",
-                    "\n",
-                  )
-                }
-                className="font-mono text-sm min-h-32 bg-muted/30 rounded-xl p-4"
+              <ListInput
+                value={metadata.conflicts}
+                onChange={(value) => updateMetadata({ conflicts: value })}
+                placeholder="ConflictingMod, AnotherOne"
               />
             </div>
             <div className="space-y-3">
               <Label className="text-base">Provides</Label>
-              <Textarea
-                value={providesRaw}
-                onChange={(e) =>
-                  handleArrayChange(
-                    e.target.value,
-                    setProvidesRaw,
-                    "provides",
-                    "\n",
-                  )
-                }
-                className="font-mono text-sm min-h-32 bg-muted/30 rounded-xl p-4"
+              <ListInput
+                value={metadata.provides}
+                onChange={(value) => updateMetadata({ provides: value })}
+                placeholder="ProvidesMod, SharedPack"
               />
             </div>
           </div>

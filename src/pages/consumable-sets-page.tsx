@@ -5,10 +5,12 @@ import { DialogTab } from "@/components/pages/generic-item-dialog";
 import { GenericItemDialogMini } from "@/components/pages/generic-item-dialog-mini";
 import { BadgePreview } from "@/components/balatro/badge-preview";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useModName, useProjectData } from "@/lib/storage";
 import { slugify } from "@/lib/balatro-utils";
 import { ConsumableSetData } from "@/lib/types";
 import { Copy, Palette, PencilSimple, Trash } from "@phosphor-icons/react";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 
 const DEFAULT_SET_COLOR = "666666";
 
@@ -81,6 +83,14 @@ export default function ConsumableSetsPage() {
       updateConsumableSets(data.consumableSets.filter((set) => set.id !== id)),
     [data.consumableSets, updateConsumableSets],
   );
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDelete);
 
   const handleDuplicate = useCallback(
     (set: ConsumableSetData) => {
@@ -362,13 +372,13 @@ export default function ConsumableSetsPage() {
             id: "delete",
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
-            onClick: () => handleDelete(item.id),
+            onClick: () => requestDelete(item.id, item.name),
             variant: "destructive",
           },
         ]}
       />
     ),
-    [handleDelete, handleDuplicate, handleUpdate],
+    [handleDelete, handleDuplicate, handleUpdate, requestDelete],
   );
 
   return (
@@ -391,6 +401,23 @@ export default function ConsumableSetsPage() {
         description="Edit consumable set details."
         tabs={setDialogTabs}
         onSave={handleUpdate}
+      />
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this set?"
+        description={
+          <span>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this set"}
+            </span>
+            . This action cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
       />
     </>
   );

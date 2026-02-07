@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   Smiley,
   Flask,
@@ -8,9 +8,6 @@ import {
   Palette,
   Package,
   Ticket,
-  Pencil,
-  Check,
-  X,
   Plus,
   DownloadSimple,
   CaretDown,
@@ -21,10 +18,7 @@ import {
   Key,
   ArrowUUpLeft,
 } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
 import { useProjectData } from "@/lib/storage";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { motion, AnimatePresence } from "framer-motion";
 import { StatButton } from "@/components/ui/stat-button";
 import { ActionButton } from "@/components/ui/action-button";
@@ -34,9 +28,14 @@ export function OverviewPage() {
   const { data, updateMetadata } = useProjectData();
   const { stats, metadata } = data;
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState(metadata);
+  const [editingField, setEditingField] = useState<
+    "none" | "name" | "id" | "prefix" | "version" | "author" | "description"
+  >("none");
+  const [tempValue, setTempValue] = useState("");
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const identifierRegex = /^[A-Za-z0-9_]+$/;
+  const versionRegex = /^\d+\.\d+\.\d+$/;
 
   const [projects] = useState([
     { id: "my_custom_mod", name: "My Custom Mod", version: "1.0.0" },
@@ -44,15 +43,94 @@ export function OverviewPage() {
     { id: "joker_pack_v1", name: "Joker Pack Vol.1", version: "2.1.0" },
   ]);
 
-  const handleSaveMetadata = () => {
-    updateMetadata(editForm);
-    setIsEditing(false);
+  useEffect(() => {
+    if (editingField !== "none" && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select?.();
+    }
+  }, [editingField]);
+
+  const generateModIdFromName = (name: string) => {
+    const sanitized = name
+      .toLowerCase()
+      .replace(/[^a-z0-9_\s]/g, "")
+      .replace(/\s+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return sanitized || "my_custom_mod";
   };
 
-  const handleCancelMetadata = () => {
-    setEditForm(metadata);
-    setIsEditing(false);
+  const generatePrefixFromId = (id: string) => id.toLowerCase().slice(0, 8);
+
+  const sanitizeIdentifier = (value: string) =>
+    value.replace(/[^A-Za-z0-9_]/g, "");
+
+  const sanitizeVersionInput = (value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    const parts = cleaned.split(".").slice(0, 3);
+    return parts.join(".");
   };
+
+  const startEdit = (
+    field: "name" | "id" | "prefix" | "version" | "author" | "description",
+    value: string,
+  ) => {
+    setEditingField(field);
+    setTempValue(value);
+  };
+
+  const cancelEdit = () => {
+    setEditingField("none");
+    setTempValue("");
+  };
+
+  const saveEdit = () => {
+    const nextValue = tempValue.trim();
+    if (editingField === "name") {
+      if (nextValue) {
+        const nextId = generateModIdFromName(nextValue);
+        const nextPrefix = generatePrefixFromId(nextId);
+        updateMetadata({ name: nextValue, id: nextId, prefix: nextPrefix });
+      }
+    } else if (editingField === "id") {
+      const sanitized = sanitizeIdentifier(nextValue);
+      if (sanitized && identifierRegex.test(sanitized)) {
+        updateMetadata({ id: sanitized });
+      }
+    } else if (editingField === "prefix") {
+      const sanitized = sanitizeIdentifier(nextValue);
+      if (sanitized && identifierRegex.test(sanitized)) {
+        updateMetadata({ prefix: sanitized });
+      }
+    } else if (editingField === "version") {
+      if (versionRegex.test(nextValue)) {
+        updateMetadata({ version: nextValue });
+      }
+    } else if (editingField === "author") {
+      if (nextValue) updateMetadata({ author: [nextValue] });
+    } else if (editingField === "description") {
+      updateMetadata({ description: tempValue });
+    }
+
+    setEditingField("none");
+  };
+
+  const handleKeyDown = (
+    event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      saveEdit();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelEdit();
+    }
+  };
+
+  const authorLabel = Array.isArray(metadata.author)
+    ? metadata.author.join(", ")
+    : String(metadata.author ?? "");
 
   return (
     <div className="space-y-10 max-w-7xl mx-auto pb-20">
@@ -139,144 +217,137 @@ export function OverviewPage() {
 
       <div className="relative overflow-hidden">
         <div className="relative z-10">
-          {isEditing ? (
-            <div className="space-y-6 max-w-3xl p-6 border border-primary/30 bg-primary/5 rounded-2xl">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-primary">
-                  Edit Metadata
-                </h3>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleCancelMetadata}
-                  className="cursor-pointer"
+          <div className="max-w-4xl space-y-6">
+            <div className="flex items-center gap-4">
+              {editingField === "name" ? (
+                <input
+                  ref={inputRef as React.RefObject<HTMLInputElement>}
+                  value={tempValue}
+                  onChange={(event) => setTempValue(event.target.value)}
+                  onBlur={saveEdit}
+                  onKeyDown={handleKeyDown}
+                  className="text-5xl font-bold tracking-tight text-foreground bg-transparent border-none p-0 outline-none focus:outline-none w-full"
+                />
+              ) : (
+                <h1
+                  className="text-5xl font-bold tracking-tight text-foreground cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => startEdit("name", metadata.name)}
                 >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs uppercase font-bold text-muted-foreground">
-                    Mod Name
-                  </label>
-                  <Input
-                    value={editForm.name}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, name: e.target.value })
-                    }
-                    className="text-xl font-bold h-auto py-2 cursor-text bg-background"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase font-bold text-muted-foreground">
-                      Author
-                    </label>
-                    <Input
-                      value={editForm.author}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, author: [e.target.value] })
-                      }
-                      className="cursor-text bg-background"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase font-bold text-muted-foreground">
-                      Version
-                    </label>
-                    <Input
-                      value={editForm.version}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, version: e.target.value })
-                      }
-                      className="cursor-text bg-background"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs uppercase font-bold text-muted-foreground">
-                      Prefix
-                    </label>
-                    <Input
-                      value={editForm.prefix}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, prefix: e.target.value })
-                      }
-                      className="cursor-text bg-background"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs uppercase font-bold text-muted-foreground">
-                    Description
-                  </label>
-                  <Textarea
-                    value={editForm.description}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, description: e.target.value })
-                    }
-                    className="resize-none cursor-text bg-background min-h-25"
-                  />
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    onClick={handleSaveMetadata}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
-                  >
-                    <Check className="mr-2 h-4 w-4" /> Save Changes
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleCancelMetadata}
-                    className="cursor-pointer"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-4xl space-y-6">
-              <div className="flex items-center gap-4">
-                <h1 className="text-5xl font-bold tracking-tight text-foreground">
                   {metadata.name}
                 </h1>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsEditing(true)}
-                  className="opacity-50 hover:opacity-100 cursor-pointer hover:bg-accent"
-                >
-                  <Pencil className="h-5 w-5" />
-                </Button>
-              </div>
+              )}
+            </div>
 
-              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground font-medium">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-foreground/40">ID:</span>
-                  <code className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground font-medium">
+              <div className="flex items-center gap-1.5">
+                <span className="text-foreground/40">ID:</span>
+                {editingField === "id" ? (
+                  <input
+                    ref={inputRef as React.RefObject<HTMLInputElement>}
+                    value={tempValue}
+                    onChange={(event) =>
+                      setTempValue(sanitizeIdentifier(event.target.value))
+                    }
+                    onBlur={saveEdit}
+                    onKeyDown={handleKeyDown}
+                    className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono border-none outline-none focus:outline-none"
+                  />
+                ) : (
+                  <code
+                    className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => startEdit("id", metadata.id)}
+                  >
                     {metadata.id}
                   </code>
-                </div>
-                <div className="w-1 h-1 rounded-full bg-border" />
-                <div className="flex items-center gap-1.5">
-                  <span className="text-foreground/40">Prefix:</span>
-                  <code className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono">
+                )}
+              </div>
+              <div className="w-1 h-1 rounded-full bg-border" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-foreground/40">Prefix:</span>
+                {editingField === "prefix" ? (
+                  <input
+                    ref={inputRef as React.RefObject<HTMLInputElement>}
+                    value={tempValue}
+                    onChange={(event) =>
+                      setTempValue(sanitizeIdentifier(event.target.value))
+                    }
+                    onBlur={saveEdit}
+                    onKeyDown={handleKeyDown}
+                    className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono border-none outline-none focus:outline-none"
+                  />
+                ) : (
+                  <code
+                    className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => startEdit("prefix", metadata.prefix)}
+                  >
                     {metadata.prefix}
                   </code>
-                </div>
-                <div className="w-1 h-1 rounded-full bg-border" />
-                <span>v{metadata.version}</span>
-                <div className="w-1 h-1 rounded-full bg-border" />
-                <span>
-                  by <span className="text-foreground">{metadata.author}</span>
-                </span>
+                )}
               </div>
+              <div className="w-1 h-1 rounded-full bg-border" />
+              {editingField === "version" ? (
+                <input
+                  ref={inputRef as React.RefObject<HTMLInputElement>}
+                  value={tempValue}
+                  onChange={(event) =>
+                    setTempValue(sanitizeVersionInput(event.target.value))
+                  }
+                  onBlur={saveEdit}
+                  onKeyDown={handleKeyDown}
+                  placeholder="x.y.z"
+                  className="bg-transparent border-none p-0 outline-none focus:outline-none text-sm text-muted-foreground font-medium"
+                />
+              ) : (
+                <span
+                  className="cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => startEdit("version", metadata.version)}
+                >
+                  v{metadata.version}
+                </span>
+              )}
+              <div className="w-1 h-1 rounded-full bg-border" />
+              <span className="flex items-center gap-1">
+                by
+                {editingField === "author" ? (
+                  <input
+                    ref={inputRef as React.RefObject<HTMLInputElement>}
+                    value={tempValue}
+                    onChange={(event) => setTempValue(event.target.value)}
+                    onBlur={saveEdit}
+                    onKeyDown={handleKeyDown}
+                    className="bg-transparent border-none p-0 outline-none focus:outline-none text-foreground text-sm font-medium"
+                  />
+                ) : (
+                  <span
+                    className="text-foreground cursor-pointer hover:text-primary transition-colors"
+                    onClick={() => startEdit("author", authorLabel)}
+                  >
+                    {authorLabel}
+                  </span>
+                )}
+              </span>
+            </div>
 
-              <p className="text-lg text-muted-foreground leading-relaxed max-w-3xl border-l-4 border-primary/20 pl-4 py-1">
+            {editingField === "description" ? (
+              <textarea
+                ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+                value={tempValue}
+                onChange={(event) => setTempValue(event.target.value)}
+                onBlur={saveEdit}
+                onKeyDown={handleKeyDown}
+                className="text-lg text-muted-foreground leading-relaxed max-w-3xl border-l-4 border-primary/20 pl-4 py-1 bg-transparent resize-none w-full outline-none focus:outline-none"
+              />
+            ) : (
+              <p
+                className="text-lg text-muted-foreground leading-relaxed max-w-3xl border-l-4 border-primary/20 pl-4 py-1 cursor-pointer hover:text-foreground transition-colors"
+                onClick={() =>
+                  startEdit("description", metadata.description || "")
+                }
+              >
                 {metadata.description}
               </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

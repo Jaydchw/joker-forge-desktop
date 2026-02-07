@@ -5,6 +5,8 @@ import {
   GenericItemDialog,
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { useProjectData, useModName } from "@/lib/storage";
 import { JokerData } from "@/lib/types";
 import { formatBalatroText } from "@/lib/balatro-text-formatter";
@@ -120,6 +122,14 @@ export default function JokersPage() {
     },
     [data.jokers, updateJokers],
   );
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDelete);
 
   const renderPreview = useCallback((item: JokerData | null) => {
     if (!item) return null;
@@ -877,12 +887,12 @@ export default function JokersPage() {
             label: "Delete",
             icon: <Trash className="h-5 w-5" weight="bold" />,
             variant: "destructive",
-            onClick: () => handleDelete(joker.id),
+            onClick: () => requestDelete(joker.id, joker.name),
           },
         ]}
       />
     ),
-    [handleUpdate, handleDelete, data.jokers, updateJokers],
+    [handleUpdate, requestDelete, data.jokers, updateJokers],
   );
 
   return (
@@ -908,6 +918,23 @@ export default function JokersPage() {
         tabs={jokerDialogTabs}
         onSave={handleUpdate}
         renderPreview={renderPreview}
+      />
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this joker?"
+        description={
+          <span>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this joker"}
+            </span>
+            . This action cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
       />
     </>
   );

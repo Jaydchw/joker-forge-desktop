@@ -22,6 +22,8 @@ import {
   GenericItemDialog,
   DialogTab,
 } from "@/components/pages/generic-item-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import { SOUNDS } from "@/lib/balatro-utils";
 
@@ -89,6 +91,14 @@ export default function SealsPage() {
     (id: string) => updateSeals(data.seals.filter((s) => s.id !== id)),
     [data.seals, updateSeals],
   );
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDelete);
 
   const sealDialogTabs: DialogTab<SealData>[] = useMemo(
     () => [
@@ -386,12 +396,12 @@ export default function SealsPage() {
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
             variant: "destructive",
-            onClick: () => handleDelete(item.id),
+            onClick: () => requestDelete(item.id, item.name),
           },
         ]}
       />
     ),
-    [handleUpdate, handleDelete],
+    [handleUpdate, requestDelete],
   );
 
   return (
@@ -415,6 +425,23 @@ export default function SealsPage() {
         tabs={sealDialogTabs}
         onSave={handleUpdate}
         renderPreview={renderPreview}
+      />
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this seal?"
+        description={
+          <span>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this seal"}
+            </span>
+            . This action cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
       />
     </>
   );
