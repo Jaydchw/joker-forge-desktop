@@ -38,6 +38,37 @@ import { Input } from "@/components/ui/input";
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import { jokerUnlockOptions } from "@/lib/unlock-utils";
 
+const getRarityLabel = (rarity: number | string) => {
+  const r = typeof rarity === "string" ? parseInt(rarity) : rarity;
+  switch (r) {
+    case 1:
+      return "Common";
+    case 2:
+      return "Uncommon";
+    case 3:
+      return "Rare";
+    case 4:
+      return "Legendary";
+    default:
+      return "Custom";
+  }
+};
+
+const getRarityColorHex = (rarity: number | string) => {
+  switch (Number(rarity)) {
+    case 1:
+      return "#009dff";
+    case 2:
+      return "#4BC292";
+    case 3:
+      return "#fe5f55";
+    case 4:
+      return "#b26cbb";
+    default:
+      return "#009dff";
+  }
+};
+
 export default function JokersPage() {
   const { data, updateJokers } = useProjectData();
   const modName = useModName();
@@ -113,36 +144,17 @@ export default function JokersPage() {
     [data.jokers, updateJokers],
   );
 
-  const getRarityLabel = (rarity: number | string) => {
-    const r = typeof rarity === "string" ? parseInt(rarity) : rarity;
-    switch (r) {
-      case 1:
-        return "Common";
-      case 2:
-        return "Uncommon";
-      case 3:
-        return "Rare";
-      case 4:
-        return "Legendary";
-      default:
-        return "Custom";
-    }
-  };
-
-  const getRarityColorHex = (rarity: number | string) => {
-    switch (Number(rarity)) {
-      case 1:
-        return "#009dff";
-      case 2:
-        return "#4BC292";
-      case 3:
-        return "#fe5f55";
-      case 4:
-        return "#b26cbb";
-      default:
-        return "#009dff";
-    }
-  };
+  const renderPreview = useCallback((item: JokerData | null) => {
+    if (!item) return null;
+    return (
+      <BalatroCard
+        type="joker"
+        data={item}
+        rarityName={item?.rarity ? getRarityLabel(item.rarity) : "Common"}
+        rarityColor={item?.rarity ? getRarityColorHex(item.rarity) : "#009dff"}
+      />
+    );
+  }, []);
 
   // 3. Memoized Dialog Tabs
   // This prevents the GenericItemDialog from re-rendering its internals unnecessarily
@@ -840,19 +852,7 @@ export default function JokersPage() {
         description="Modify the properties of your custom Joker."
         tabs={jokerDialogTabs}
         onSave={handleUpdate}
-        renderPreview={(item) => {
-          if (!item) return null;
-          return (
-            <BalatroCard
-              type="joker"
-              data={item}
-              rarityName={item?.rarity ? getRarityLabel(item.rarity) : "Common"}
-              rarityColor={
-                item?.rarity ? getRarityColorHex(item.rarity) : "#009dff"
-              }
-            />
-          );
-        }}
+        renderPreview={renderPreview}
       />
     </>
   );

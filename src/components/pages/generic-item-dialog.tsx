@@ -4,8 +4,8 @@ import {
   ReactNode,
   useRef,
   useCallback,
+  useMemo,
   memo,
-  useLayoutEffect,
 } from "react";
 import {
   Dialog,
@@ -464,6 +464,8 @@ const MemoizedField = memo(
                     src={String(safeValue)}
                     alt="Preview"
                     className="w-full h-full object-contain [image-rendering:pixelated]"
+                    loading="lazy"
+                    decoding="async"
                   />
                 ) : (
                   <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
@@ -627,17 +629,6 @@ const PreviewPanel = memo(
   }) => {
     const [scale, setScale] = useState([1.0]);
     const previewContainerRef = useRef<HTMLDivElement>(null);
-    const [renderedPreview, setRenderedPreview] = useState<ReactNode>(null);
-    const [isRendering] = useState(false);
-
-    useEffect(() => {
-      if (item && !isCollapsed) {
-        const preview = renderPreview(item);
-        setRenderedPreview(preview);
-      } else {
-        setRenderedPreview(null);
-      }
-    }, [item, renderPreview, isCollapsed]);
 
     useEffect(() => {
       const container = previewContainerRef.current;
@@ -695,20 +686,12 @@ const PreviewPanel = memo(
               isCollapsed && "opacity-0",
             )}
           >
-            {isRendering ? (
-              <div className="flex flex-col items-center gap-3">
-                <p className="text-xs text-muted-foreground">
-                  Rendering preview...
-                </p>
-              </div>
-            ) : renderedPreview ? (
-              <div
-                className="transform transition-transform duration-200 ease-out"
-                style={{ transform: `scale(${scale[0]})` }}
-              >
-                {renderedPreview}
-              </div>
-            ) : null}
+            <div
+              className="transform transition-transform duration-200 ease-out"
+              style={{ transform: `scale(${scale[0]})` }}
+            >
+              {renderPreview(item)}
+            </div>
           </div>
           {!isCollapsed && (
             <div className="p-3 border-t border-border/40 bg-background/50 text-center text-xs text-muted-foreground font-mono">
@@ -720,7 +703,14 @@ const PreviewPanel = memo(
     );
   },
   (prev, next) => {
-    return prev.item === next.item && prev.isCollapsed === next.isCollapsed;
+    if (prev.isCollapsed !== next.isCollapsed) return false;
+    if (prev.item?.id !== next.item?.id) return false;
+    if (prev.item?.name !== next.item?.name) return false;
+    if (prev.item?.description !== next.item?.description) return false;
+    if (prev.item?.image !== next.item?.image) return false;
+    if (prev.item?.overlayImage !== next.item?.overlayImage) return false;
+    if (prev.item?.rarity !== next.item?.rarity) return false;
+    return true;
   },
 );
 
@@ -734,55 +724,30 @@ function GenericItemDialogInternal<T extends { id: string }>({
   onSave,
   renderPreview,
 }: GenericItemDialogProps<T>) {
-  const mountTime = useRef(performance.now());
   const [formData, setFormData] = useState<T | null>(null);
-  const [previewData, setPreviewData] = useState<T | null>(null);
   const [activeTab, setActiveTab] = useState<string>("");
   const [panelSize, setPanelSize] = useState<number>(70);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isContentReady, setIsContentReady] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const handleSaveRef = useRef<() => void>(() => {});
 
   const isPreviewCollapsed = panelSize > 95;
-
-  useLayoutEffect(() => {
-    if (open && isContentReady) {
-    }
-  }, [open, isContentReady]);
+  const resolvedActiveTab = activeTab || tabs[0]?.id || "";
+  const activeTabConfig = useMemo(
+    () => tabs.find((tab) => tab.id === resolvedActiveTab),
+    [tabs, resolvedActiveTab],
+  );
 
   useEffect(() => {
     if (open && item) {
-      mountTime.current = performance.now();
-      setIsContentReady(false);
-      setFormData(null);
-      setPreviewData(null);
+      if (tabs.length > 0) setActiveTab(tabs[0].id);
 
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          try {
-            const cloned = structuredClone(item);
-            if (tabs.length > 0) setActiveTab(tabs[0].id);
-            setFormData(cloned);
-            setIsContentReady(true);
-          } catch (e) {
-            const fallback = JSON.parse(JSON.stringify(item));
-            if (tabs.length > 0) setActiveTab(tabs[0].id);
-            setFormData(fallback);
-            setIsContentReady(true);
-          }
-        });
-      });
+      setFormData({ ...item });
+      setErrors({});
     } else {
       setFormData(null);
-      setPreviewData(null);
-      setIsContentReady(false);
     }
   }, [open, item, tabs]);
-
-  useEffect(() => {
-    if (formData && isContentReady) {
-      setPreviewData(formData);
-    }
-  }, [formData, isContentReady]);
 
   const handleChange = useCallback((path: string, value: any) => {
     setFormData((prev: any) => {
@@ -816,7 +781,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
     });
   }, []);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (!formData || !formData.id) return;
 
     const newErrors: Record<string, string> = {};
@@ -855,15 +820,36 @@ function GenericItemDialogInternal<T extends { id: string }>({
         }
       }
     }
-  };
+  }, [formData, onSave, onOpenChange, tabs]);
 
-  if (open && !item) {
-    return null;
-  }
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        modalRef.current &&
+        !modalRef.current.contains(event.target as Node)
+      ) {
+        handleSaveRef.current();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  if (!open || !item || !formData) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        ref={modalRef}
         className="max-w-[95vw]! w-[95vw]! h-[90vh]! max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden shadow-2xl bg-background border-border/50"
         showCloseButton={false}
         onInteractOutside={(e) => {
@@ -897,7 +883,6 @@ function GenericItemDialogInternal<T extends { id: string }>({
                 onClick={handleSave}
                 size="lg"
                 className="cursor-pointer px-8"
-                disabled={!isContentReady}
               >
                 Save Changes
               </Button>
@@ -905,149 +890,110 @@ function GenericItemDialogInternal<T extends { id: string }>({
           </div>
         </DialogHeader>
 
-        {!isContentReady || !formData ? (
-          <div className="flex-1 flex overflow-hidden min-h-0">
-            <div className="flex h-full w-full">
-              <div className="w-56 border-r border-border/40 bg-muted/5 flex flex-col shrink-0 p-2 gap-1">
-                {tabs.map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-9 w-full bg-muted/20 rounded-md animate-pulse"
-                  />
-                ))}
-              </div>
-
-              <div className="flex-1 bg-background flex flex-col min-w-0 p-8 space-y-8">
-                <div className="space-y-4">
-                  <div className="h-4 w-32 bg-muted/20 rounded animate-pulse" />
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="h-10 w-full bg-muted/20 rounded-md animate-pulse" />
-                    <div className="h-10 w-full bg-muted/20 rounded-md animate-pulse" />
-                  </div>
+        <Tabs
+          value={resolvedActiveTab}
+          onValueChange={setActiveTab}
+          className="flex-1 flex overflow-hidden min-h-0"
+          orientation="vertical"
+        >
+          <Group orientation="horizontal" className="flex-1">
+            <Panel
+              defaultSize={renderPreview ? 70 : 100}
+              minSize={renderPreview ? 50 : 100}
+              onResize={(size) =>
+                setPanelSize(
+                  typeof size === "number"
+                    ? size
+                    : Array.isArray(size)
+                      ? size[0]
+                      : 0,
+                )
+              }
+            >
+              <div className="flex h-full">
+                <div className="w-56 border-r border-border/40 bg-muted/5 flex flex-col shrink-0">
+                  <ScrollArea className="flex-1">
+                    <TabsList className="flex flex-col w-full bg-transparent p-2 gap-1 h-auto">
+                      {tabs.map((tab) => (
+                        <TabsTrigger
+                          key={tab.id}
+                          value={tab.id}
+                          className="w-full justify-start gap-3 px-3 py-2.5 text-sm font-medium border-transparent border-l-4 transition-all cursor-pointer rounded-r-md rounded-l-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary hover:bg-primary/5 hover:text-primary"
+                        >
+                          {tab.icon && (
+                            <tab.icon className="h-4 w-4 opacity-70" />
+                          )}
+                          {tab.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </ScrollArea>
                 </div>
-                <div className="space-y-4">
-                  <div className="h-4 w-24 bg-muted/20 rounded animate-pulse" />
-                  <div className="h-32 w-full bg-muted/20 rounded-md animate-pulse" />
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="flex-1 flex overflow-hidden min-h-0"
-            orientation="vertical"
-          >
-            <Group orientation="horizontal" className="flex-1">
-              <Panel
-                defaultSize={renderPreview ? 70 : 100}
-                minSize={renderPreview ? 50 : 100}
-                onResize={(size) =>
-                  setPanelSize(
-                    typeof size === "number"
-                      ? size
-                      : Array.isArray(size)
-                        ? size[0]
-                        : 0,
-                  )
-                }
-              >
-                <div className="flex h-full">
-                  <div className="w-56 border-r border-border/40 bg-muted/5 flex flex-col shrink-0">
-                    <ScrollArea className="flex-1">
-                      <TabsList className="flex flex-col w-full bg-transparent p-2 gap-1 h-auto">
-                        {tabs.map((tab) => (
-                          <TabsTrigger
-                            key={tab.id}
-                            value={tab.id}
-                            className="w-full justify-start gap-3 px-3 py-2.5 text-sm font-medium border-transparent border-l-4 transition-all cursor-pointer rounded-r-md rounded-l-none data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary hover:bg-primary/5 hover:text-primary"
-                          >
-                            {tab.icon && (
-                              <tab.icon className="h-4 w-4 opacity-70" />
-                            )}
-                            {tab.label}
-                          </TabsTrigger>
-                        ))}
-                      </TabsList>
-                    </ScrollArea>
-                  </div>
 
-                  <div className="flex-1 bg-background flex flex-col min-w-0">
-                    <ScrollArea className="flex-1">
-                      <div className="px-6 py-8 max-w-4xl mx-auto w-full">
-                        {tabs.map((tab) => (
-                          <TabsContent
-                            key={tab.id}
-                            value={tab.id}
-                            className="mt-0 space-y-10 outline-none"
-                          >
-                            {activeTab === tab.id &&
-                              tab.groups.map((group) => (
-                                <div key={group.id} className="space-y-4">
-                                  {group.label && (
-                                    <div className="space-y-2 pb-2">
-                                      <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                        {group.label}
-                                      </h4>
-                                      <UiSeparator className="bg-primary/20 h-0.5" />
-                                    </div>
-                                  )}
-                                  <div
-                                    className={cn(
-                                      group.className || "space-y-0",
-                                    )}
-                                  >
-                                    {group.fields.map((field) => {
-                                      if (
-                                        field.hidden &&
-                                        field.hidden(formData!)
-                                      )
-                                        return null;
-                                      return (
-                                        <MemoizedField
-                                          key={field.id}
-                                          field={field}
-                                          value={getNestedValue(
-                                            formData,
-                                            field.id,
-                                          )}
-                                          onChange={handleChange}
-                                          fullItem={formData}
-                                          inGrid={
-                                            !!group.className?.includes("grid")
-                                          }
-                                          error={errors[field.id]}
-                                        />
-                                      );
-                                    })}
-                                  </div>
+                <div className="flex-1 bg-background flex flex-col min-w-0">
+                  <ScrollArea className="flex-1">
+                    <div className="px-6 py-8 max-w-4xl mx-auto w-full">
+                      {activeTabConfig && (
+                        <TabsContent
+                          value={activeTabConfig.id}
+                          className="mt-0 space-y-10 outline-none"
+                        >
+                          {activeTabConfig.groups.map((group) => (
+                            <div key={group.id} className="space-y-4">
+                              {group.label && (
+                                <div className="space-y-2 pb-2">
+                                  <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                    {group.label}
+                                  </h4>
+                                  <UiSeparator className="bg-primary/20 h-0.5" />
                                 </div>
-                              ))}
-                          </TabsContent>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </div>
+                              )}
+                              <div
+                                className={cn(group.className || "space-y-0")}
+                              >
+                                {group.fields.map((field) => {
+                                  if (field.hidden && field.hidden(formData!))
+                                    return null;
+                                  return (
+                                    <MemoizedField
+                                      key={field.id}
+                                      field={field}
+                                      value={getNestedValue(formData, field.id)}
+                                      onChange={handleChange}
+                                      fullItem={formData}
+                                      inGrid={
+                                        !!group.className?.includes("grid")
+                                      }
+                                      error={errors[field.id]}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </TabsContent>
+                      )}
+                    </div>
+                  </ScrollArea>
                 </div>
-              </Panel>
+              </div>
+            </Panel>
 
-              {renderPreview && (
-                <PanelSeparator className="w-1.5 bg-border/40 hover:bg-primary/50 transition-colors flex items-center justify-center cursor-col-resize z-50 focus:outline-none">
-                  <div className="h-8 w-1 bg-muted-foreground/30 rounded-full" />
-                </PanelSeparator>
-              )}
+            {renderPreview && (
+              <PanelSeparator className="w-1.5 bg-border/40 hover:bg-primary/50 transition-colors flex items-center justify-center cursor-col-resize z-50 focus:outline-none">
+                <div className="h-8 w-1 bg-muted-foreground/30 rounded-full" />
+              </PanelSeparator>
+            )}
 
-              {renderPreview && isContentReady && (
-                <PreviewPanel
-                  item={previewData}
-                  renderPreview={renderPreview}
-                  isCollapsed={isPreviewCollapsed}
-                />
-              )}
-            </Group>
-          </Tabs>
-        )}
+            {renderPreview && (
+              <PreviewPanel
+                item={formData}
+                renderPreview={renderPreview}
+                isCollapsed={isPreviewCollapsed}
+              />
+            )}
+          </Group>
+        </Tabs>
 
         <DialogFooter className="hidden" />
       </DialogContent>
