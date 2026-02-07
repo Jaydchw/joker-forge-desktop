@@ -32,6 +32,9 @@ import {
   ListDashes,
   Plus,
   Minus,
+  WarningCircle,
+  ClockCountdown,
+  Tag,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -779,6 +782,41 @@ export default function JokersPage() {
             variant: "default",
             onClick: () =>
               handleUpdate(joker.id, { discovered: !joker.discovered }),
+          },
+          {
+            id: "force_eternal",
+            label: joker.force_eternal ? "Force Eternal" : "Normal Eternal",
+            icon: <WarningCircle className="h-4 w-4" weight="regular" />,
+            isActive: joker.force_eternal === true,
+            variant: "purple",
+            onClick: () =>
+              handleUpdate(joker.id, {
+                force_eternal: !joker.force_eternal,
+              }),
+          },
+          {
+            id: "force_perishable",
+            label: joker.force_perishable
+              ? "Force Perishable"
+              : "Normal Perishable",
+            icon: <ClockCountdown className="h-4 w-4" weight="regular" />,
+            isActive: joker.force_perishable === true,
+            variant: "warning",
+            onClick: () =>
+              handleUpdate(joker.id, {
+                force_perishable: !joker.force_perishable,
+              }),
+          },
+          {
+            id: "force_rental",
+            label: joker.force_rental ? "Force Rental" : "Normal Rental",
+            icon: <Tag className="h-4 w-4" weight="regular" />,
+            isActive: joker.force_rental === true,
+            variant: "info",
+            onClick: () =>
+              handleUpdate(joker.id, {
+                force_rental: !joker.force_rental,
+              }),
           },
         ]}
         actions={[
