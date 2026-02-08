@@ -1,9 +1,11 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { TitleBar } from "./title-bar";
 import { motion } from "framer-motion";
 import { GlobalAlerts } from "./global-alerts";
+import { useAlertQueue } from "@/hooks/use-alert-queue";
+import { runBalatroAutofind } from "@/lib/balatro-autofind";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -14,6 +16,7 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
   const [isPinned, setIsPinned] = useState(false);
   const [isHoverOpen, setIsHoverOpen] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { alerts, pushAlerts, dismissAlert } = useAlertQueue();
 
   const isVisible = isPinned || isHoverOpen;
 
@@ -32,6 +35,19 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
       setIsHoverOpen(false);
     }, 150);
   };
+
+  useEffect(() => {
+    let isMounted = true;
+    const init = async () => {
+      const nextAlerts = await runBalatroAutofind();
+      if (!isMounted) return;
+      pushAlerts(nextAlerts);
+    };
+    void init();
+    return () => {
+      isMounted = false;
+    };
+  }, [pushAlerts]);
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden font-lexend text-foreground transition-colors duration-300">
@@ -66,7 +82,7 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
           animate={{ paddingLeft: isPinned ? "288px" : "32px" }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
         >
-          <GlobalAlerts />
+          <GlobalAlerts alerts={alerts} onDismiss={dismissAlert} />
           {children}
         </motion.main>
       </div>

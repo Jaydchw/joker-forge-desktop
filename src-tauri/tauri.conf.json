@@ -1,5 +1,4 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
   "productName": "Joker Forge",
   "version": "2.0.0",
   "identifier": "com.jaydchw.joker-forge-desktop",
