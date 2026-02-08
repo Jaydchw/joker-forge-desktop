@@ -45,6 +45,12 @@ export interface ProjectData {
   sounds: SoundData[];
 }
 
+interface ProjectStore {
+  version: 2;
+  currentProjectId: string;
+  projects: Record<string, ProjectData>;
+}
+
 const STORAGE_KEY = "joker_forge_project_data";
 const EVENT_KEY = "joker_forge_update";
 const CONFIRM_DELETE_KEY = "joker_forge_confirm_delete";
@@ -132,33 +138,122 @@ const sanitizeMetadata = (input: any): ModMetadata => {
   };
 };
 
-const getStoredData = (): ProjectData => {
-  if (typeof window === "undefined") return DEFAULT_DATA;
+const sanitizeProjectData = (input: any): ProjectData => {
+  if (!input || typeof input !== "object") return DEFAULT_DATA;
+
+  const toArray = <T>(val: T[] | undefined) => (Array.isArray(val) ? val : []);
+
+  return {
+    ...DEFAULT_DATA,
+    ...input,
+    metadata: sanitizeMetadata(input.metadata),
+    stats: { ...DEFAULT_DATA.stats, ...(input.stats || {}) },
+    recentActivity: toArray(input.recentActivity),
+    jokers: toArray(input.jokers),
+    consumables: toArray(input.consumables),
+    rarities: toArray(input.rarities),
+    consumableSets: toArray(input.consumableSets),
+    decks: toArray(input.decks),
+    vouchers: toArray(input.vouchers),
+    boosters: toArray(input.boosters),
+    seals: toArray(input.seals),
+    editions: toArray(input.editions),
+    enhancements: toArray(input.enhancements),
+    sounds: toArray(input.sounds),
+  };
+};
+
+const ensureUniqueProjectId = (
+  baseId: string,
+  projects: Record<string, ProjectData>,
+) => {
+  if (!projects[baseId]) return baseId;
+  let suffix = 2;
+  let nextId = `${baseId}_${suffix}`;
+  while (projects[nextId]) {
+    suffix += 1;
+    nextId = `${baseId}_${suffix}`;
+  }
+  return nextId;
+};
+
+const getStoredStore = (): ProjectStore => {
+  if (typeof window === "undefined") {
+    return {
+      version: 2,
+      currentProjectId: DEFAULT_METADATA.id,
+      projects: { [DEFAULT_METADATA.id]: DEFAULT_DATA },
+    };
+  }
   try {
     const item = window.localStorage.getItem(STORAGE_KEY);
-    if (!item) return DEFAULT_DATA;
+    if (!item) {
+      return {
+        version: 2,
+        currentProjectId: DEFAULT_METADATA.id,
+        projects: { [DEFAULT_METADATA.id]: DEFAULT_DATA },
+      };
+    }
 
     const parsed = JSON.parse(item);
 
-    // Deep merge / Sanitize critical sections
+    if (parsed?.version === 2 && parsed.projects && parsed.currentProjectId) {
+      const sanitizedProjects: Record<string, ProjectData> = {};
+      Object.entries(parsed.projects as Record<string, ProjectData>).forEach(
+        ([key, value]) => {
+          const sanitized = sanitizeProjectData(value);
+          sanitizedProjects[key] = {
+            ...sanitized,
+            metadata: { ...sanitized.metadata, id: key },
+          };
+        },
+      );
+
+      const fallbackId = Object.keys(sanitizedProjects)[0];
+      return {
+        version: 2,
+        currentProjectId:
+          parsed.currentProjectId && sanitizedProjects[parsed.currentProjectId]
+            ? parsed.currentProjectId
+            : fallbackId || DEFAULT_METADATA.id,
+        projects:
+          Object.keys(sanitizedProjects).length > 0
+            ? sanitizedProjects
+            : { [DEFAULT_METADATA.id]: DEFAULT_DATA },
+      };
+    }
+
+    if (parsed?.metadata) {
+      const legacyProject = sanitizeProjectData(parsed);
+      const legacyId = legacyProject.metadata.id || DEFAULT_METADATA.id;
+      return {
+        version: 2,
+        currentProjectId: legacyId,
+        projects: { [legacyId]: legacyProject },
+      };
+    }
+
     return {
-      ...DEFAULT_DATA,
-      ...parsed,
-      metadata: sanitizeMetadata(parsed.metadata),
-      stats: { ...DEFAULT_DATA.stats, ...(parsed.stats || {}) },
+      version: 2,
+      currentProjectId: DEFAULT_METADATA.id,
+      projects: { [DEFAULT_METADATA.id]: DEFAULT_DATA },
     };
   } catch (error) {
     console.warn("Error reading/sanitizing localStorage", error);
-    return DEFAULT_DATA;
+    return {
+      version: 2,
+      currentProjectId: DEFAULT_METADATA.id,
+      projects: { [DEFAULT_METADATA.id]: DEFAULT_DATA },
+    };
   }
 };
 
 export const useProjectData = () => {
-  const [data, setData] = useState<ProjectData>(getStoredData());
+  const [store, setStore] = useState<ProjectStore>(getStoredStore());
 
   useEffect(() => {
     const handleStorageChange = () => {
-      setData(getStoredData());
+      setStore(getStoredStore());
     };
 
     window.addEventListener(EVENT_KEY, handleStorageChange);
@@ -170,25 +265,27 @@ export const useProjectData = () => {
     };
   }, []);
 
+  const currentProject = store.projects[store.currentProjectId] || DEFAULT_DATA;
+
   useEffect(() => {
     updateDataRegistry(
-      data.rarities,
-      data.consumableSets,
-      data.sounds,
-      data.consumables,
-      data.boosters,
-      data.enhancements,
-      data.seals,
-      data.editions,
-      data.vouchers,
-      data.decks,
-      data.metadata.prefix || "",
+      currentProject.rarities,
+      currentProject.consumableSets,
+      currentProject.sounds,
+      currentProject.consumables,
+      currentProject.boosters,
+      currentProject.enhancements,
+      currentProject.seals,
+      currentProject.editions,
+      currentProject.vouchers,
+      currentProject.decks,
+      currentProject.metadata.prefix || "",
     );
-  }, [data]);
+  }, [currentProject]);
 
-  const saveData = (newData: ProjectData) => {
+  const saveStore = (nextStore: ProjectStore) => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStore));
       setTimeout(() => {
         window.dispatchEvent(new Event(EVENT_KEY));
       }, 0);
@@ -198,38 +295,155 @@ export const useProjectData = () => {
   };
 
   const updateMetadata = useCallback((updates: Partial<ModMetadata>) => {
-    setData((prev) => {
-      const newData = {
-        ...prev,
-        metadata: { ...prev.metadata, ...updates },
+    setStore((prev) => {
+      const currentId = prev.currentProjectId;
+      const current = prev.projects[currentId] || DEFAULT_DATA;
+      const updatedProject: ProjectData = {
+        ...current,
+        metadata: { ...current.metadata, ...updates },
       };
-      saveData(newData);
-      return newData;
+
+      if (updates.id && updates.id !== currentId) {
+        const { [currentId]: _removed, ...remaining } = prev.projects;
+        const uniqueId = ensureUniqueProjectId(updates.id, remaining);
+        updatedProject.metadata.id = uniqueId;
+        const nextStore = {
+          ...prev,
+          currentProjectId: uniqueId,
+          projects: { ...remaining, [uniqueId]: updatedProject },
+        };
+        saveStore(nextStore);
+        return nextStore;
+      }
+
+      const nextStore = {
+        ...prev,
+        projects: { ...prev.projects, [currentId]: updatedProject },
+      };
+      saveStore(nextStore);
+      return nextStore;
     });
   }, []);
 
   const updateCollection = useCallback(
     <K extends keyof ProjectData>(key: K, items: ProjectData[K]) => {
-      setData((prev) => {
-        const newData = {
-          ...prev,
+      setStore((prev) => {
+        const currentId = prev.currentProjectId;
+        const current = prev.projects[currentId] || DEFAULT_DATA;
+        const updatedProject: ProjectData = {
+          ...current,
           [key]: items,
           stats: {
-            ...prev.stats,
+            ...current.stats,
             [key]: Array.isArray(items)
               ? items.length
-              : prev.stats[key as keyof ProjectStats],
+              : current.stats[key as keyof ProjectStats],
           },
         };
-        saveData(newData);
-        return newData;
+        const nextStore = {
+          ...prev,
+          projects: { ...prev.projects, [currentId]: updatedProject },
+        };
+        saveStore(nextStore);
+        return nextStore;
       });
     },
     [],
   );
 
+  const switchProject = useCallback((projectId: string) => {
+    setStore((prev) => {
+      if (!prev.projects[projectId]) return prev;
+      const nextStore = { ...prev, currentProjectId: projectId };
+      saveStore(nextStore);
+      return nextStore;
+    });
+  }, []);
+
+  const createProject = useCallback(
+    (metadataOverrides: Partial<ModMetadata> = {}) => {
+      let createdId = "";
+      setStore((prev) => {
+        const baseMetadata = sanitizeMetadata({
+          ...DEFAULT_METADATA,
+          ...metadataOverrides,
+        });
+        const baseId = baseMetadata.id || DEFAULT_METADATA.id;
+        const uniqueId = ensureUniqueProjectId(baseId, prev.projects);
+        const finalMetadata = {
+          ...baseMetadata,
+          id: uniqueId,
+          prefix: baseMetadata.prefix || uniqueId.toLowerCase().slice(0, 8),
+          display_name: baseMetadata.display_name || baseMetadata.name,
+        };
+        const newProject: ProjectData = {
+          ...DEFAULT_DATA,
+          metadata: finalMetadata,
+        };
+        const nextStore: ProjectStore = {
+          ...prev,
+          currentProjectId: uniqueId,
+          projects: { ...prev.projects, [uniqueId]: newProject },
+        };
+        createdId = uniqueId;
+        saveStore(nextStore);
+        return nextStore;
+      });
+      return createdId;
+    },
+    [],
+  );
+
+  const deleteProject = useCallback((projectId: string) => {
+    setStore((prev) => {
+      if (!prev.projects[projectId]) return prev;
+
+      const { [projectId]: _removed, ...remaining } = prev.projects;
+      const remainingIds = Object.keys(remaining);
+
+      if (remainingIds.length === 0) {
+        const fallbackId = DEFAULT_METADATA.id;
+        const fallbackProject: ProjectData = {
+          ...DEFAULT_DATA,
+          metadata: { ...DEFAULT_METADATA, id: fallbackId },
+        };
+        const nextStore: ProjectStore = {
+          version: 2,
+          currentProjectId: fallbackId,
+          projects: { [fallbackId]: fallbackProject },
+        };
+        saveStore(nextStore);
+        return nextStore;
+      }
+
+      const nextCurrentId =
+        prev.currentProjectId === projectId
+          ? remainingIds[0]
+          : prev.currentProjectId;
+
+      const nextStore: ProjectStore = {
+        ...prev,
+        currentProjectId: nextCurrentId,
+        projects: remaining,
+      };
+      saveStore(nextStore);
+      return nextStore;
+    });
+  }, []);
+
+  const projects = Object.values(store.projects).map((project) => ({
+    id: project.metadata.id,
+    name: project.metadata.name,
+    version: project.metadata.version,
+  }));
+
   return {
-    data,
+    data: currentProject,
+    projects,
+    currentProjectId: store.currentProjectId,
+    switchProject,
+    createProject,
+    deleteProject,
     updateMetadata,
     updateJokers: (items: JokerData[]) => updateCollection("jokers", items),
     updateConsumables: (items: ConsumableData[]) =>

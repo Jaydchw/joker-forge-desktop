@@ -17,15 +17,26 @@ import {
   Heart,
   Key,
   ArrowUUpLeft,
+  Trash,
 } from "@phosphor-icons/react";
 import { useProjectData } from "@/lib/storage";
 import { motion, AnimatePresence } from "framer-motion";
 import { StatButton } from "@/components/ui/stat-button";
 import { ActionButton } from "@/components/ui/action-button";
 import { ResourceLink } from "@/components/ui/resource-link";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 
 export function OverviewPage() {
-  const { data, updateMetadata } = useProjectData();
+  const {
+    data,
+    updateMetadata,
+    projects,
+    currentProjectId,
+    switchProject,
+    createProject,
+    deleteProject,
+  } = useProjectData();
   const { stats, metadata } = data;
 
   const [editingField, setEditingField] = useState<
@@ -37,11 +48,40 @@ export function OverviewPage() {
   const identifierRegex = /^[A-Za-z0-9_]+$/;
   const versionRegex = /^\d+\.\d+\.\d+$/;
 
-  const [projects] = useState([
-    { id: "my_custom_mod", name: "My Custom Mod", version: "1.0.0" },
-    { id: "balatro_expanded", name: "Balatro Expanded", version: "0.5.2" },
-    { id: "joker_pack_v1", name: "Joker Pack Vol.1", version: "2.1.0" },
-  ]);
+  const createUniqueProjectName = (baseName: string) => {
+    const existingNames = new Set(
+      projects.map((project) => project.name.toLowerCase()),
+    );
+    if (!existingNames.has(baseName.toLowerCase())) return baseName;
+    let suffix = 2;
+    let candidate = `${baseName} ${suffix}`;
+    while (existingNames.has(candidate.toLowerCase())) {
+      suffix += 1;
+      candidate = `${baseName} ${suffix}`;
+    }
+    return candidate;
+  };
+
+  const handleCreateProject = () => {
+    const baseName = createUniqueProjectName("New Project");
+    const nextId = generateModIdFromName(baseName);
+    const nextPrefix = generatePrefixFromId(nextId);
+    createProject({ name: baseName, id: nextId, prefix: nextPrefix });
+    setIsProjectMenuOpen(false);
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    deleteProject(projectId);
+    setIsProjectMenuOpen(false);
+  };
+
+  const {
+    isDialogOpen: isDeleteDialogOpen,
+    pendingLabel: pendingDeleteLabel,
+    requestDelete,
+    confirmDelete,
+    handleOpenChange: handleDeleteDialogChange,
+  } = useConfirmDelete(handleDeleteProject);
 
   useEffect(() => {
     if (editingField !== "none" && inputRef.current) {
@@ -180,15 +220,34 @@ export function OverviewPage() {
                       <button
                         key={proj.id}
                         className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-accent transition-colors text-left group cursor-pointer"
-                        onClick={() => setIsProjectMenuOpen(false)}
+                        onClick={() => {
+                          switchProject(proj.id);
+                          setIsProjectMenuOpen(false);
+                        }}
                       >
                         <span
-                          className={`font-medium ${proj.id === metadata.id ? "text-primary" : "text-foreground"}`}
+                          className={`font-medium ${proj.id === currentProjectId ? "text-primary" : "text-foreground"}`}
                         >
                           {proj.name}
                         </span>
-                        <span className="text-xs text-muted-foreground bg-background px-2 py-1 rounded border border-border">
-                          v{proj.version}
+                        <span className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground bg-background px-2 py-1 rounded border border-border">
+                            v{proj.version}
+                          </span>
+                          <span className="h-5 w-px bg-border" />
+                          <button
+                            type="button"
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-destructive hover:border-destructive/60 hover:bg-destructive/10 transition-colors cursor-pointer"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setIsProjectMenuOpen(false);
+                              requestDelete(proj.id, proj.name);
+                            }}
+                            aria-label={`Delete ${proj.name}`}
+                          >
+                            <Trash className="h-4 w-4" weight="bold" />
+                          </button>
                         </span>
                       </button>
                     ))}
@@ -204,7 +263,11 @@ export function OverviewPage() {
             Actions
           </h2>
           <div className="grid grid-cols-2 gap-3">
-            <ActionButton label="New Project" icon={Plus} />
+            <ActionButton
+              label="New Project"
+              icon={Plus}
+              onClick={handleCreateProject}
+            />
             <ActionButton
               label="Import JSON / JokerForge"
               icon={DownloadSimple}
@@ -481,6 +544,24 @@ export function OverviewPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogChange}
+        title="Delete this project?"
+        description={
+          <>
+            You are about to delete{" "}
+            <span className="font-semibold text-foreground">
+              {pendingDeleteLabel || "this project"}
+            </span>
+            . This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete Project"
+        confirmVariant="destructive"
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
