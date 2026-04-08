@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
 import {
   GenericItemDialog,
   DialogTab,
@@ -20,6 +21,7 @@ import {
   Image as ImageIcon,
   TextT,
   Gear,
+  Copy,
   VideoCamera,
 } from "@phosphor-icons/react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
@@ -323,6 +325,16 @@ export default function BoostersPage() {
         cost={item.cost}
         idValue={item.orderValue}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
+        onDuplicate={() => {
+                  const duplicatedItem: BoosterData = {
+                    ...item,
+                    id: crypto.randomUUID(),
+                    name: `${item.name} (Copy)`,
+                    objectKey: `${item.objectKey}_copy`,
+                    orderValue: data.boosters.length + 1,
+                  };
+                  updateBoosters([...data.boosters, duplicatedItem]);
+                }}
         image={
           item.image ? (
             <img
@@ -387,6 +399,13 @@ export default function BoostersPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy className="h-5 w-5" weight="regular" />,
+            onClick: () => { },
+            variant: "ghost",
+          },
+          {
             id: "delete",
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
@@ -397,6 +416,67 @@ export default function BoostersPage() {
       />
     ),
     [handleUpdate, requestDelete],
+  );
+
+const renderCompactCard = useCallback(
+    (item: BoosterData) => (
+      <GenericItemCardCompact
+        name={item.name}
+        overlayImage={item.overlayImage}
+        image={
+          item.image ? (
+            <img
+              src={item.image}
+              className="w-full h-full object-contain [image-rendering:pixelated]"
+              alt={item.name}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 text-xs font-bold uppercase tracking-widest border-2 border-dashed border-border/30 rounded-xl m-2">
+              No Image
+            </div>
+          )
+        }
+        actions={[
+          {
+            id: "edit",
+            label: "Edit",
+            icon: <PencilSimple className="h-4 w-4" />,
+            onClick: () => setEditingItem(item),
+          },
+          {
+            id: "showcase",
+            label: "Showcase",
+            icon: <VideoCamera weight="regular" />,
+            onClick: () => setShowcaseItem(item),
+            variant: "ghost",
+          },
+          {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy weight="regular" />,
+            onClick: () => {
+              const duplicatedBooster: BoosterData = {
+                ...item,
+                id: crypto.randomUUID(),
+                name: `${item.name} (Copy)`,
+                objectKey: `${item.objectKey}_copy`,
+                orderValue: data.boosters.length + 1,
+              };
+              updateBoosters([...data.boosters, duplicatedBooster]);
+            },
+            variant: "ghost",
+          },
+          {
+            id: "delete",
+            label: "Delete",
+            icon: <Trash weight="bold" />,
+            variant: "destructive",
+            onClick: () => requestDelete(item.id, item.name),
+          },
+        ]}
+      />
+    ),
+    [requestDelete, data.boosters, updateBoosters],
   );
 
   return (
@@ -411,6 +491,7 @@ export default function BoostersPage() {
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
+        renderCompactCard={renderCompactCard}
       />
       <GenericItemDialog
         open={!!editingItem}

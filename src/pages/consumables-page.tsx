@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
 import { useProjectData, useModName } from "@/lib/storage";
 import { ConsumableData, Rule } from "@/lib/types";
 import {
@@ -11,6 +12,7 @@ import {
   TextT,
   LockOpen,
   Lock,
+  Copy,
   Eye,
   EyeSlash,
   VideoCamera,
@@ -299,6 +301,16 @@ export default function ConsumablesPage() {
         consumableSet={item.set}
         overlayImage={item.overlayImage}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
+        onDuplicate={() => {
+                  const duplicatedItem: ConsumableData = {
+                    ...item,
+                    id: crypto.randomUUID(),
+                    name: `${item.name} (Copy)`,
+                    objectKey: `${item.objectKey}_copy`,
+                    orderValue: data.consumables.length + 1,
+                  };
+                  updateConsumables([...data.consumables, duplicatedItem]);
+                }}
         image={
           item.image ? (
             <img
@@ -375,6 +387,13 @@ export default function ConsumablesPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy className="h-5 w-5" weight="regular" />,
+            onClick: () => {},
+            variant: "ghost",
+          },
+          {
             id: "delete",
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
@@ -385,6 +404,78 @@ export default function ConsumablesPage() {
       />
     ),
     [handleUpdate, requestDelete],
+  );
+
+const renderCompactCard = useCallback(
+    (item: ConsumableData) => (
+      <GenericItemCardCompact
+        name={item.name}
+        overlayImage={item.overlayImage}
+        image={
+          item.image ? (
+            <img
+              src={item.image}
+              className="w-full h-full object-contain [image-rendering:pixelated]"
+              alt={item.name}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 text-xs font-bold uppercase tracking-widest border-2 border-dashed border-border/30 rounded-xl m-2">
+              No Image
+            </div>
+          )
+        }
+        actions={[
+          {
+            id: "edit",
+            label: "Edit Info",
+            icon: <PencilSimple weight="bold" />,
+            onClick: () => setEditingItem(item),
+            variant: "secondary",
+          },
+          {
+            id: "rules",
+            label: "Edit Rules",
+            icon: <Sparkle weight="bold" />,
+            onClick: () => {
+              setEditingItem(null);
+              setRuleEditingItem(item);
+            },
+            variant: "outline",
+          },
+          {
+            id: "showcase",
+            label: "Showcase",
+            icon: <VideoCamera weight="regular" />,
+            onClick: () => setShowcaseItem(item),
+            variant: "ghost",
+          },
+          {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy weight="regular" />,
+            onClick: () => {
+              const duplicatedConsumable: ConsumableData = {
+                ...item,
+                id: crypto.randomUUID(),
+                name: `${item.name} (Copy)`,
+                objectKey: `${item.objectKey}_copy`,
+                orderValue: data.consumables.length + 1,
+              };
+              updateConsumables([...data.consumables, duplicatedConsumable]);
+            },
+            variant: "ghost",
+          },
+          {
+            id: "delete",
+            label: "Delete",
+            icon: <Trash weight="bold" />,
+            variant: "destructive",
+            onClick: () => requestDelete(item.id, item.name),
+          },
+        ]}
+      />
+    ),
+    [requestDelete, data.jokers, updateConsumables],
   );
 
   return (
@@ -400,6 +491,7 @@ export default function ConsumablesPage() {
         sortOptions={sortOptions}
         filterOptions={filterOptions}
         renderCard={renderCard}
+        renderCompactCard={renderCompactCard}
       />
       <GenericItemDialog
         open={!!editingItem}

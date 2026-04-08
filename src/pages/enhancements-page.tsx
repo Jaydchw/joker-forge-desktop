@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
 import {
   GenericItemDialog,
   DialogTab,
@@ -20,6 +21,7 @@ import {
   Lock,
   Eye,
   EyeSlash,
+  Copy,
   Prohibit,
   Heart,
   ShieldCheck,
@@ -274,6 +276,16 @@ export default function EnhancementsPage() {
         description={item.description}
         idValue={item.orderValue}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
+        onDuplicate={() => {
+          const duplicatedItem: EnhancementData = {
+            ...item,
+            id: crypto.randomUUID(),
+            name: `${item.name} (Copy)`,
+            objectKey: `${item.objectKey}_copy`,
+            orderValue: data.enhancements.length + 1,
+          };
+          updateEnhancements([...data.enhancements, duplicatedItem]);
+        }}
         image={
           item.image ? (
             <img
@@ -395,6 +407,13 @@ export default function EnhancementsPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy className="h-5 w-5" weight="regular" />,
+            onClick: () => { },
+            variant: "ghost",
+          },
+          {
             id: "delete",
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
@@ -407,6 +426,78 @@ export default function EnhancementsPage() {
     [handleUpdate, requestDelete],
   );
 
+const renderCompactCard = useCallback(
+    (item: EnhancementData) => (
+      <GenericItemCardCompact
+        name={item.name}
+        overlayImage={item.overlayImage}
+        image={
+          item.image ? (
+            <img
+              src={item.image}
+              className="w-full h-full object-contain [image-rendering:pixelated]"
+              alt={item.name}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 text-xs font-bold uppercase tracking-widest border-2 border-dashed border-border/30 rounded-xl m-2">
+              No Image
+            </div>
+          )
+        }
+        actions={[
+          {
+            id: "edit",
+            label: "Edit Info",
+            icon: <PencilSimple weight="bold" />,
+            onClick: () => setEditingItem(item),
+            variant: "secondary",
+          },
+          {
+            id: "rules",
+            label: "Edit Rules",
+            icon: <Sparkle weight="bold" />,
+            onClick: () => {
+              setEditingItem(null);
+              setRuleEditingItem(item);
+            },
+            variant: "outline",
+          },
+          {
+            id: "showcase",
+            label: "Showcase",
+            icon: <VideoCamera weight="regular" />,
+            onClick: () => setShowcaseItem(item),
+            variant: "ghost",
+          },
+          {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy weight="regular" />,
+            onClick: () => {
+              const duplicatedEnhancement: EnhancementData = {
+                ...item,
+                id: crypto.randomUUID(),
+                name: `${item.name} (Copy)`,
+                objectKey: `${item.objectKey}_copy`,
+                orderValue: data.enhancements.length + 1,
+              };
+              updateEnhancements([...data.enhancements, duplicatedEnhancement]);
+            },
+            variant: "ghost",
+          },
+          {
+            id: "delete",
+            label: "Delete",
+            icon: <Trash weight="bold" />,
+            variant: "destructive",
+            onClick: () => requestDelete(item.id, item.name),
+          },
+        ]}
+      />
+    ),
+    [requestDelete, data.jokers, updateEnhancements],
+  );
+  
   return (
     <>
       <GenericItemPage<EnhancementData>
@@ -419,6 +510,7 @@ export default function EnhancementsPage() {
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
+        renderCompactCard={renderCompactCard}
       />
       <GenericItemDialog
         open={!!editingItem}

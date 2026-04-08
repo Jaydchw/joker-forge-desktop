@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
 import { useProjectData, useModName } from "@/lib/storage";
 import { DeckData, Rule } from "@/lib/types";
 import {
@@ -13,6 +14,7 @@ import {
   LockOpen,
   Lock,
   Eye,
+  Copy,
   EyeSlash,
   Prohibit,
   CurrencyDollar,
@@ -287,6 +289,16 @@ export default function DecksPage() {
         description={deck.description}
         idValue={deck.orderValue}
         onUpdate={(updates) => handleUpdate(deck.id, updates)}
+        onDuplicate={() => {
+          const duplicatedItem: DeckData = {
+            ...deck,
+            id: crypto.randomUUID(),
+            name: `${deck.name} (Copy)`,
+            objectKey: `${deck.objectKey}_copy`,
+            orderValue: data.decks.length + 1,
+          };
+          updateDecks([...data.decks, duplicatedItem]);
+        }}
         image={
           deck.image ? (
             <img
@@ -393,6 +405,13 @@ export default function DecksPage() {
             onClick: () => setShowcaseItem(deck),
           },
           {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy className="h-5 w-5" weight="regular" />,
+            onClick: () => { },
+            variant: "ghost",
+          },
+          {
             id: "delete",
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
@@ -403,6 +422,78 @@ export default function DecksPage() {
       />
     ),
     [handleUpdate, requestDelete],
+  );
+
+const renderCompactCard = useCallback(
+    (deck: DeckData) => (
+      <GenericItemCardCompact
+        name={deck.name}
+        overlayImage={deck.overlayImage}
+        image={
+          deck.image ? (
+            <img
+              src={deck.image}
+              className="w-full h-full object-contain [image-rendering:pixelated]"
+              alt={deck.name}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 text-xs font-bold uppercase tracking-widest border-2 border-dashed border-border/30 rounded-xl m-2">
+              No Image
+            </div>
+          )
+        }
+        actions={[
+          {
+            id: "edit",
+            label: "Edit Info",
+            icon: <PencilSimple weight="bold" />,
+            onClick: () => setEditingItem(deck),
+            variant: "secondary",
+          },
+          {
+            id: "rules",
+            label: "Edit Rules",
+            icon: <Sparkle weight="bold" />,
+            onClick: () => {
+              setEditingItem(null);
+              setRuleEditingItem(deck);
+            },
+            variant: "outline",
+          },
+          {
+            id: "showcase",
+            label: "Showcase",
+            icon: <VideoCamera weight="regular" />,
+            onClick: () => setShowcaseItem(deck),
+            variant: "ghost",
+          },
+          {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy weight="regular" />,
+            onClick: () => {
+              const duplicatedDeck: DeckData = {
+                ...deck,
+                id: crypto.randomUUID(),
+                name: `${deck.name} (Copy)`,
+                objectKey: `${deck.objectKey}_copy`,
+                orderValue: data.decks.length + 1,
+              };
+              updateDecks([...data.decks, duplicatedDeck]);
+            },
+            variant: "ghost",
+          },
+          {
+            id: "delete",
+            label: "Delete",
+            icon: <Trash weight="bold" />,
+            variant: "destructive",
+            onClick: () => requestDelete(deck.id, deck.name),
+          },
+        ]}
+      />
+    ),
+    [requestDelete, data.decks, updateDecks],
   );
 
   return (
@@ -417,6 +508,7 @@ export default function DecksPage() {
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
+        renderCompactCard={renderCompactCard}
       />
       <GenericItemDialog
         open={!!editingItem}

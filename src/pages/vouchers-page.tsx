@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
 import { useProjectData, useModName } from "@/lib/storage";
 import { Rule, VoucherData } from "@/lib/types";
 import {
@@ -14,6 +15,7 @@ import {
   Lock,
   Eye,
   EyeSlash,
+  Copy,
   Bookmark,
   Prohibit,
   VideoCamera,
@@ -447,6 +449,16 @@ export default function VouchersPage() {
         idValue={item.orderValue}
         overlayImage={item.overlayImage}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
+        onDuplicate={() => {
+          const duplicatedItem: VoucherData = {
+            ...item,
+            id: crypto.randomUUID(),
+            name: `${item.name} (Copy)`,
+            objectKey: `${item.objectKey}_copy`,
+            orderValue: data.vouchers.length + 1,
+          };
+          updateVouchers([...data.vouchers, duplicatedItem]);
+        }}
         image={
           item.image ? (
             <img
@@ -535,6 +547,13 @@ export default function VouchersPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy className="h-5 w-5" weight="regular" />,
+            onClick: () => { },
+            variant: "ghost",
+          },
+          {
             id: "delete",
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
@@ -545,6 +564,78 @@ export default function VouchersPage() {
       />
     ),
     [handleUpdate, requestDelete],
+  );
+
+const renderCompactCard = useCallback(
+    (item: VoucherData) => (
+      <GenericItemCardCompact
+        name={item.name}
+        overlayImage={item.overlayImage}
+        image={
+          item.image ? (
+            <img
+              src={item.image}
+              className="w-full h-full object-contain [image-rendering:pixelated]"
+              alt={item.name}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 text-xs font-bold uppercase tracking-widest border-2 border-dashed border-border/30 rounded-xl m-2">
+              No Image
+            </div>
+          )
+        }
+        actions={[
+          {
+            id: "edit",
+            label: "Edit Info",
+            icon: <PencilSimple weight="bold" />,
+            onClick: () => setEditingItem(item),
+            variant: "secondary",
+          },
+          {
+            id: "rules",
+            label: "Edit Rules",
+            icon: <Sparkle weight="bold" />,
+            onClick: () => {
+              setEditingItem(null);
+              setRuleEditingItem(item);
+            },
+            variant: "outline",
+          },
+          {
+            id: "showcase",
+            label: "Showcase",
+            icon: <VideoCamera weight="regular" />,
+            onClick: () => setShowcaseItem(item),
+            variant: "ghost",
+          },
+          {
+            id: "duplicate",
+            label: "Duplicate",
+            icon: <Copy weight="regular" />,
+            onClick: () => {
+              const duplicatedVoucher: VoucherData = {
+                ...item,
+                id: crypto.randomUUID(),
+                name: `${item.name} (Copy)`,
+                objectKey: `${item.objectKey}_copy`,
+                orderValue: data.vouchers.length + 1,
+              };
+              updateVouchers([...data.vouchers, duplicatedVoucher]);
+            },
+            variant: "ghost",
+          },
+          {
+            id: "delete",
+            label: "Delete",
+            icon: <Trash weight="bold" />,
+            variant: "destructive",
+            onClick: () => requestDelete(item.id, item.name),
+          },
+        ]}
+      />
+    ),
+    [requestDelete, data.vouchers, updateVouchers],
   );
 
   return (
@@ -559,6 +650,7 @@ export default function VouchersPage() {
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
+        renderCompactCard={renderCompactCard}
       />
       <GenericItemDialog
         open={!!editingItem}

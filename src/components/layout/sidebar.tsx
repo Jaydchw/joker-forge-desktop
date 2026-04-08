@@ -20,6 +20,7 @@ import {
   Sparkle,
   CaretDown,
   Gear,
+  BookBookmark
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -155,6 +156,61 @@ const COLLAPSIBLE_GROUPS = [
         icon: SpeakerHigh,
         href: "/sounds",
         color: "text-sound-primary",
+      },
+    ],
+  },
+  {
+    id: "reforge",
+    title: "Vanilla Reforged",
+    icon: BookBookmark,
+    items: [
+      {
+        label: "Jokers",
+        icon: Smiley,
+        href: "/vanilla-reforged/jokers",
+        color: "text-joker-primary",
+      },
+      {
+        label: "Consumables",
+        icon: Flask,
+        href: "/vanilla-reforged/consumables",
+        color: "text-consumable-primary",
+      },
+      {
+        label: "Enhancements",
+        icon: Star,
+        href: "/vanilla-reforged/enhancements",
+        color: "text-enhancement-primary",
+      },
+      {
+        label: "Seals",
+        icon: Stamp,
+        href: "/vanilla-reforged/seals",
+        color: "text-seal-primary",
+      },
+      {
+        label: "Editions",
+        icon: Palette,
+        href: "/vanilla-reforged/editions",
+        color: "text-edition-primary",
+      },
+      {
+        label: "Booster Packs",
+        icon: Package,
+        href: "/vanilla-reforged/boosters",
+        color: "text-booster-primary",
+      },
+      {
+        label: "Vouchers",
+        icon: Ticket,
+        href: "/vanilla-reforged/vouchers",
+        color: "text-voucher-primary",
+      },
+      {
+        label: "Decks",
+        icon: Cards,
+        href: "/vanilla-reforged/decks",
+        color: "text-deck-primary",
       },
     ],
   },
