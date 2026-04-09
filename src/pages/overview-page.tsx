@@ -44,23 +44,13 @@ import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
 export function OverviewPage() {
   const {
     data,
-    updateMetadata,
     projects,
     currentProjectId,
     switchProject,
     createProject,
     deleteProject,
-    updateJokers,
-    updateConsumables,
-    updateRarities,
-    updateConsumableSets,
-    updateDecks,
-    updateVouchers,
-    updateBoosters,
-    updateSeals,
-    updateEditions,
-    updateEnhancements,
-    updateSounds,
+    importProject,
+    updateMetadata,
   } = useProjectData();
   const vanillaReforged = useVanillaReforgedData();
   const { stats, metadata } = data;
@@ -106,29 +96,7 @@ export function OverviewPage() {
   const applyImportedProject = (
     project: ReturnType<typeof importJokerforgeFromText>["project"],
   ) => {
-    const importedName = (project.metadata?.name || "").trim().toLowerCase();
-    const existingProject = projects.find(
-      (candidate) => candidate.name.trim().toLowerCase() === importedName,
-    );
-
-    if (existingProject) {
-      switchProject(existingProject.id);
-    } else {
-      createProject(project.metadata);
-    }
-
-    updateMetadata(project.metadata);
-    updateJokers(project.jokers);
-    updateConsumables(project.consumables);
-    updateRarities(project.rarities);
-    updateConsumableSets(project.consumableSets);
-    updateDecks(project.decks);
-    updateVouchers(project.vouchers);
-    updateBoosters(project.boosters);
-    updateSeals(project.seals);
-    updateEditions(project.editions);
-    updateEnhancements(project.enhancements);
-    updateSounds(project.sounds);
+    importProject(project);
   };
 
   const handleImportClick = () => {

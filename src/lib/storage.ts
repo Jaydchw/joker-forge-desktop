@@ -595,6 +595,54 @@ export const useProjectData = () => {
     [saveStore],
   );
 
+  // Atomically replace an entire project in one setStore call.
+  // Avoids the glitchy sequential-update pattern of calling each updateX
+  // separately, which caused multiple save → event → setState cycles.
+  const importProject = useCallback(
+    (projectData: ProjectData) => {
+      setStore((prev) => {
+        const importedName = (projectData.metadata?.name || "").trim().toLowerCase();
+        const existingId = Object.keys(prev.projects).find(
+          (id) =>
+            (prev.projects[id].metadata.name || "").trim().toLowerCase() ===
+            importedName,
+        );
+
+        let nextCurrentId: string;
+        let nextProjects: Record<string, ProjectData>;
+
+        if (existingId) {
+          nextCurrentId = existingId;
+          nextProjects = {
+            ...prev.projects,
+            [existingId]: {
+              ...projectData,
+              metadata: { ...projectData.metadata, id: existingId },
+            },
+          };
+        } else {
+          const baseId = projectData.metadata.id || DEFAULT_METADATA.id;
+          const uniqueId = ensureUniqueProjectId(baseId, prev.projects);
+          const finalProject: ProjectData = {
+            ...projectData,
+            metadata: { ...projectData.metadata, id: uniqueId },
+          };
+          nextCurrentId = uniqueId;
+          nextProjects = { ...prev.projects, [uniqueId]: finalProject };
+        }
+
+        const nextStore: ProjectStore = {
+          ...prev,
+          currentProjectId: nextCurrentId,
+          projects: nextProjects,
+        };
+        saveStore(nextStore);
+        return nextStore;
+      });
+    },
+    [saveStore],
+  );
+
   const projects = Object.values(store.projects).map((project) => ({
     id: project.metadata.id,
     name: project.metadata.name,
@@ -609,6 +657,7 @@ export const useProjectData = () => {
     switchProject,
     createProject,
     deleteProject,
+    importProject,
     updateMetadata,
     updateJokers: (items: JokerData[]) => updateCollection("jokers", items),
     updateConsumables: (items: ConsumableData[]) =>
