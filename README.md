@@ -14,8 +14,8 @@ This project uses:
 
 ## Downloads
 
-- Nightly builds are published in the GitHub Releases page for this repository.
-- Nightly tags look like: `nightly-<base>-nightly.<YYYYMMDD>.<run_number>`
+- Nightly builds are published on the GitHub Releases page for this repository.
+- Nightly tags look like: `nightly-<base>-nightly.<YYYY-MM-DD>.<run_number>`
 
 ## Project Links
 
@@ -32,51 +32,66 @@ Requirements:
 - Rust toolchain
 - Tauri prerequisites for your OS
 
-Install and run:
+Install dependencies:
 
 ```bash
 npm ci
+```
+
+Run the Vite dev server only (no Tauri):
+
+```bash
 npm run dev
 ```
 
-Run desktop dev in stable channel:
+Run the full desktop app in dev mode:
 
 ```bash
+# Stable channel
 npm run stable
-```
 
-Run desktop dev in nightly channel:
-
-```bash
+# Nightly channel
 npm run nightly
 ```
 
-These commands automatically prepare the app identity/version for the selected channel before launching Tauri dev.
+These commands prepare the app identity and version for the selected channel before launching Tauri dev.
 
-Build web assets:
+## Building
 
-```bash
-npm run build
-```
-
-Build the desktop app:
+Build a production desktop installer:
 
 ```bash
-npm run tauri build
+# Stable channel
+npm run build-stable
+
+# Nightly channel
+npm run build-nightly
 ```
+
+Both commands automatically prepare the correct channel identity and version before invoking `tauri build`. The nightly build uses a `-nightly.local` version suffix. In CI, the nightly version is injected via the `RELEASE_VERSION` environment variable.
 
 ## Versioning
 
-- Global app version lives in `app-version.json`.
-- `npm run version:sync` copies that version into:
-	- `package.json`
-	- `src-tauri/tauri.conf.json`
-	- `src-tauri/Cargo.toml`
+- Global app version lives in `app-version.json` — this is the single source of truth.
+- `npm run prepare:stable` / `npm run prepare:nightly` sync the version from `app-version.json` into:
+  - `package.json`
+  - `src-tauri/tauri.conf.json`
+  - `src-tauri/Cargo.toml`
+  - `src/generated/release-channel.ts`
+
+## Release Channels
+
+| Channel | Product name | App identifier | Version suffix |
+|---------|-------------|----------------|----------------|
+| Stable  | Joker Forge | `com.jaydchw.joker-forge-desktop` | none |
+| Nightly | Joker Forge Nightly | `com.jaydchw.joker-forge-desktop.nightly` | `-nightly.<YYYYMMDD>.<run>` |
+
+Stable and nightly install side-by-side as separate apps.
 
 ## Nightly Releases
 
 - Workflow file: `.github/workflows/nightly-release.yml`
 - Trigger: every push to `main`
-- Builds: Windows + Linux
+- Builds: Windows (NSIS) + Linux (AppImage + DEB)
 - Publishes a GitHub prerelease with commit messages since the previous nightly
-- Retention: keeps latest 14 nightly releases and deletes older release tags
+- Retention: keeps the latest 14 nightly releases, older ones are auto-deleted

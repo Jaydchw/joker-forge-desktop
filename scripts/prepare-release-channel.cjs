@@ -20,16 +20,26 @@ const getArg = (name) => {
   return args[index + 1];
 };
 
-const version = getArg("version");
 const channel = getArg("channel") || "stable";
-
-if (!version) {
-  throw new Error("Missing required argument --version");
-}
 
 if (channel !== "stable" && channel !== "nightly") {
   throw new Error("--channel must be 'stable' or 'nightly'");
 }
+
+function resolveVersion() {
+  const fromArg = getArg("version");
+  if (fromArg) return fromArg;
+
+  const fromEnv = process.env.RELEASE_VERSION?.trim();
+  if (fromEnv) return fromEnv;
+
+  const { version: baseVersion } = JSON.parse(
+    fs.readFileSync(path.join(root, "app-version.json"), "utf8"),
+  );
+  return channel === "nightly" ? `${baseVersion}-nightly.local` : baseVersion;
+}
+
+const version = resolveVersion();
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));

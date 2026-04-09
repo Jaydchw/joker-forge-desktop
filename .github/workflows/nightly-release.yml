@@ -35,6 +35,7 @@ jobs:
 
           BASE_VERSION=$(node -p "require('./app-version.json').version")
           DATE_STAMP=$(date +"%Y%m%d")
+          DATE_READABLE=$(date +"%Y-%m-%d")
           NIGHTLY_VERSION="${BASE_VERSION}-nightly.${DATE_STAMP}.${GITHUB_RUN_NUMBER}"
           NIGHTLY_TAG="nightly-${NIGHTLY_VERSION}"
           RELEASE_NAME="Nightly ${NIGHTLY_VERSION}"
@@ -45,6 +46,7 @@ jobs:
             echo "## Nightly Build"
             echo
             echo "- Version: ${NIGHTLY_VERSION}"
+            echo "- Date: ${DATE_READABLE}"
             echo "- Branch: ${GITHUB_REF_NAME}"
             echo "- Commit: ${GITHUB_SHA}"
             echo "- Trigger: push"
@@ -119,11 +121,10 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Sync app version
-        run: npm run version:sync
-
       - name: Prepare nightly app identity and version
-        run: node scripts/prepare-release-channel.cjs --channel nightly --version "${{ needs.prepare.outputs.nightly_version }}"
+        run: npm run prepare:nightly
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.nightly_version }}
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable

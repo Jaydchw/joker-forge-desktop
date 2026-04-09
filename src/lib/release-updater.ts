@@ -142,25 +142,39 @@ const downloadAndLaunchInstaller = async (asset: GitHubReleaseAsset) => {
 };
 
 export const checkForReleaseUpdateOnLaunch = async () => {
+  console.log("[release-updater] checkForReleaseUpdateOnLaunch called", {
+    hasCheckedAlready: hasCheckedForUpdateOnLaunch,
+    isDev: import.meta.env.DEV,
+    devOverride: UPDATE_CHECK_DEV_OVERRIDE,
+    releaseChannel: RELEASE_CHANNEL,
+    testChannel: UPDATE_TEST_CHANNEL,
+    testVersion: UPDATE_TEST_CURRENT_VERSION,
+  });
+
   if (hasCheckedForUpdateOnLaunch) {
+    console.log("[release-updater] Already checked on this launch, skipping");
     return;
   }
   hasCheckedForUpdateOnLaunch = true;
 
   if (import.meta.env.DEV && !UPDATE_CHECK_DEV_OVERRIDE) {
+    console.log("[release-updater] Skipping update check in dev mode (set VITE_ENABLE_UPDATE_CHECK_IN_DEV=true to override)");
     return;
   }
 
   try {
     const resolvedCurrentVersion =
       UPDATE_TEST_CURRENT_VERSION ?? (await getVersion());
+    console.log("[release-updater] Current version resolved", { resolvedCurrentVersion });
 
     const channel: ReleaseChannel =
       UPDATE_TEST_CHANNEL ??
       (RELEASE_CHANNEL === "nightly" || isNightlyVersion(resolvedCurrentVersion)
         ? "nightly"
         : "stable");
+    console.log("[release-updater] Using channel", { channel });
 
+    console.log("[release-updater] Fetching latest release...");
     const latestRelease = await getLatestReleaseForChannel(channel);
     if (!latestRelease) {
       console.info("[release-updater] No candidate release found", {
@@ -168,9 +182,20 @@ export const checkForReleaseUpdateOnLaunch = async () => {
       });
       return;
     }
+    console.log("[release-updater] Latest release fetched", {
+      tag: latestRelease.tag_name,
+      name: latestRelease.name,
+      prerelease: latestRelease.prerelease,
+      assetCount: latestRelease.assets.length,
+      assets: latestRelease.assets.map((a) => a.name),
+    });
 
     const currentNormalized = normalizeVersion(resolvedCurrentVersion);
     const latestNormalized = parseReleaseVersion(latestRelease);
+    console.log("[release-updater] Version comparison", {
+      currentNormalized,
+      latestNormalized,
+    });
     if (!currentNormalized || !latestNormalized) {
       console.warn("[release-updater] Could not normalize versions", {
         currentVersion: resolvedCurrentVersion,
@@ -189,8 +214,12 @@ export const checkForReleaseUpdateOnLaunch = async () => {
       return;
     }
 
+    console.log("[release-updater] Update available!", { currentNormalized, latestNormalized });
+
     const platform = getCurrentPlatform();
+    console.log("[release-updater] Detected platform", { platform });
     const installerAsset = selectInstallerAsset(latestRelease, platform);
+    console.log("[release-updater] Installer asset selected", { installerAsset: installerAsset?.name ?? null });
 
     if (!installerAsset) {
       window.alert(

@@ -6,14 +6,15 @@
   "scripts": {
     "dev": "vite",
     "version:sync": "node scripts/sync-app-version.cjs",
-    "prepare:stable": "node scripts/prepare-release-channel.cjs --channel stable --version 2.0.0-beta",
-    "prepare:nightly": "node scripts/prepare-release-channel.cjs --channel nightly --version 2.0.0-beta-nightly.local",
+    "prepare:stable": "node scripts/prepare-release-channel.cjs --channel stable",
+    "prepare:nightly": "node scripts/prepare-release-channel.cjs --channel nightly",
     "stable": "npm run prepare:stable && npx tauri dev",
     "nightly": "npm run prepare:nightly && npx tauri dev",
-    "tauri:dev:nightly": "npm run prepare:nightly && npx tauri dev",
-    "build": "npm run version:sync && tsc && vite build",
+    "build": "tsc && vite build",
+    "build-stable": "npm run prepare:stable && npx tauri build",
+    "build-nightly": "npm run prepare:nightly && npx tauri build",
     "preview": "vite preview",
-    "tauri": "npm run version:sync && tauri"
+    "tauri": "tauri"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
