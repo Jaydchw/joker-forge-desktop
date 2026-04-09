@@ -27,11 +27,13 @@ import {
   Prohibit,
   ShoppingBag,
   VideoCamera,
+  DownloadSimple,
 } from "@phosphor-icons/react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import { CUSTOM_SHADERS, SOUNDS, VANILLA_SHADERS } from "@/lib/balatro-utils";
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function EditionsPage() {
   const { data, updateEditions, isHydrating } = useProjectData();
@@ -80,6 +82,18 @@ export default function EditionsPage() {
   const handleDelete = useCallback(
     (id: string) => updateEditions(data.editions.filter((e) => e.id !== id)),
     [data.editions, updateEditions],
+  );
+
+  const handleExport = useCallback(
+    async (item: EditionData) => {
+      try {
+        await exportSingleItemRust(item as any, "edition", data.metadata.prefix);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        window.alert(`Edition export failed: ${message}`);
+      }
+    },
+    [data.metadata.prefix],
   );
 
   const {
@@ -422,6 +436,12 @@ export default function EditionsPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => handleExport(item),
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -438,7 +458,7 @@ export default function EditionsPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete],
+    [handleUpdate, requestDelete, handleExport],
   );
 
 const renderCompactCard = useCallback(
@@ -485,6 +505,13 @@ const renderCompactCard = useCallback(
             variant: "ghost",
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple weight="regular" />,
+            onClick: () => handleExport(item),
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -510,7 +537,7 @@ const renderCompactCard = useCallback(
         ]}
       />
     ),
-    [requestDelete, data.editions, updateEditions],
+    [requestDelete, handleExport, data.editions, updateEditions],
   );
 
   return (

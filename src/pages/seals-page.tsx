@@ -18,6 +18,7 @@ import {
   Copy,
   Prohibit,
   VideoCamera,
+  DownloadSimple,
 } from "@phosphor-icons/react";
 import {
   GenericItemDialog,
@@ -33,6 +34,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function SealsPage() {
   const { data, updateSeals, isHydrating } = useProjectData();
@@ -79,6 +81,18 @@ export default function SealsPage() {
   const handleDelete = useCallback(
     (id: string) => updateSeals(data.seals.filter((s) => s.id !== id)),
     [data.seals, updateSeals],
+  );
+
+  const handleExport = useCallback(
+    async (item: SealData) => {
+      try {
+        await exportSingleItemRust(item as any, "seal", data.metadata.prefix);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        window.alert(`Seal export failed: ${message}`);
+      }
+    },
+    [data.metadata.prefix],
   );
 
   const {
@@ -361,6 +375,12 @@ export default function SealsPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => handleExport(item),
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -377,7 +397,7 @@ export default function SealsPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete],
+    [handleUpdate, requestDelete, handleExport],
   );
 
 const renderCompactCard = useCallback(
@@ -424,6 +444,13 @@ const renderCompactCard = useCallback(
             variant: "ghost",
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple weight="regular" />,
+            onClick: () => handleExport(item),
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -449,7 +476,7 @@ const renderCompactCard = useCallback(
         ]}
       />
     ),
-    [requestDelete, data.seals, updateSeals],
+    [requestDelete, handleExport, data.seals, updateSeals],
   );
 
   return (

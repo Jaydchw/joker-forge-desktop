@@ -22,6 +22,7 @@ import {
   SmileySad,
   Shuffle,
   VideoCamera,
+  DownloadSimple,
 } from "@phosphor-icons/react";
 import {
   GenericItemDialog,
@@ -36,6 +37,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function DecksPage() {
   const { data, updateDecks, isHydrating } = useProjectData();
@@ -81,6 +83,18 @@ export default function DecksPage() {
   const handleDelete = useCallback(
     (id: string) => updateDecks(data.decks.filter((d) => d.id !== id)),
     [data.decks, updateDecks],
+  );
+
+  const handleExport = useCallback(
+    async (item: DeckData) => {
+      try {
+        await exportSingleItemRust(item as any, "deck", data.metadata.prefix);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        window.alert(`Deck export failed: ${message}`);
+      }
+    },
+    [data.metadata.prefix],
   );
 
   const {
@@ -405,6 +419,12 @@ export default function DecksPage() {
             onClick: () => setShowcaseItem(deck),
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => handleExport(deck),
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -421,7 +441,7 @@ export default function DecksPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete],
+    [handleUpdate, requestDelete, handleExport],
   );
 
 const renderCompactCard = useCallback(
@@ -468,6 +488,13 @@ const renderCompactCard = useCallback(
             variant: "ghost",
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple weight="regular" />,
+            onClick: () => handleExport(deck),
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -493,7 +520,7 @@ const renderCompactCard = useCallback(
         ]}
       />
     ),
-    [requestDelete, data.decks, updateDecks],
+    [requestDelete, handleExport, data.decks, updateDecks],
   );
 
   return (

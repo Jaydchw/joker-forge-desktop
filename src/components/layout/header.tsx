@@ -10,6 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ExportSuccessDialog } from "@/components/layout/export-success-dialog";
+import { UnsupportedRulesDialog } from "@/components/layout/unsupported-rules-dialog";
 import {
   getBalatroInstallPath,
   getExportDestinationMode,
@@ -25,10 +26,7 @@ import {
 } from "@/lib/rust-codegen-export";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
-import {
-  formatUnsupportedRulesError,
-  getUnsupportedRuleParts,
-} from "@/lib/export-compiler-support";
+import { getUnsupportedRuleParts } from "@/lib/export-compiler-support";
 import {
   applyThemeFromStorage,
   subscribeThemeChanges,
@@ -47,6 +45,8 @@ export function Header({ title }: HeaderProps) {
   const [exportResult, setExportResult] = useState<ExportModRustResult | null>(
     null,
   );
+  const [unsupportedParts, setUnsupportedParts] = useState<string[]>([]);
+  const [showUnsupportedDialog, setShowUnsupportedDialog] = useState(false);
   const { data } = useProjectData();
 
   useEffect(() => {
@@ -114,25 +114,18 @@ export function Header({ title }: HeaderProps) {
 
   const displayTitle = title || getPageTitle(location.pathname);
 
-  const handleExportMod = async () => {
-    if (isExporting) return;
-
-    const unsupported = new Set<string>([
-      ...data.jokers.flatMap((item) =>
-        getUnsupportedRuleParts(item.rules, "joker"),
-      ),
-    ]);
-
-    if (unsupported.size > 0) {
-      window.alert(formatUnsupportedRulesError(Array.from(unsupported), "Mod"));
-      return;
-    }
-
+  const doExport = async () => {
     try {
       setIsExporting(true);
       const result = await exportModRust(
         data.metadata as any,
         data.jokers as any,
+        data.consumables as any,
+        data.vouchers as any,
+        data.decks as any,
+        data.enhancements as any,
+        data.seals as any,
+        data.editions as any,
         {
           useLocalizationFile: getSplitLocalizationExportEnabled(),
           destinationMode: getExportDestinationMode(),
@@ -159,6 +152,36 @@ export function Header({ title }: HeaderProps) {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleExportMod = async () => {
+    if (isExporting) return;
+
+    const unsupported = new Set<string>([
+      ...data.jokers.flatMap((item) =>
+        getUnsupportedRuleParts(item.rules, "joker"),
+      ),
+      ...data.consumables.flatMap((item) =>
+        getUnsupportedRuleParts(item.rules, "consumable"),
+      ),
+      ...data.vouchers.flatMap((item) =>
+        getUnsupportedRuleParts(item.rules, "voucher"),
+      ),
+      ...data.decks.flatMap((item) =>
+        getUnsupportedRuleParts(item.rules, "deck"),
+      ),
+      ...data.enhancements.flatMap((item) =>
+        getUnsupportedRuleParts(item.rules, "card"),
+      ),
+    ]);
+
+    if (unsupported.size > 0) {
+      setUnsupportedParts(Array.from(unsupported));
+      setShowUnsupportedDialog(true);
+      return;
+    }
+
+    await doExport();
   };
 
   return (
@@ -230,6 +253,13 @@ export function Header({ title }: HeaderProps) {
         }}
         modFolderPath={exportResult?.modFolderPath ?? ""}
         fileCount={exportResult?.fileCount ?? 0}
+      />
+
+      <UnsupportedRulesDialog
+        open={showUnsupportedDialog}
+        onOpenChange={setShowUnsupportedDialog}
+        unsupportedParts={unsupportedParts}
+        onExportAnyway={doExport}
       />
     </>
   );

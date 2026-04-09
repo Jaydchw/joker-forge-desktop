@@ -149,7 +149,7 @@ export function TitleBar() {
       data-tauri-drag-region
       onDoubleClick={handleTitleBarDoubleClick}
       className={cn(
-        "h-9 flex items-center justify-between fixed top-0 left-0 right-0 z-50",
+        "h-9 flex items-center justify-between fixed top-0 left-0 right-0 z-[60]",
         "bg-background/95 backdrop-blur-md border-b border-border",
         "select-none transition-colors duration-300",
       )}

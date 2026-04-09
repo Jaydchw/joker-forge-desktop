@@ -19,6 +19,7 @@ import {
   Bookmark,
   Prohibit,
   VideoCamera,
+  DownloadSimple,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function VouchersPage() {
   const { data, updateVouchers, isHydrating } = useProjectData();
@@ -101,6 +103,18 @@ export default function VouchersPage() {
   const handleDelete = useCallback(
     (id: string) => updateVouchers(data.vouchers.filter((v) => v.id !== id)),
     [data.vouchers, updateVouchers],
+  );
+
+  const handleExport = useCallback(
+    async (item: VoucherData) => {
+      try {
+        await exportSingleItemRust(item as any, "voucher", data.metadata.prefix);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        window.alert(`Voucher export failed: ${message}`);
+      }
+    },
+    [data.metadata.prefix],
   );
 
   const {
@@ -547,6 +561,12 @@ export default function VouchersPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => handleExport(item),
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -563,7 +583,7 @@ export default function VouchersPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete],
+    [handleUpdate, requestDelete, handleExport],
   );
 
 const renderCompactCard = useCallback(
@@ -610,6 +630,13 @@ const renderCompactCard = useCallback(
             variant: "ghost",
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple weight="regular" />,
+            onClick: () => handleExport(item),
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -635,7 +662,7 @@ const renderCompactCard = useCallback(
         ]}
       />
     ),
-    [requestDelete, data.vouchers, updateVouchers],
+    [requestDelete, handleExport, data.vouchers, updateVouchers],
   );
 
   return (

@@ -15,7 +15,7 @@ This project uses:
 ## Downloads
 
 - Nightly builds are published on the GitHub Releases page for this repository.
-- Nightly tags look like: `nightly-<base>-nightly.<YYYY-MM-DD>.<run_number>`
+- Nightly tags look like: `nightly-<base>-nightly.<YYYYMMDD>.<run_number>`
 
 ## Project Links
 

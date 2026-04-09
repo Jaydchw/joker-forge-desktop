@@ -65,6 +65,19 @@ function DialogContent({
           className,
         )}
         aria-describedby={ariaDescribedBy}
+        onPointerDownOutside={(e) => {
+          const target = e.detail.originalEvent.target as Element;
+          if (target?.closest("[data-tauri-drag-region]")) {
+            e.preventDefault();
+          }
+        }}
+        onInteractOutside={(e) => {
+          const target = (e.detail.originalEvent as PointerEvent | FocusEvent)
+            .target as Element;
+          if (target?.closest("[data-tauri-drag-region]")) {
+            e.preventDefault();
+          }
+        }}
         {...props}
       >
         {children}

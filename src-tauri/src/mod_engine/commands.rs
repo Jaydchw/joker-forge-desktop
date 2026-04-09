@@ -11,8 +11,10 @@ use tauri::{AppHandle, Emitter, Manager, State, Window};
 use super::{
     compiler::Compiler,
     export::{
-        AtlasPosInput, BatchJokerEntry, ConsumableDataInput, DeckDataInput, EditionDataInput,
-        EnhancementDataInput, JokerDataInput, ModMetadataInput, SealDataInput, VoucherDataInput,
+        AtlasPosInput, BatchConsumableEntry, BatchDeckEntry, BatchEditionEntry,
+        BatchEnhancementEntry, BatchJokerEntry, BatchSealEntry, BatchVoucherEntry,
+        ConsumableDataInput, DeckDataInput, EditionDataInput, EnhancementDataInput, JokerDataInput,
+        ModMetadataInput, SealDataInput, VoucherDataInput,
     },
     state::AppState,
     types::{Edge, EntityState, Node, RuleCatalogPayload, SnippetResponse, StateSyncPayload},
@@ -447,18 +449,34 @@ pub fn batch_export_jokers(
     Ok(count)
 }
 
-/// Export a full mod package (main file, metadata JSON, atlas assets, jokers: localization)
+/// Export a full mod package (main file, metadata JSON, atlas assets, all item types)
 /// in a single Rust command.
 #[tauri::command]
 pub fn export_mod_package(
     mod_folder_path: String,
     metadata: ModMetadataInput,
     jokers: Vec<BatchJokerEntry>,
+    consumables: Vec<BatchConsumableEntry>,
+    vouchers: Vec<BatchVoucherEntry>,
+    decks: Vec<BatchDeckEntry>,
+    enhancements: Vec<BatchEnhancementEntry>,
+    seals: Vec<BatchSealEntry>,
+    editions: Vec<BatchEditionEntry>,
     include_loc_txt: bool,
     use_localization_file: bool,
     localization_locale: Option<String>,
     atlas_1x_png: Option<Vec<u8>>,
     atlas_2x_png: Option<Vec<u8>>,
+    consumables_atlas_1x_png: Option<Vec<u8>>,
+    consumables_atlas_2x_png: Option<Vec<u8>>,
+    vouchers_atlas_1x_png: Option<Vec<u8>>,
+    vouchers_atlas_2x_png: Option<Vec<u8>>,
+    enhancements_atlas_1x_png: Option<Vec<u8>>,
+    enhancements_atlas_2x_png: Option<Vec<u8>>,
+    seals_atlas_1x_png: Option<Vec<u8>>,
+    seals_atlas_2x_png: Option<Vec<u8>>,
+    decks_atlas_1x_png: Option<Vec<u8>>,
+    decks_atlas_2x_png: Option<Vec<u8>>,
 ) -> Result<usize, String> {
     let root = Path::new(&mod_folder_path);
     fs::create_dir_all(root)
@@ -467,7 +485,15 @@ pub fn export_mod_package(
     let mut file_count = 0;
 
     let main_path = root.join(&metadata.main_file);
-    let main_lua = format_lua_source(&super::export::build_main_lua(&jokers));
+    let main_lua = format_lua_source(&super::export::build_main_lua(
+        &jokers,
+        &consumables,
+        &vouchers,
+        &decks,
+        &enhancements,
+        &seals,
+        &editions,
+    ));
     fs::write(&main_path, main_lua.as_bytes())
         .map_err(|e| format!("Failed to write {}: {}", main_path.display(), e))?;
     file_count += 1;
@@ -478,49 +504,176 @@ pub fn export_mod_package(
         .map_err(|e| format!("Failed to write {}: {}", json_path.display(), e))?;
     file_count += 1;
 
-    if let Some(bytes) = atlas_1x_png {
-        let path = root.join("assets").join("1x").join("CustomJokers.png");
+    // Write atlas PNGs
+    let write_atlas = |scale: &str, name: &str, bytes: Vec<u8>| -> Result<(), String> {
+        let path = root.join("assets").join(scale).join(name);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
         }
         fs::write(&path, bytes)
-            .map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
-        file_count += 1;
-    }
+            .map_err(|e| format!("Failed to write {}: {}", path.display(), e))
+    };
 
-    if let Some(bytes) = atlas_2x_png {
-        let path = root.join("assets").join("2x").join("CustomJokers.png");
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
+    if let Some(b) = atlas_1x_png { write_atlas("1x", "CustomJokers.png", b)?; file_count += 1; }
+    if let Some(b) = atlas_2x_png { write_atlas("2x", "CustomJokers.png", b)?; file_count += 1; }
+    if let Some(b) = consumables_atlas_1x_png { write_atlas("1x", "CustomConsumables.png", b)?; file_count += 1; }
+    if let Some(b) = consumables_atlas_2x_png { write_atlas("2x", "CustomConsumables.png", b)?; file_count += 1; }
+    if let Some(b) = enhancements_atlas_1x_png { write_atlas("1x", "CustomEnhancements.png", b)?; file_count += 1; }
+    if let Some(b) = enhancements_atlas_2x_png { write_atlas("2x", "CustomEnhancements.png", b)?; file_count += 1; }
+    if let Some(b) = seals_atlas_1x_png { write_atlas("1x", "CustomSeals.png", b)?; file_count += 1; }
+    if let Some(b) = seals_atlas_2x_png { write_atlas("2x", "CustomSeals.png", b)?; file_count += 1; }
+    if let Some(b) = vouchers_atlas_1x_png { write_atlas("1x", "CustomVouchers.png", b)?; file_count += 1; }
+    if let Some(b) = vouchers_atlas_2x_png { write_atlas("2x", "CustomVouchers.png", b)?; file_count += 1; }
+    if let Some(b) = decks_atlas_1x_png { write_atlas("1x", "CustomDecks.png", b)?; file_count += 1; }
+    if let Some(b) = decks_atlas_2x_png { write_atlas("2x", "CustomDecks.png", b)?; file_count += 1; }
+
+    // Write jokers
+    if !jokers.is_empty() {
+        let dir = root.join("jokers");
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+        for entry in &jokers {
+            let lua = if let Some(custom) = &entry.custom_lua {
+                custom.clone()
+            } else {
+                let def = super::export::joker_data_to_def(
+                    &entry.joker_data,
+                    entry.pos.clone(),
+                    entry.soul_pos.clone(),
+                );
+                let chunk = compile_joker_with_options(&def, &metadata.prefix, include_loc_txt);
+                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            };
+            fs::write(dir.join(&entry.file_name), lua.as_bytes())
+                .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
+            file_count += 1;
         }
-        fs::write(&path, bytes)
-            .map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
-        file_count += 1;
     }
 
-    let joker_dir = root.join("jokers");
-    fs::create_dir_all(&joker_dir)
-        .map_err(|e| format!("Failed to create {}: {}", joker_dir.display(), e))?;
+    // Write consumables
+    if !consumables.is_empty() {
+        let dir = root.join("consumables");
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+        for entry in &consumables {
+            let lua = if let Some(custom) = &entry.custom_lua {
+                custom.clone()
+            } else {
+                let def = super::export::consumable_data_to_def(
+                    &entry.consumable_data,
+                    entry.pos.clone(),
+                    entry.soul_pos.clone(),
+                );
+                let chunk = compile_consumable(&def, &metadata.prefix);
+                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            };
+            fs::write(dir.join(&entry.file_name), lua.as_bytes())
+                .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
+            file_count += 1;
+        }
+    }
 
-    for entry in &jokers {
-        let lua = if let Some(custom) = &entry.custom_lua {
-            custom.clone()
-        } else {
-            let joker_def = super::export::joker_data_to_def(
-                &entry.joker_data,
-                entry.pos.clone(),
-                entry.soul_pos.clone(),
-            );
-            let chunk = compile_joker_with_options(&joker_def, &metadata.prefix, include_loc_txt);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
-        };
+    // Write vouchers
+    if !vouchers.is_empty() {
+        let dir = root.join("vouchers");
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+        for entry in &vouchers {
+            let lua = if let Some(custom) = &entry.custom_lua {
+                custom.clone()
+            } else {
+                let def = super::export::voucher_data_to_def(
+                    &entry.voucher_data,
+                    entry.pos.clone(),
+                    entry.soul_pos.clone(),
+                );
+                let chunk = compile_voucher(&def, &metadata.prefix);
+                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            };
+            fs::write(dir.join(&entry.file_name), lua.as_bytes())
+                .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
+            file_count += 1;
+        }
+    }
 
-        let path = joker_dir.join(&entry.file_name);
-        fs::write(&path, lua.as_bytes())
-            .map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
-        file_count += 1;
+    // Write decks
+    if !decks.is_empty() {
+        let dir = root.join("decks");
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+        for entry in &decks {
+            let lua = if let Some(custom) = &entry.custom_lua {
+                custom.clone()
+            } else {
+                let def = super::export::deck_data_to_def(&entry.deck_data, entry.pos.clone());
+                let chunk = compile_deck(&def, &metadata.prefix);
+                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            };
+            fs::write(dir.join(&entry.file_name), lua.as_bytes())
+                .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
+            file_count += 1;
+        }
+    }
+
+    // Write enhancements
+    if !enhancements.is_empty() {
+        let dir = root.join("enhancements");
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+        for entry in &enhancements {
+            let lua = if let Some(custom) = &entry.custom_lua {
+                custom.clone()
+            } else {
+                let def = super::export::enhancement_data_to_def(
+                    &entry.enhancement_data,
+                    entry.pos.clone(),
+                );
+                let chunk = compile_enhancement(&def, &metadata.prefix);
+                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            };
+            fs::write(dir.join(&entry.file_name), lua.as_bytes())
+                .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
+            file_count += 1;
+        }
+    }
+
+    // Write seals
+    if !seals.is_empty() {
+        let dir = root.join("seals");
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+        for entry in &seals {
+            let lua = if let Some(custom) = &entry.custom_lua {
+                custom.clone()
+            } else {
+                let def = super::export::seal_data_to_def(&entry.seal_data, entry.pos.clone());
+                let chunk = compile_seal(&def, &metadata.prefix);
+                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            };
+            fs::write(dir.join(&entry.file_name), lua.as_bytes())
+                .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
+            file_count += 1;
+        }
+    }
+
+    // Write editions
+    if !editions.is_empty() {
+        let dir = root.join("editions");
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
+        for entry in &editions {
+            let lua = if let Some(custom) = &entry.custom_lua {
+                custom.clone()
+            } else {
+                let def = super::export::edition_data_to_def(&entry.edition_data);
+                let chunk = compile_edition(&def, &metadata.prefix);
+                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            };
+            fs::write(dir.join(&entry.file_name), lua.as_bytes())
+                .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
+            file_count += 1;
+        }
     }
 
     if use_localization_file {

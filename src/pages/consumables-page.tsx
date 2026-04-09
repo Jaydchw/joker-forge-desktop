@@ -16,6 +16,7 @@ import {
   Eye,
   EyeSlash,
   VideoCamera,
+  DownloadSimple,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -35,6 +36,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function ConsumablesPage() {
   const { data, updateConsumables, isHydrating } = useProjectData();
@@ -85,6 +87,18 @@ export default function ConsumablesPage() {
     (id: string) =>
       updateConsumables(data.consumables.filter((c) => c.id !== id)),
     [data.consumables, updateConsumables],
+  );
+
+  const handleExport = useCallback(
+    async (item: ConsumableData) => {
+      try {
+        await exportSingleItemRust(item as any, "consumable", data.metadata.prefix);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        window.alert(`Consumable export failed: ${message}`);
+      }
+    },
+    [data.metadata.prefix],
   );
 
   const {
@@ -387,6 +401,12 @@ export default function ConsumablesPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => handleExport(item),
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -403,7 +423,7 @@ export default function ConsumablesPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete],
+    [handleUpdate, requestDelete, handleExport],
   );
 
 const renderCompactCard = useCallback(
@@ -450,6 +470,13 @@ const renderCompactCard = useCallback(
             variant: "ghost",
           },
           {
+            id: "export",
+            label: "Export Code",
+            icon: <DownloadSimple weight="regular" />,
+            onClick: () => handleExport(item),
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -475,7 +502,7 @@ const renderCompactCard = useCallback(
         ]}
       />
     ),
-    [requestDelete, data.jokers, updateConsumables],
+    [requestDelete, handleExport, data.consumables, updateConsumables],
   );
 
   return (

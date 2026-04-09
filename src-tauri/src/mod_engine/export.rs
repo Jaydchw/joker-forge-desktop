@@ -386,7 +386,7 @@ impl<'de> Deserialize<'de> for WrappedParamInput {
 #[serde(rename_all = "camelCase")]
 pub struct UserVariableInput {
     pub name: String,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default)]
     pub var_type: String,
     pub initial_value: Option<f64>,
     pub initial_suit: Option<String>,
@@ -406,6 +406,69 @@ pub struct BatchJokerEntry {
     /// Filename to write: e.g. `"j_my_joker.lua"`.
     pub file_name: String,
     /// Optional custom Lua code. When present, skip compilation and use this.
+    #[serde(default)]
+    pub custom_lua: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchConsumableEntry {
+    pub consumable_data: ConsumableDataInput,
+    pub pos: AtlasPosInput,
+    #[serde(default)]
+    pub soul_pos: Option<AtlasPosInput>,
+    pub file_name: String,
+    #[serde(default)]
+    pub custom_lua: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchVoucherEntry {
+    pub voucher_data: VoucherDataInput,
+    pub pos: AtlasPosInput,
+    #[serde(default)]
+    pub soul_pos: Option<AtlasPosInput>,
+    pub file_name: String,
+    #[serde(default)]
+    pub custom_lua: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchDeckEntry {
+    pub deck_data: DeckDataInput,
+    pub pos: AtlasPosInput,
+    pub file_name: String,
+    #[serde(default)]
+    pub custom_lua: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchEnhancementEntry {
+    pub enhancement_data: EnhancementDataInput,
+    pub pos: AtlasPosInput,
+    pub file_name: String,
+    #[serde(default)]
+    pub custom_lua: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchSealEntry {
+    pub seal_data: SealDataInput,
+    pub pos: AtlasPosInput,
+    pub file_name: String,
+    #[serde(default)]
+    pub custom_lua: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchEditionEntry {
+    pub edition_data: EditionDataInput,
+    pub file_name: String,
     #[serde(default)]
     pub custom_lua: Option<String>,
 }
@@ -975,30 +1038,82 @@ pub fn build_localization_lua(mod_prefix: &str, jokers: &[BatchJokerEntry]) -> S
     )
 }
 
-pub fn build_main_lua(jokers: &[BatchJokerEntry]) -> String {
-    let mut sorted: Vec<&BatchJokerEntry> = jokers.iter().collect();
-    sorted.sort_by(|a, b| a.joker_data.object_key.cmp(&b.joker_data.object_key));
+pub fn build_main_lua(
+    jokers: &[BatchJokerEntry],
+    consumables: &[BatchConsumableEntry],
+    vouchers: &[BatchVoucherEntry],
+    decks: &[BatchDeckEntry],
+    enhancements: &[BatchEnhancementEntry],
+    seals: &[BatchSealEntry],
+    editions: &[BatchEditionEntry],
+) -> String {
+    let mut sorted_jokers: Vec<&BatchJokerEntry> = jokers.iter().collect();
+    sorted_jokers.sort_by(|a, b| a.joker_data.object_key.cmp(&b.joker_data.object_key));
 
-    let requires = sorted
-        .iter()
-        .map(|j| {
-            format!(
-                "assert(SMODS.load_file(\"jokers/{}.lua\"))()",
-                j.joker_data.object_key
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+    let mut sorted_consumables: Vec<&BatchConsumableEntry> = consumables.iter().collect();
+    sorted_consumables.sort_by(|a, b| a.consumable_data.object_key.cmp(&b.consumable_data.object_key));
 
-    let atlas_decl = if sorted.is_empty() {
-        String::new()
-    } else {
-        "SMODS.Atlas({\n    key = \"CustomJokers\",\n    path = \"CustomJokers.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n".to_string()
-    };
+    let mut sorted_vouchers: Vec<&BatchVoucherEntry> = vouchers.iter().collect();
+    sorted_vouchers.sort_by(|a, b| a.voucher_data.object_key.cmp(&b.voucher_data.object_key));
+
+    let mut sorted_decks: Vec<&BatchDeckEntry> = decks.iter().collect();
+    sorted_decks.sort_by(|a, b| a.deck_data.object_key.cmp(&b.deck_data.object_key));
+
+    let mut sorted_enhancements: Vec<&BatchEnhancementEntry> = enhancements.iter().collect();
+    sorted_enhancements.sort_by(|a, b| a.enhancement_data.object_key.cmp(&b.enhancement_data.object_key));
+
+    let mut sorted_seals: Vec<&BatchSealEntry> = seals.iter().collect();
+    sorted_seals.sort_by(|a, b| a.seal_data.object_key.cmp(&b.seal_data.object_key));
+
+    let mut sorted_editions: Vec<&BatchEditionEntry> = editions.iter().collect();
+    sorted_editions.sort_by(|a, b| a.edition_data.object_key.cmp(&b.edition_data.object_key));
+
+    let mut atlas_decls = String::new();
+    if !sorted_jokers.is_empty() {
+        atlas_decls.push_str("SMODS.Atlas({\n    key = \"CustomJokers\",\n    path = \"CustomJokers.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
+    }
+    if !sorted_consumables.is_empty() {
+        atlas_decls.push_str("SMODS.Atlas({\n    key = \"CustomConsumables\",\n    path = \"CustomConsumables.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
+    }
+    if !sorted_enhancements.is_empty() {
+        atlas_decls.push_str("SMODS.Atlas({\n    key = \"CustomEnhancements\",\n    path = \"CustomEnhancements.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
+    }
+    if !sorted_seals.is_empty() {
+        atlas_decls.push_str("SMODS.Atlas({\n    key = \"CustomSeals\",\n    path = \"CustomSeals.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n}):register()\n\n");
+    }
+    if !sorted_vouchers.is_empty() {
+        atlas_decls.push_str("SMODS.Atlas({\n    key = \"CustomVouchers\",\n    path = \"CustomVouchers.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
+    }
+    if !sorted_decks.is_empty() {
+        atlas_decls.push_str("SMODS.Atlas({\n    key = \"CustomDecks\",\n    path = \"CustomDecks.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
+    }
+
+    let mut requires = String::new();
+    for j in &sorted_jokers {
+        requires.push_str(&format!("assert(SMODS.load_file(\"jokers/{}\"))()\n", j.file_name));
+    }
+    for c in &sorted_consumables {
+        requires.push_str(&format!("assert(SMODS.load_file(\"consumables/{}\"))()\n", c.file_name));
+    }
+    for e in &sorted_enhancements {
+        requires.push_str(&format!("assert(SMODS.load_file(\"enhancements/{}\"))()\n", e.file_name));
+    }
+    for s in &sorted_seals {
+        requires.push_str(&format!("assert(SMODS.load_file(\"seals/{}\"))()\n", s.file_name));
+    }
+    for ed in &sorted_editions {
+        requires.push_str(&format!("assert(SMODS.load_file(\"editions/{}\"))()\n", ed.file_name));
+    }
+    for v in &sorted_vouchers {
+        requires.push_str(&format!("assert(SMODS.load_file(\"vouchers/{}\"))()\n", v.file_name));
+    }
+    for d in &sorted_decks {
+        requires.push_str(&format!("assert(SMODS.load_file(\"decks/{}\"))()\n", d.file_name));
+    }
 
     format!(
         "{}local NFS = require(\"nativefs\")\nto_big = to_big or function(a) return a end\nlenient_bignum = lenient_bignum or function(a) return a end\n\n{}\n",
-        atlas_decl, requires
+        atlas_decls, requires
     )
 }
 
