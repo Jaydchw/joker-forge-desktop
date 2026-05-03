@@ -9,7 +9,11 @@ import {
 } from "@/components/pages/generic-item-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
-import { useProjectData, useModName } from "@/lib/storage";
+import {
+  useProjectData,
+  useModName,
+  getAutoOpenNewItemDialogEnabled,
+} from "@/lib/storage";
 import { JokerData, Rule, UserVariable } from "@/lib/types";
 import {
   COMPARISON_OPERATORS,
@@ -158,6 +162,9 @@ export default function JokersPage() {
       pools: [],
     };
     updateJokers([...data.jokers, newJoker]);
+    if (getAutoOpenNewItemDialogEnabled()) {
+      setEditingItem(newJoker);
+    }
   }, [data.jokers, updateJokers]);
 
   const handleDelete = useCallback(

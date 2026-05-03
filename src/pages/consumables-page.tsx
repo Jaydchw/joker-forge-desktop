@@ -3,7 +3,11 @@ import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
-import { useProjectData, useModName } from "@/lib/storage";
+import {
+  useProjectData,
+  useModName,
+  getAutoOpenNewItemDialogEnabled,
+} from "@/lib/storage";
 import { ConsumableData, Rule } from "@/lib/types";
 import {
   PencilSimple,
@@ -120,6 +124,9 @@ export default function ConsumablesPage() {
       objectKey: "new_tarot",
     };
     updateConsumables([...data.consumables, newConsumable]);
+    if (getAutoOpenNewItemDialogEnabled()) {
+      setEditingItem(newConsumable);
+    }
   }, [data.consumables, updateConsumables]);
 
   const handleDelete = useCallback(

@@ -27,6 +27,7 @@ import { ThemeEditorDialog } from "@/components/theme/theme-editor-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import {
   getBalatroInstallPath,
+  getAutoOpenNewItemDialogEnabled,
   getJokerforgeAutoSaveDownloadsEnabled,
   getConfirmDeleteEnabled,
   getExportDestinationMode,
@@ -35,6 +36,7 @@ import {
   getThemePreference,
   resetProjectData,
   setBalatroInstallPath,
+  setAutoOpenNewItemDialogEnabled,
   setJokerforgeAutoSaveDownloadsEnabled,
   setConfirmDeleteEnabled,
   setExportDestinationMode,
@@ -80,6 +82,7 @@ export default function SettingsPage() {
   const [exportToBalatroMods, setExportToBalatroMods] = useState(false);
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
   const [autoSaveToDownloads, setAutoSaveToDownloads] = useState(false);
+  const [autoOpenNewItemDialog, setAutoOpenNewItemDialog] = useState(true);
   const [isResetDataDialogOpen, setIsResetDataDialogOpen] = useState(false);
   const [isResetThemesDialogOpen, setIsResetThemesDialogOpen] = useState(false);
   const [isThemeEditorOpen, setIsThemeEditorOpen] = useState(false);
@@ -114,6 +117,7 @@ export default function SettingsPage() {
     setExportToBalatroMods(getExportDestinationMode() === "balatro-mods");
     setExportJokerforgeAsJson(getJokerforgeExportAsJsonEnabled());
     setAutoSaveToDownloads(getJokerforgeAutoSaveDownloadsEnabled());
+    setAutoOpenNewItemDialog(getAutoOpenNewItemDialogEnabled());
     setThemeMode(getThemePreference());
     setThemeEditorMode(getThemePreference());
     refreshThemes();
@@ -367,6 +371,27 @@ export default function SettingsPage() {
                   onCheckedChange={(value) => {
                     setExportJokerforgeAsJson(value);
                     setJokerforgeExportAsJsonEnabled(value);
+                  }}
+                  className="cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <Label htmlFor="auto-open-new-item-dialog">
+                    Auto-open New Item Dialog
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Automatically opens the item editor after creating a new
+                    item.
+                  </p>
+                </div>
+                <Switch
+                  id="auto-open-new-item-dialog"
+                  checked={autoOpenNewItemDialog}
+                  onCheckedChange={(value) => {
+                    setAutoOpenNewItemDialog(value);
+                    setAutoOpenNewItemDialogEnabled(value);
                   }}
                   className="cursor-pointer"
                 />

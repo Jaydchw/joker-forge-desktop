@@ -3,7 +3,11 @@ import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
-import { useProjectData, useModName } from "@/lib/storage";
+import {
+  useProjectData,
+  useModName,
+  getAutoOpenNewItemDialogEnabled,
+} from "@/lib/storage";
 import { DeckData, Rule } from "@/lib/types";
 import {
   PencilSimple,
@@ -117,6 +121,9 @@ export default function DecksPage() {
       orderValue: data.decks.length + 1,
     };
     updateDecks([...data.decks, newDeck]);
+    if (getAutoOpenNewItemDialogEnabled()) {
+      setEditingItem(newDeck);
+    }
   }, [data.decks, updateDecks]);
 
   const handleDelete = useCallback(

@@ -10,7 +10,11 @@ import {
 import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
-import { useProjectData, useModName } from "@/lib/storage";
+import {
+  useProjectData,
+  useModName,
+  getAutoOpenNewItemDialogEnabled,
+} from "@/lib/storage";
 import { BoosterData } from "@/lib/types";
 import {
   PencilSimple,
@@ -99,6 +103,9 @@ export default function BoostersPage() {
       objectKey: "new_pack",
     };
     updateBoosters([...data.boosters, newBooster]);
+    if (getAutoOpenNewItemDialogEnabled()) {
+      setEditingItem(newBooster);
+    }
   }, [data.boosters, updateBoosters]);
 
   const handleDelete = useCallback(

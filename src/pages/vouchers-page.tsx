@@ -3,7 +3,11 @@ import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
-import { useProjectData, useModName } from "@/lib/storage";
+import {
+  useProjectData,
+  useModName,
+  getAutoOpenNewItemDialogEnabled,
+} from "@/lib/storage";
 import { Rule, VoucherData } from "@/lib/types";
 import {
   PencilSimple,
@@ -137,6 +141,9 @@ export default function VouchersPage() {
       orderValue: data.vouchers.length + 1,
     };
     updateVouchers([...data.vouchers, newVoucher]);
+    if (getAutoOpenNewItemDialogEnabled()) {
+      setEditingItem(newVoucher);
+    }
   }, [data.vouchers, updateVouchers]);
 
   const handleDelete = useCallback(

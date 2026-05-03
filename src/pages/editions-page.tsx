@@ -10,7 +10,11 @@ import {
 import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
-import { useProjectData, useModName } from "@/lib/storage";
+import {
+  useProjectData,
+  useModName,
+  getAutoOpenNewItemDialogEnabled,
+} from "@/lib/storage";
 import { EditionData, Rule } from "@/lib/types";
 import {
   Palette,
@@ -116,6 +120,9 @@ export default function EditionsPage() {
       image: "",
     };
     updateEditions([...data.editions, newEdition]);
+    if (getAutoOpenNewItemDialogEnabled()) {
+      setEditingItem(newEdition);
+    }
   }, [data.editions, updateEditions]);
 
   const handleDelete = useCallback(

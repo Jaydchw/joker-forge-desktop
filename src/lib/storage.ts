@@ -84,6 +84,7 @@ const EXPORT_DESTINATION_MODE_KEY = "joker_forge_export_destination_mode";
 const JOKERFORGE_EXPORT_AS_JSON_KEY = "joker_forge_export_as_json";
 const JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY =
   "joker_forge_auto_save_downloads";
+const AUTO_OPEN_NEW_ITEM_DIALOG_KEY = "joker_forge_auto_open_new_item_dialog";
 const THEME_PREFERENCE_KEY = "joker_forge_theme_preference";
 const THEME_CHANGE_EVENT = "joker_forge_theme_change";
 const STORAGE_ERROR_ALERT_THROTTLE_MS = 4000;
@@ -1308,6 +1309,21 @@ export const setJokerforgeAutoSaveDownloadsEnabled = (value: boolean) => {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
     JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY,
+    value ? "true" : "false",
+  );
+};
+
+export const getAutoOpenNewItemDialogEnabled = (): boolean => {
+  if (typeof window === "undefined") return true;
+  const stored = window.localStorage.getItem(AUTO_OPEN_NEW_ITEM_DIALOG_KEY);
+  if (stored === null) return true;
+  return stored === "true";
+};
+
+export const setAutoOpenNewItemDialogEnabled = (value: boolean) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    AUTO_OPEN_NEW_ITEM_DIALOG_KEY,
     value ? "true" : "false",
   );
 };

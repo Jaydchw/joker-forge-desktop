@@ -9,7 +9,11 @@ import {
 } from "@/components/pages/generic-item-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
-import { useProjectData, useModName } from "@/lib/storage";
+import {
+  useProjectData,
+  useModName,
+  getAutoOpenNewItemDialogEnabled,
+} from "@/lib/storage";
 import { EnhancementData, Rule } from "@/lib/types";
 import {
   Star,
@@ -120,6 +124,9 @@ export default function EnhancementsPage() {
       orderValue: data.enhancements.length + 1,
     };
     updateEnhancements([...data.enhancements, newEnhancement]);
+    if (getAutoOpenNewItemDialogEnabled()) {
+      setEditingItem(newEnhancement);
+    }
   }, [data.enhancements, updateEnhancements]);
 
   const handleDelete = useCallback(
