@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
+import { ThemeEditorDialog } from "@/components/theme/theme-editor-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import {
   getBalatroInstallPath,
   getConfirmDeleteEnabled,
@@ -81,6 +83,7 @@ export default function SettingsPage() {
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
   const [isResetDataDialogOpen, setIsResetDataDialogOpen] = useState(false);
   const [isResetThemesDialogOpen, setIsResetThemesDialogOpen] = useState(false);
+  const [isThemeEditorOpen, setIsThemeEditorOpen] = useState(false);
 
   const [themeMode, setThemeMode] = useState<ThemePreference>("dark");
   const [themeEditorMode, setThemeEditorMode] =
@@ -257,6 +260,7 @@ export default function SettingsPage() {
     refreshThemes(created.id);
     setSelectedThemeId(created.id);
     setDraftTheme(cloneTheme(created));
+    setIsThemeEditorOpen(true);
   };
 
   const handleDeleteSelectedTheme = () => {
@@ -333,7 +337,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+      <div className="grid gap-6 lg:grid-cols-[400px_minmax(0,1fr)] items-start">
         <section className="space-y-6">
           <div className="rounded-xl bg-card/70 p-5 divide-y divide-border/60">
             <div className="pb-4">
@@ -456,6 +460,7 @@ export default function SettingsPage() {
               </Button>
             </div>
           </div>
+
         </section>
 
         <section className="rounded-xl bg-card/70 p-5 space-y-5">
@@ -572,26 +577,15 @@ export default function SettingsPage() {
           <div className="flex flex-wrap gap-2 pt-5">
             <Button
               type="button"
-              variant="outline"
-              size="sm"
               className="cursor-pointer"
-              onClick={() => setThemeEditorMode("light")}
+              onClick={() => setIsThemeEditorOpen(true)}
+              disabled={!draftTheme}
             >
-              Edit Light Palette
+              Edit Selected Theme
             </Button>
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="cursor-pointer"
-              onClick={() => setThemeEditorMode("dark")}
-            >
-              Edit Dark Palette
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
               className="cursor-pointer"
               onClick={() => setIsResetThemesDialogOpen(true)}
             >
@@ -600,7 +594,6 @@ export default function SettingsPage() {
             <Button
               type="button"
               variant="outline"
-              size="sm"
               className="cursor-pointer text-destructive"
               onClick={handleDeleteSelectedTheme}
               disabled={!selectedTheme || selectedTheme.builtIn}
@@ -609,143 +602,50 @@ export default function SettingsPage() {
               Delete Theme
             </Button>
           </div>
-
-          {draftTheme && (
-            <div className="rounded-lg bg-muted/15 p-4 space-y-4 pt-5">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Theme UI Style
-              </h4>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground">
-                    Global Font Scale
-                  </Label>
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {Math.round(
-                      (pendingFontScale ?? draftTheme.ui.fontScale) * 100,
-                    )}
-                    %
-                  </span>
-                </div>
-                <Slider
-                  value={[
-                    Number(
-                      (pendingFontScale ?? draftTheme.ui.fontScale).toFixed(2),
-                    ),
-                  ]}
-                  min={0.8}
-                  max={1.6}
-                  step={0.01}
-                  onValueChange={(value) => {
-                    const next =
-                      value[0] ?? pendingFontScale ?? draftTheme.ui.fontScale;
-                    setPendingFontScale(Number(next.toFixed(2)));
-                  }}
-                  onValueCommit={(value) => {
-                    const next =
-                      value[0] ?? pendingFontScale ?? draftTheme.ui.fontScale;
-                    updateDraftUi("fontScale", Number(next.toFixed(2)));
-                  }}
-                  className="cursor-pointer"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground">
-                    Global Border Radius
-                  </Label>
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {draftTheme.ui.radiusPx.toFixed(1)}px
-                  </span>
-                </div>
-                <Slider
-                  value={[draftTheme.ui.radiusPx]}
-                  min={0}
-                  max={24}
-                  step={0.5}
-                  onValueChange={(value) => {
-                    const next = value[0] ?? draftTheme.ui.radiusPx;
-                    updateDraftUi("radiusPx", Number(next.toFixed(1)));
-                  }}
-                  className="cursor-pointer"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">
-                  Global App Font
-                </Label>
-                <Input
-                  value={fontSearch}
-                  onChange={(event) => setFontSearch(event.target.value)}
-                  placeholder="Search fonts..."
-                  className="h-9"
-                />
-                <Select
-                  value={draftTheme.ui.fontFamily}
-                  onValueChange={(value) =>
-                    updateDraftUi("fontFamily", value as ThemeFontFamily)
-                  }
-                >
-                  <SelectTrigger className="h-9 w-full">
-                    <SelectValue placeholder="Select app font" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredFontOptions.map((option) => (
-                      <SelectItem key={option.key} value={option.key}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                    {filteredFontOptions.length === 0 && (
-                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                        No fonts found.
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-lg bg-muted/15 p-4 space-y-5 pt-5">
-            <div className="text-sm text-muted-foreground">
-              Editing {themeEditorMode === "light" ? "Light" : "Dark"} palette
-              for{" "}
-              <span className="text-foreground font-medium">
-                {draftTheme?.name || "Theme"}
-              </span>
-            </div>
-
-            {editorPalette &&
-              THEME_VARIABLE_GROUPS.map((group) => (
-                <div key={group.heading} className="space-y-3">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {group.heading}
-                  </h4>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {group.items.map((item) => (
-                      <div key={item.key} className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">
-                          {item.label}
-                        </Label>
-                        <GenericDialogColorPicker
-                          value={editorPalette[item.key]}
-                          onChange={(value) =>
-                            updateDraftColor(item.key, value)
-                          }
-                          defaultColor={editorPalette[item.key]}
-                          valueMode="with-hash"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-          </div>
         </section>
       </div>
+
+      <section className="rounded-xl bg-card/70 p-5 divide-y divide-border/60">
+        <div className="pb-4">
+          <h3 className="font-semibold">Developer Tools</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Internal utilities and debugging features.
+          </p>
+        </div>
+        <div className="pt-4 grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <Button
+            variant="outline"
+            className="w-full cursor-pointer"
+            onClick={() => window.dispatchEvent(new CustomEvent('show-github-star-dialog'))}
+          >
+            Show GitHub Star Dialog
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full cursor-pointer"
+            onClick={() => {
+              localStorage.removeItem("hasDismissedGithubStar");
+              window.alert("GitHub star preference cleared. The dialog can now appear again on launch.");
+            }}
+          >
+            Clear GitHub Star Preference
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full cursor-pointer"
+            onClick={() => void invoke("open_devtools")}
+          >
+            Open DevTools
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full cursor-pointer text-destructive"
+            onClick={() => window.location.reload()}
+          >
+            Reload Window
+          </Button>
+        </div>
+      </section>
 
       <ConfirmDialog
         open={isResetDataDialogOpen}
@@ -772,6 +672,16 @@ export default function SettingsPage() {
           handleResetThemes();
           setIsResetThemesDialogOpen(false);
         }}
+      />
+
+      <ThemeEditorDialog
+        open={isThemeEditorOpen}
+        onOpenChange={setIsThemeEditorOpen}
+        draftTheme={draftTheme}
+        themeEditorMode={themeEditorMode}
+        setThemeEditorMode={setThemeEditorMode}
+        updateDraftColor={updateDraftColor}
+        updateDraftUi={updateDraftUi}
       />
     </div>
   );
