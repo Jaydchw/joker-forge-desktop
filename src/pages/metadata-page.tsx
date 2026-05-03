@@ -434,42 +434,45 @@ export default function MetadataPage() {
                 333x216px
               </span>
             </div>
-            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-colors min-h-75 relative group">
+            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg min-h-75 relative group cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                onChange={(e) =>
+                  e.target.files?.[0] &&
+                  handleImageUpload(e.target.files[0], "game")
+                }
+              />
               <img
                 src={gameImageSrc}
-                className="max-w-full max-h-45 object-contain shadow-xl rounded-lg [image-rendering:pixelated] transition-transform group-hover:scale-105 duration-300"
+                className="max-w-full max-h-45 object-contain shadow-xl rounded-lg [image-rendering:pixelated] transition-transform group-hover:scale-105 duration-300 relative z-0"
                 alt="Game Logo"
               />
 
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3 rounded-xl backdrop-blur-[2px]">
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3 rounded-xl backdrop-blur-[2px] pointer-events-none z-20">
                 <Button
                   variant="secondary"
-                  className="relative cursor-pointer font-bold shadow-lg hover:scale-105 transition-transform"
+                  className="relative font-bold shadow-lg transition-transform group-hover:scale-105 pointer-events-none"
                   size="default"
+                  tabIndex={-1}
                 >
                   <Upload className="mr-2 h-4 w-4" weight="bold" />
                   Upload New
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                    onChange={(e) =>
-                      e.target.files?.[0] &&
-                      handleImageUpload(e.target.files[0], "game")
-                    }
-                  />
                 </Button>
                 {metadata.gameImage && (
                   <Button
                     variant="destructive"
                     size="icon"
-                    className="shadow-lg hover:scale-105 transition-transform cursor-pointer"
-                    onClick={() =>
+                    className="shadow-lg hover:scale-110 transition-transform cursor-pointer pointer-events-auto z-30 relative"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       updateMetadata({
                         gameImage: "",
                         hasUserUploadedGameIcon: false,
-                      })
-                    }
+                      });
+                    }}
                   >
                     <Trash className="h-4 w-4" weight="bold" />
                   </Button>
@@ -485,42 +488,45 @@ export default function MetadataPage() {
                 34x34px
               </span>
             </div>
-            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-colors min-h-75 relative group">
+            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg min-h-75 relative group cursor-pointer">
+              <input
+                type="file"
+                accept="image/*"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                onChange={(e) =>
+                  e.target.files?.[0] &&
+                  handleImageUpload(e.target.files[0], "icon")
+                }
+              />
               <img
                 src={iconImageSrc}
-                className="w-24 h-24 object-contain shadow-xl rounded-lg [image-rendering:pixelated] scale-150 transition-transform group-hover:scale-[1.6] duration-300"
+                className="w-24 h-24 object-contain shadow-xl rounded-lg [image-rendering:pixelated] scale-150 transition-transform group-hover:scale-[1.6] duration-300 relative z-0"
                 alt="Mod Icon"
               />
 
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3 rounded-xl backdrop-blur-[2px]">
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3 rounded-xl backdrop-blur-[2px] pointer-events-none z-20">
                 <Button
                   variant="secondary"
-                  className="relative cursor-pointer font-bold shadow-lg hover:scale-105 transition-transform"
+                  className="relative font-bold shadow-lg transition-transform group-hover:scale-105 pointer-events-none"
                   size="default"
+                  tabIndex={-1}
                 >
                   <Upload className="mr-2 h-4 w-4" weight="bold" />
                   Upload New
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                    onChange={(e) =>
-                      e.target.files?.[0] &&
-                      handleImageUpload(e.target.files[0], "icon")
-                    }
-                  />
                 </Button>
                 {metadata.iconImage && (
                   <Button
                     variant="destructive"
                     size="icon"
-                    className="shadow-lg hover:scale-105 transition-transform cursor-pointer"
-                    onClick={() =>
+                    className="shadow-lg hover:scale-110 transition-transform cursor-pointer pointer-events-auto z-30 relative"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       updateMetadata({
                         iconImage: "",
                         hasUserUploadedIcon: false,
-                      })
-                    }
+                      });
+                    }}
                   >
                     <Trash className="h-4 w-4" weight="bold" />
                   </Button>
