@@ -704,7 +704,7 @@ export const normalizeProjectData = (payload: unknown): ProjectData => {
 
   const projectWithoutStats: Omit<ProjectData, "stats"> = {
     metadata: normalizeMetadata(obj.metadata),
-    recentActivity: asArray<string>(pick("recentActivity")),
+    recentActivity: [],
     jokers: normalizeCollection(
       pick("jokers"),
       "joker",

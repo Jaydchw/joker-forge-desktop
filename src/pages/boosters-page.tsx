@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
@@ -33,6 +34,7 @@ import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 export default function BoostersPage() {
   const { data, updateBoosters, isHydrating } = useProjectData();
   const modName = useModName();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<BoosterData | null>(null);
   const [showcaseItem, setShowcaseItem] = useState<BoosterData | null>(null);
   const [isPlaceholderPickerOpen, setIsPlaceholderPickerOpen] = useState(false);
@@ -50,6 +52,29 @@ export default function BoostersPage() {
     },
     [data.boosters, updateBoosters],
   );
+
+  const handleInfoSave = useCallback(
+    (id: string, updates: Partial<BoosterData>) => {
+      handleUpdate(id, updates);
+    },
+    [handleUpdate],
+  );
+
+  useEffect(() => {
+    const activityItemId = searchParams.get("activityItemId");
+    const activityEditor = searchParams.get("activityEditor");
+    if (!activityItemId || activityEditor !== "info") return;
+
+    const target = data.boosters.find((item) => item.id === activityItemId);
+    if (!target) return;
+
+    setEditingItem(target);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("activityItemId");
+    nextParams.delete("activityEditor");
+    setSearchParams(nextParams, { replace: true });
+  }, [data.boosters, searchParams, setSearchParams]);
 
   const handleCreate = useCallback(async () => {
     const placeholder = await getRandomPlaceholder("booster");
@@ -500,7 +525,7 @@ const renderCompactCard = useCallback(
         title={`Edit ${editingItem?.name || "Booster"}`}
         description="Modify booster properties."
         tabs={boosterDialogTabs}
-        onSave={handleUpdate}
+        onSave={handleInfoSave}
         showPlaceholderPicker
         placeholderCategory="booster"
         renderPreview={(item) => (

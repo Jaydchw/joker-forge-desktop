@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCardMini } from "@/components/pages/generic-item-card-mini";
 import { DialogTab } from "@/components/pages/generic-item-dialog";
@@ -35,6 +36,7 @@ const normalizeHex = (value: string | undefined | null): string => {
 export default function RaritiesPage() {
   const { data, updateRarities, isHydrating } = useProjectData();
   const modName = useModName();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<RarityData | null>(null);
 
   const handleUpdate = useCallback(
@@ -60,6 +62,29 @@ export default function RaritiesPage() {
     },
     [data.rarities, updateRarities],
   );
+
+  const handleInfoSave = useCallback(
+    (id: string, updates: Partial<RarityData>) => {
+      handleUpdate(id, updates);
+    },
+    [handleUpdate],
+  );
+
+  useEffect(() => {
+    const activityItemId = searchParams.get("activityItemId");
+    const activityEditor = searchParams.get("activityEditor");
+    if (!activityItemId || activityEditor !== "info") return;
+
+    const target = data.rarities.find((item) => item.id === activityItemId);
+    if (!target) return;
+
+    setEditingItem(target);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("activityItemId");
+    nextParams.delete("activityEditor");
+    setSearchParams(nextParams, { replace: true });
+  }, [data.rarities, searchParams, setSearchParams]);
 
   const handleCreate = useCallback(() => {
     const newRarity: RarityData = {
@@ -339,7 +364,7 @@ export default function RaritiesPage() {
         title={`Edit ${editingItem?.name || "Rarity"}`}
         description="Adjust custom rarity settings."
         tabs={rarityDialogTabs}
-        onSave={handleUpdate}
+        onSave={handleInfoSave}
       />
       <ConfirmDialog
         open={isDeleteDialogOpen}

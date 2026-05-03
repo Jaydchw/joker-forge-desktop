@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
@@ -38,6 +39,7 @@ import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 export default function EditionsPage() {
   const { data, updateEditions, isHydrating } = useProjectData();
   const modName = useModName();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<EditionData | null>(null);
   const [ruleEditingItem, setRuleEditingItem] = useState<EditionData | null>(
     null,
@@ -60,6 +62,43 @@ export default function EditionsPage() {
     },
     [data.editions, updateEditions],
   );
+
+  const handleInfoSave = useCallback(
+    (id: string, updates: Partial<EditionData>) => {
+      handleUpdate(id, updates);
+    },
+    [handleUpdate],
+  );
+
+  const handleRulesSave = useCallback(
+    (rules: Rule[]) => {
+      if (!ruleEditingItem) return;
+      handleUpdate(ruleEditingItem.id, { rules });
+    },
+    [handleUpdate, ruleEditingItem],
+  );
+
+  useEffect(() => {
+    const activityItemId = searchParams.get("activityItemId");
+    const activityEditor = searchParams.get("activityEditor");
+    if (!activityItemId || !activityEditor) return;
+
+    const target = data.editions.find((item) => item.id === activityItemId);
+    if (!target) return;
+
+    if (activityEditor === "rules") {
+      setEditingItem(null);
+      setRuleEditingItem(target);
+    } else {
+      setRuleEditingItem(null);
+      setEditingItem(target);
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("activityItemId");
+    nextParams.delete("activityEditor");
+    setSearchParams(nextParams, { replace: true });
+  }, [data.editions, searchParams, setSearchParams]);
 
   const handleCreate = useCallback(() => {
     const newEdition: EditionData = {
@@ -561,7 +600,7 @@ const renderCompactCard = useCallback(
         title={`Edit ${editingItem?.name || "Edition"}`}
         description="Modify edition properties."
         tabs={editionDialogTabs}
-        onSave={handleUpdate}
+        onSave={handleInfoSave}
         renderPreview={(item) => (
           <BalatroCard
             type="edition"
@@ -579,11 +618,7 @@ const renderCompactCard = useCallback(
           isOpen={true}
           onClose={() => setRuleEditingItem(null)}
           existingRules={ruleEditingItem.rules ?? []}
-          onSave={(rules: Rule[]) =>
-            handleUpdate(ruleEditingItem.id, {
-              rules,
-            })
-          }
+          onSave={handleRulesSave}
           item={ruleEditingItem}
           onUpdateItem={(updates: Partial<EditionData>) => {
             handleUpdate(ruleEditingItem.id, updates as Partial<EditionData>);

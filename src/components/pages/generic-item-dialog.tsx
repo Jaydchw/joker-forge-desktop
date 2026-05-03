@@ -1213,6 +1213,9 @@ function GenericItemDialogInternal<T extends { id: string }>({
       if (isPlaceholderDialogOpen) return;
 
       const target = event.target as Element | null;
+      if (target?.closest("[data-tauri-drag-region]")) {
+        return;
+      }
       if (target?.closest(".placeholder-picker-content")) {
         return;
       }

@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCardMini } from "@/components/pages/generic-item-card-mini";
 import { DialogTab } from "@/components/pages/generic-item-dialog";
@@ -29,6 +30,7 @@ const normalizeHex = (value: string | undefined | null): string => {
 export default function ConsumableSetsPage() {
   const { data, updateConsumableSets, isHydrating } = useProjectData();
   const modName = useModName();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<ConsumableSetData | null>(
     null,
   );
@@ -63,6 +65,29 @@ export default function ConsumableSetsPage() {
     },
     [data.consumableSets, updateConsumableSets],
   );
+
+  const handleInfoSave = useCallback(
+    (id: string, updates: Partial<ConsumableSetData>) => {
+      handleUpdate(id, updates);
+    },
+    [handleUpdate],
+  );
+
+  useEffect(() => {
+    const activityItemId = searchParams.get("activityItemId");
+    const activityEditor = searchParams.get("activityEditor");
+    if (!activityItemId || activityEditor !== "info") return;
+
+    const target = data.consumableSets.find((item) => item.id === activityItemId);
+    if (!target) return;
+
+    setEditingItem(target);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("activityItemId");
+    nextParams.delete("activityEditor");
+    setSearchParams(nextParams, { replace: true });
+  }, [data.consumableSets, searchParams, setSearchParams]);
 
   const handleCreate = useCallback(() => {
     const newSet: ConsumableSetData = {
@@ -366,7 +391,7 @@ export default function ConsumableSetsPage() {
         title={`Edit ${editingItem?.name || "Set"}`}
         description="Edit consumable set details."
         tabs={setDialogTabs}
-        onSave={handleUpdate}
+        onSave={handleInfoSave}
       />
       <ConfirmDialog
         open={isDeleteDialogOpen}

@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
@@ -73,6 +74,7 @@ const getVariableDisplayValue = (variable: UserVariable): string => {
 export default function JokersPage() {
   const { data, updateJokers, isHydrating } = useProjectData();
   const modName = useModName();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<JokerData | null>(null);
   const [ruleEditingItem, setRuleEditingItem] = useState<JokerData | null>(
     null,
@@ -94,6 +96,43 @@ export default function JokersPage() {
     },
     [data.jokers, updateJokers],
   );
+
+  const handleInfoSave = useCallback(
+    (id: string, updates: Partial<JokerData>) => {
+      handleUpdate(id, updates);
+    },
+    [handleUpdate],
+  );
+
+  const handleRulesSave = useCallback(
+    (rules: Rule[]) => {
+      if (!ruleEditingItem) return;
+      handleUpdate(ruleEditingItem.id, { rules });
+    },
+    [handleUpdate, ruleEditingItem],
+  );
+
+  useEffect(() => {
+    const activityItemId = searchParams.get("activityItemId");
+    const activityEditor = searchParams.get("activityEditor");
+    if (!activityItemId || !activityEditor) return;
+
+    const target = data.jokers.find((joker) => joker.id === activityItemId);
+    if (!target) return;
+
+    if (activityEditor === "rules") {
+      setEditingItem(null);
+      setRuleEditingItem(target);
+    } else {
+      setRuleEditingItem(null);
+      setEditingItem(target);
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("activityItemId");
+    nextParams.delete("activityEditor");
+    setSearchParams(nextParams, { replace: true });
+  }, [data.jokers, searchParams, setSearchParams]);
 
   const handleCreate = useCallback(async () => {
     const placeholder = await getRandomPlaceholder("joker");
@@ -1046,7 +1085,7 @@ export default function JokersPage() {
         title={`Edit ${editingItem?.name || "Joker"}`}
         description="Modify the properties of your custom Joker."
         tabs={jokerDialogTabs}
-        onSave={handleUpdate}
+        onSave={handleInfoSave}
         renderPreview={renderPreview}
         showPlaceholderPicker
         placeholderCategory="joker"
@@ -1056,11 +1095,7 @@ export default function JokersPage() {
           isOpen={true}
           onClose={() => setRuleEditingItem(null)}
           existingRules={ruleEditingItem.rules ?? []}
-          onSave={(rules: Rule[]) =>
-            handleUpdate(ruleEditingItem.id, {
-              rules,
-            })
-          }
+          onSave={handleRulesSave}
           item={ruleEditingItem}
           onUpdateItem={(updates: Partial<JokerData>) => {
             handleUpdate(ruleEditingItem.id, updates as Partial<JokerData>);

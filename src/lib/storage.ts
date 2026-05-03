@@ -33,10 +33,25 @@ export interface ProjectStats {
   consumableSets: number;
 }
 
+export type RecentActivityEditor = "info" | "rules";
+
+export interface RecentActivityTarget {
+  path: string;
+  itemId?: string;
+  editor?: RecentActivityEditor;
+}
+
+export interface RecentActivityEntry {
+  id: string;
+  message: string;
+  timestamp: number;
+  target?: RecentActivityTarget;
+}
+
 export interface ProjectData {
   stats: ProjectStats;
   metadata: ModMetadata;
-  recentActivity: string[];
+  recentActivity: RecentActivityEntry[];
   jokers: JokerData[];
   consumables: ConsumableData[];
   rarities: RarityData[];
@@ -70,6 +85,7 @@ const JOKERFORGE_EXPORT_AS_JSON_KEY = "joker_forge_export_as_json";
 const THEME_PREFERENCE_KEY = "joker_forge_theme_preference";
 const THEME_CHANGE_EVENT = "joker_forge_theme_change";
 const STORAGE_ERROR_ALERT_THROTTLE_MS = 4000;
+const RECENT_ACTIVITY_LIMIT = 10;
 
 let lastStorageErrorAlertAt = 0;
 let tauriStorePathPromise: Promise<string> | null = null;
@@ -190,6 +206,358 @@ const DEFAULT_DATA: ProjectData = {
   sounds: [],
 };
 
+type TrackableCollectionKey =
+  | "jokers"
+  | "consumables"
+  | "rarities"
+  | "consumableSets"
+  | "decks"
+  | "vouchers"
+  | "boosters"
+  | "seals"
+  | "editions"
+  | "enhancements"
+  | "sounds";
+
+type TrackableItem = { id: string } & Record<string, unknown>;
+
+type CollectionActivityConfig = {
+  path: string;
+  singular: string;
+  plural: string;
+  supportsRules: boolean;
+  nameKey: string;
+};
+
+const COLLECTION_ACTIVITY_CONFIG: Record<
+  TrackableCollectionKey,
+  CollectionActivityConfig
+> = {
+  jokers: {
+    path: "/jokers",
+    singular: "Joker",
+    plural: "Jokers",
+    supportsRules: true,
+    nameKey: "name",
+  },
+  consumables: {
+    path: "/consumables",
+    singular: "Consumable",
+    plural: "Consumables",
+    supportsRules: true,
+    nameKey: "name",
+  },
+  rarities: {
+    path: "/rarities",
+    singular: "Rarity",
+    plural: "Rarities",
+    supportsRules: false,
+    nameKey: "name",
+  },
+  consumableSets: {
+    path: "/consumable-sets",
+    singular: "Consumable Set",
+    plural: "Consumable Sets",
+    supportsRules: false,
+    nameKey: "name",
+  },
+  decks: {
+    path: "/decks",
+    singular: "Deck",
+    plural: "Decks",
+    supportsRules: true,
+    nameKey: "name",
+  },
+  vouchers: {
+    path: "/vouchers",
+    singular: "Voucher",
+    plural: "Vouchers",
+    supportsRules: true,
+    nameKey: "name",
+  },
+  boosters: {
+    path: "/boosters",
+    singular: "Booster",
+    plural: "Boosters",
+    supportsRules: false,
+    nameKey: "name",
+  },
+  seals: {
+    path: "/seals",
+    singular: "Seal",
+    plural: "Seals",
+    supportsRules: true,
+    nameKey: "name",
+  },
+  editions: {
+    path: "/editions",
+    singular: "Edition",
+    plural: "Editions",
+    supportsRules: true,
+    nameKey: "name",
+  },
+  enhancements: {
+    path: "/enhancements",
+    singular: "Enhancement",
+    plural: "Enhancements",
+    supportsRules: true,
+    nameKey: "name",
+  },
+  sounds: {
+    path: "/sounds",
+    singular: "Sound",
+    plural: "Sounds",
+    supportsRules: false,
+    nameKey: "key",
+  },
+};
+
+const isTrackableCollectionKey = (
+  key: keyof ProjectData,
+): key is TrackableCollectionKey =>
+  Object.prototype.hasOwnProperty.call(COLLECTION_ACTIVITY_CONFIG, key);
+
+const toTrackableItems = (value: unknown): TrackableItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (item): item is TrackableItem =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        typeof (item as { id?: unknown }).id === "string",
+    )
+    .map((item) => item);
+};
+
+const areValuesEqual = (a: unknown, b: unknown): boolean => {
+  if (Object.is(a, b)) return true;
+
+  const isObjectLike = (value: unknown): boolean =>
+    value !== null && typeof value === "object";
+
+  if (isObjectLike(a) || isObjectLike(b)) {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+};
+
+const formatFieldLabel = (key: string): string =>
+  key
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .trim()
+    .toLowerCase();
+
+const formatFieldSummary = (keys: string[]): string => {
+  if (keys.length === 0) return "";
+  if (keys.length === 1) return `${formatFieldLabel(keys[0])} changed`;
+
+  const preview = keys.slice(0, 3).map(formatFieldLabel).join(", ");
+  const remaining = keys.length - 3;
+  const tail = remaining > 0 ? `, +${remaining} more` : "";
+  return `${keys.length} fields changed (${preview}${tail})`;
+};
+
+const getItemDisplayName = (
+  item: TrackableItem | undefined,
+  config: CollectionActivityConfig,
+): string => {
+  if (!item) return `Unknown ${config.singular}`;
+  const nameCandidate = item[config.nameKey];
+  if (typeof nameCandidate === "string" && nameCandidate.trim()) {
+    return nameCandidate.trim();
+  }
+  if (typeof item.name === "string" && item.name.trim()) return item.name.trim();
+  if (typeof item.objectKey === "string" && item.objectKey.trim()) {
+    return item.objectKey.trim();
+  }
+  return item.id;
+};
+
+const createActivityEntry = (input: {
+  message: string;
+  target?: RecentActivityTarget;
+  timestamp?: number;
+}): RecentActivityEntry => ({
+  id: createRecentActivityId(),
+  message: input.message,
+  timestamp:
+    typeof input.timestamp === "number" && Number.isFinite(input.timestamp)
+      ? input.timestamp
+      : Date.now(),
+  ...(input.target ? { target: input.target } : {}),
+});
+
+const prependRecentActivity = (
+  existing: RecentActivityEntry[],
+  entries: RecentActivityEntry[],
+): RecentActivityEntry[] =>
+  entries.length === 0
+    ? existing
+    : [...entries, ...existing].slice(0, RECENT_ACTIVITY_LIMIT);
+
+const buildCollectionActivityEntries = (
+  key: TrackableCollectionKey,
+  previousItems: unknown,
+  nextItems: unknown,
+): RecentActivityEntry[] => {
+  const config = COLLECTION_ACTIVITY_CONFIG[key];
+  const previous = toTrackableItems(previousItems);
+  const next = toTrackableItems(nextItems);
+
+  const previousById = new Map(previous.map((item) => [item.id, item]));
+  const nextById = new Map(next.map((item) => [item.id, item]));
+
+  const added = next.filter((item) => !previousById.has(item.id));
+  const deleted = previous.filter((item) => !nextById.has(item.id));
+
+  const updated = next
+    .map((item) => {
+      const before = previousById.get(item.id);
+      if (!before) return null;
+
+      const keys = Array.from(
+        new Set([...Object.keys(before), ...Object.keys(item)]),
+      ).filter((field) => field !== "id");
+
+      const changedFields = keys.filter(
+        (field) => !areValuesEqual(before[field], item[field]),
+      );
+
+      if (changedFields.length === 0) return null;
+
+      const rulesChanged = changedFields.includes("rules");
+      const nonRuleChanges = changedFields.filter((field) => field !== "rules");
+
+      const beforeRules = Array.isArray(before.rules)
+        ? before.rules.length
+        : 0;
+      const afterRules = Array.isArray(item.rules) ? item.rules.length : 0;
+      const addedRules = Math.max(0, afterRules - beforeRules);
+      const deletedRules = Math.max(0, beforeRules - afterRules);
+      const ruleSummary = rulesChanged
+        ? addedRules > 0 || deletedRules > 0
+          ? `rules +${addedRules}/-${deletedRules}`
+          : "rules modified"
+        : "";
+
+      const totalChangeCount = nonRuleChanges.length + (rulesChanged ? 1 : 0);
+      const itemName = getItemDisplayName(item, config);
+      const editor: RecentActivityEditor =
+        rulesChanged && nonRuleChanges.length === 0 && config.supportsRules
+          ? "rules"
+          : "info";
+
+      const message =
+        editor === "rules"
+          ? `Rules for ${config.singular} "${itemName}" changed (${ruleSummary})`
+          : totalChangeCount === 1
+            ? `Info for ${config.singular} "${itemName}" changed (${formatFieldSummary(nonRuleChanges) || ruleSummary})`
+            : `Info for ${config.singular} "${itemName}" changed (${totalChangeCount} changes: ${[formatFieldSummary(nonRuleChanges), ruleSummary].filter(Boolean).join("; ")})`;
+
+      return createActivityEntry({
+        message,
+        target: {
+          path: config.path,
+          itemId: item.id,
+          editor,
+        },
+      });
+    })
+    .filter((entry): entry is RecentActivityEntry => entry !== null);
+
+  if (added.length === 0 && deleted.length === 0 && updated.length === 0) {
+    return [];
+  }
+
+  if (added.length > 0 && deleted.length === 0 && updated.length === 0) {
+    if (added.length === 1) {
+      const addedItem = added[0];
+      return [
+        createActivityEntry({
+          message: `${config.singular} "${getItemDisplayName(addedItem, config)}" added`,
+          target: {
+            path: config.path,
+            itemId: addedItem.id,
+            editor: "info",
+          },
+        }),
+      ];
+    }
+    return [
+      createActivityEntry({
+        message: `${added.length} ${config.plural} added`,
+        target: { path: config.path },
+      }),
+    ];
+  }
+
+  if (deleted.length > 0 && added.length === 0 && updated.length === 0) {
+    if (deleted.length === 1) {
+      const deletedItem = deleted[0];
+      return [
+        createActivityEntry({
+          message: `${config.singular} "${getItemDisplayName(deletedItem, config)}" deleted`,
+          target: { path: config.path },
+        }),
+      ];
+    }
+    return [
+      createActivityEntry({
+        message: `${deleted.length} ${config.plural} deleted`,
+        target: { path: config.path },
+      }),
+    ];
+  }
+
+  if (updated.length > 0 && added.length === 0 && deleted.length === 0) {
+    if (updated.length === 1) {
+      return updated;
+    }
+    return [
+      createActivityEntry({
+        message: `${updated.length} ${config.plural} changed`,
+        target: { path: config.path },
+      }),
+    ];
+  }
+
+  return [
+    createActivityEntry({
+      message: `${config.plural} updated (${added.length} added, ${deleted.length} deleted, ${updated.length} changed)`,
+      target: { path: config.path },
+    }),
+  ];
+};
+
+const buildMetadataActivityEntry = (
+  previousMetadata: ModMetadata,
+  nextMetadata: ModMetadata,
+): RecentActivityEntry | null => {
+  const previousRecord = previousMetadata as unknown as Record<string, unknown>;
+  const nextRecord = nextMetadata as unknown as Record<string, unknown>;
+  const changedKeys = Array.from(
+    new Set([...Object.keys(previousMetadata), ...Object.keys(nextMetadata)]),
+  ).filter((field) => !areValuesEqual(previousRecord[field], nextRecord[field]));
+
+  if (changedKeys.length === 0) return null;
+
+  const message =
+    changedKeys.length === 1
+      ? `Project metadata changed (${formatFieldSummary(changedKeys)})`
+      : `Project metadata changed (${changedKeys.length} changes: ${formatFieldSummary(changedKeys)})`;
+
+  return createActivityEntry({
+    message,
+    target: { path: "/metadata", editor: "info" },
+  });
+};
+
 const createDefaultStore = (): ProjectStore => ({
   version: 2,
   currentProjectId: DEFAULT_METADATA.id,
@@ -202,6 +570,77 @@ const forceStringArray = (val: any): string[] => {
   if (Array.isArray(val)) return val.map(String);
   if (typeof val === "string" && val.trim() !== "") return [val];
   return [];
+};
+
+const createRecentActivityId = (): string =>
+  `activity_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+const sanitizeRecentActivity = (value: unknown): RecentActivityEntry[] => {
+  if (!Array.isArray(value)) return [];
+
+  const normalized = value
+    .map((entry, index): RecentActivityEntry | null => {
+      if (typeof entry === "string") {
+        const message = entry.trim();
+        if (!message) return null;
+        return {
+          id: `legacy_activity_${index}`,
+          message,
+          timestamp: Date.now(),
+        };
+      }
+
+      if (!entry || typeof entry !== "object") return null;
+
+      const obj = entry as Partial<RecentActivityEntry> & {
+        target?: Partial<RecentActivityTarget>;
+      };
+      const message =
+        typeof obj.message === "string" ? obj.message.trim() : "";
+      if (!message) return null;
+
+      const maybeTarget = obj.target;
+      const hasValidTarget =
+        maybeTarget &&
+        typeof maybeTarget.path === "string" &&
+        maybeTarget.path.trim();
+
+      const maybeItemId =
+        maybeTarget &&
+        typeof maybeTarget.itemId === "string" &&
+        maybeTarget.itemId.trim()
+          ? maybeTarget.itemId
+          : undefined;
+      const maybeEditor =
+        maybeTarget &&
+        (maybeTarget.editor === "info" || maybeTarget.editor === "rules")
+          ? maybeTarget.editor
+          : undefined;
+
+      return {
+        id:
+          typeof obj.id === "string" && obj.id.trim()
+            ? obj.id
+            : `legacy_activity_${index}`,
+        message,
+        timestamp:
+          typeof obj.timestamp === "number" && Number.isFinite(obj.timestamp)
+            ? obj.timestamp
+            : Date.now(),
+        ...(hasValidTarget
+          ? {
+              target: {
+                path: maybeTarget.path as string,
+                ...(maybeItemId ? { itemId: maybeItemId } : {}),
+                ...(maybeEditor ? { editor: maybeEditor } : {}),
+              },
+            }
+          : {}),
+      };
+    })
+    .filter((entry): entry is RecentActivityEntry => entry !== null);
+
+  return normalized.slice(0, RECENT_ACTIVITY_LIMIT);
 };
 
 const sanitizeMetadata = (input: any): ModMetadata => {
@@ -233,7 +672,7 @@ const sanitizeProjectData = (input: any): ProjectData => {
     ...input,
     metadata: sanitizeMetadata(input.metadata),
     stats: { ...DEFAULT_DATA.stats, ...(input.stats || {}) },
-    recentActivity: toArray(input.recentActivity),
+    recentActivity: sanitizeRecentActivity(input.recentActivity),
     jokers: toArray(input.jokers),
     consumables: toArray(input.consumables),
     rarities: toArray(input.rarities),
@@ -454,9 +893,18 @@ export const useProjectData = () => {
       setStore((prev) => {
         const currentId = prev.currentProjectId;
         const current = prev.projects[currentId] || DEFAULT_DATA;
+        const nextMetadata: ModMetadata = { ...current.metadata, ...updates };
+        const metadataActivity = buildMetadataActivityEntry(
+          current.metadata,
+          nextMetadata,
+        );
         const updatedProject: ProjectData = {
           ...current,
-          metadata: { ...current.metadata, ...updates },
+          metadata: nextMetadata,
+          recentActivity: prependRecentActivity(
+            current.recentActivity,
+            metadataActivity ? [metadataActivity] : [],
+          ),
         };
 
         if (updates.id && updates.id !== currentId) {
@@ -488,9 +936,19 @@ export const useProjectData = () => {
       setStore((prev) => {
         const currentId = prev.currentProjectId;
         const current = prev.projects[currentId] || DEFAULT_DATA;
+        const activityEntries =
+          isTrackableCollectionKey(key) &&
+          Array.isArray(current[key]) &&
+          Array.isArray(items)
+            ? buildCollectionActivityEntries(key, current[key], items)
+            : [];
         const updatedProject: ProjectData = {
           ...current,
           [key]: items,
+          recentActivity: prependRecentActivity(
+            current.recentActivity,
+            activityEntries,
+          ),
           stats: {
             ...current.stats,
             [key]: Array.isArray(items)

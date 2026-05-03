@@ -5,6 +5,7 @@ import {
   type ChangeEvent,
   type KeyboardEvent,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Smiley,
   Flask,
@@ -28,6 +29,7 @@ import {
 } from "@phosphor-icons/react";
 import {
   getJokerforgeExportAsJsonEnabled,
+  type RecentActivityEntry,
   useProjectData,
 } from "@/lib/storage";
 import { motion, AnimatePresence } from "framer-motion";
@@ -42,6 +44,7 @@ import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
 
 export function OverviewPage() {
+  const navigate = useNavigate();
   const {
     data,
     projects,
@@ -250,6 +253,40 @@ export function OverviewPage() {
   const authorLabel = Array.isArray(metadata.author)
     ? metadata.author.join(", ")
     : String(metadata.author ?? "");
+
+  const formatActivityTimestamp = (timestamp: number): string => {
+    const diffMs = Date.now() - timestamp;
+    if (!Number.isFinite(diffMs) || diffMs < 0) return "Just now";
+
+    const minuteMs = 60_000;
+    const hourMs = 3_600_000;
+    const dayMs = 86_400_000;
+
+    if (diffMs < minuteMs) return "Just now";
+    if (diffMs < hourMs) {
+      const minutes = Math.floor(diffMs / minuteMs);
+      return `${minutes}m ago`;
+    }
+    if (diffMs < dayMs) {
+      const hours = Math.floor(diffMs / hourMs);
+      return `${hours}h ago`;
+    }
+    const days = Math.floor(diffMs / dayMs);
+    return `${days}d ago`;
+  };
+
+  const handleRecentActivityClick = (activity: RecentActivityEntry) => {
+    if (!activity.target) return;
+    const params = new URLSearchParams();
+    if (activity.target.itemId) {
+      params.set("activityItemId", activity.target.itemId);
+    }
+    if (activity.target.editor) {
+      params.set("activityEditor", activity.target.editor);
+    }
+    const query = params.toString();
+    navigate(query ? `${activity.target.path}?${query}` : activity.target.path);
+  };
 
   return (
     <div className="space-y-10 max-w-7xl mx-auto pb-20">
@@ -661,19 +698,27 @@ export function OverviewPage() {
             Recent Activity
           </h3>
           <div className="bg-card border border-border rounded-xl p-1 shadow-sm">
-            {data.recentActivity.map((activity, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-4 p-4 hover:bg-accent/50 rounded-lg transition-colors group cursor-default border-b border-border/50 last:border-0"
+            {data.recentActivity.length === 0 && (
+              <div className="p-4 text-sm text-muted-foreground">
+                No recent saved changes yet.
+              </div>
+            )}
+            {data.recentActivity.map((activity) => (
+              <button
+                key={activity.id}
+                type="button"
+                disabled={!activity.target}
+                onClick={() => handleRecentActivityClick(activity)}
+                className={`w-full flex items-center gap-4 p-4 rounded-lg transition-colors group border-b border-border/50 last:border-0 text-left ${activity.target ? "hover:bg-accent/50 cursor-pointer" : "cursor-default"}`}
               >
                 <div className="h-2 w-2 rounded-full bg-muted-foreground/50 group-hover:bg-primary transition-colors" />
                 <p className="text-sm font-medium leading-none text-foreground/80 group-hover:text-foreground transition-colors">
-                  {activity}
+                  {activity.message}
                 </p>
-                <span className="ml-auto text-xs text-muted-foreground opacity-50">
-                  Just now
+                <span className="ml-auto text-xs text-muted-foreground opacity-70">
+                  {formatActivityTimestamp(activity.timestamp)}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>

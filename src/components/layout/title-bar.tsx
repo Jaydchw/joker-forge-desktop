@@ -105,6 +105,34 @@ export function TitleBar() {
     };
   }, []);
 
+  // Prevent Radix UI overlays (Dialog, Sheet, etc.) from closing when interacting with the title bar.
+  // Radix listens on document in the capture phase for both pointerdown and focusin.
+  // By stopping propagation at the window level, Radix never sees the interaction.
+  useEffect(() => {
+    const handleWindowInteract = (e: Event) => {
+      const target = e.target as Element | null;
+      if (target?.closest("[data-tauri-drag-region]")) {
+        e.stopPropagation();
+      }
+    };
+
+    window.addEventListener("pointerdown", handleWindowInteract, {
+      capture: true,
+    });
+    window.addEventListener("focusin", handleWindowInteract, {
+      capture: true,
+    });
+
+    return () => {
+      window.removeEventListener("pointerdown", handleWindowInteract, {
+        capture: true,
+      });
+      window.removeEventListener("focusin", handleWindowInteract, {
+        capture: true,
+      });
+    };
+  }, []);
+
   const handleMinimize = async () => {
     try {
       await appWindow.minimize();
@@ -149,7 +177,7 @@ export function TitleBar() {
       data-tauri-drag-region
       onDoubleClick={handleTitleBarDoubleClick}
       className={cn(
-        "h-9 flex items-center justify-between fixed top-0 left-0 right-0 z-[60]",
+        "h-9 flex items-center justify-between fixed top-0 left-0 right-0 z-[60] pointer-events-auto",
         "bg-background/95 backdrop-blur-md border-b border-border",
         "select-none transition-colors duration-300",
       )}
