@@ -4,6 +4,7 @@ import App from "./App";
 import "./index.css";
 import { initializeRuleCatalogFromRust } from "@/components/rule-builder/rule-catalog";
 import { applyThemeFromStorage } from "./lib/theme-manager";
+import { initPostHog } from "./lib/posthog";
 
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement,
@@ -11,6 +12,7 @@ const root = ReactDOM.createRoot(
 
 async function bootstrap() {
   applyThemeFromStorage();
+  initPostHog();
 
   try {
     await initializeRuleCatalogFromRust();
