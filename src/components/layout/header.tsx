@@ -7,6 +7,9 @@ import {
   Sun,
   Moon,
   Gear,
+  Heart,
+  CaretDown,
+  Package,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ExportSuccessDialog } from "@/components/layout/export-success-dialog";
@@ -31,6 +34,7 @@ import {
   applyThemeFromStorage,
   subscribeThemeChanges,
 } from "../../lib/theme-manager";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface HeaderProps {
   title?: string;
@@ -47,7 +51,8 @@ export function Header({ title }: HeaderProps) {
   );
   const [unsupportedParts, setUnsupportedParts] = useState<string[]>([]);
   const [showUnsupportedDialog, setShowUnsupportedDialog] = useState(false);
-  const { data } = useProjectData();
+  const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const { data, projects, currentProjectId, switchProject } = useProjectData();
 
   useEffect(() => {
     setThemePreference(theme);
@@ -107,6 +112,8 @@ export function Header({ title }: HeaderProps) {
         return "Vanilla Decks";
       case "/settings":
         return "Settings";
+      case "/acknowledgements":
+        return "Acknowledgements";
       default:
         return "Joker Forge";
     }
@@ -186,14 +193,84 @@ export function Header({ title }: HeaderProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-3 bg-background/95 backdrop-blur-md border-b border-border transition-colors duration-300">
+      <header className="sticky top-0 z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 py-3 bg-background/95 backdrop-blur-md border-b border-border transition-colors duration-300">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold tracking-tight text-foreground/80 pl-2">
             {displayTitle}
           </h2>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="relative flex items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setIsProjectMenuOpen((value) => !value)}
+            className="flex h-9 items-center gap-2 rounded-xl border border-border/60 bg-background/70 px-4 text-sm font-semibold text-foreground/80 transition hover:text-foreground hover:border-primary/40 cursor-pointer"
+          >
+            <Package className="h-4 w-4 text-primary" weight="fill" />
+            <span className="max-w-[200px] truncate">
+              {projects.find((proj) => proj.id === currentProjectId)?.name ??
+                "Project"}
+            </span>
+            <CaretDown
+              className={`h-4 w-4 text-muted-foreground transition-transform ${isProjectMenuOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          <AnimatePresence>
+            {isProjectMenuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.98 }}
+                transition={{ duration: 0.15 }}
+                className="absolute top-full mt-2 w-72 rounded-xl border border-border bg-card shadow-lg overflow-hidden z-40"
+              >
+                <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Switch Project
+                </div>
+                <div className="max-h-64 overflow-auto">
+                  {projects.map((proj) => (
+                    <button
+                      key={proj.id}
+                      type="button"
+                      onClick={() => {
+                        switchProject(proj.id);
+                        setIsProjectMenuOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-left text-sm text-foreground/80 hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+                    >
+                      <span
+                        className={`truncate ${proj.id === currentProjectId ? "text-primary" : ""}`}
+                      >
+                        {proj.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        v{proj.version}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
+          >
+            <a
+              href="https://ko-fi.com/jaydchw"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Heart className="h-4 w-4 text-balatro-red" weight="fill" />
+              Donate
+            </a>
+          </Button>
           <Button
             asChild
             variant="ghost"
