@@ -1,7 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { confirm } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { valid, gt } from "semver";
 import { RELEASE_CHANNEL } from "@/generated/release-channel";
@@ -54,7 +52,15 @@ const getCurrentPlatform = (): Platform => {
 const normalizeVersion = (value: string): string | null => {
   const withoutNightlyPrefix = value.replace(/^nightly-/, "");
   const withoutVPrefix = withoutNightlyPrefix.replace(/^v/, "");
-  return valid(withoutVPrefix);
+  // Ensure `.local` is considered older than any timestamp
+  const noLocal = withoutVPrefix.replace(/\.local$/, ".0");
+  const fixedLeadingZeros = noLocal
+    .split(".")
+    .map((part) =>
+      /^[0-9]+$/.test(part) ? parseInt(part, 10).toString() : part,
+    )
+    .join(".");
+  return valid(fixedLeadingZeros);
 };
 
 const parseReleaseVersion = (release: GitHubRelease): string | null => {
@@ -128,17 +134,38 @@ const getLatestReleaseForChannel = async (
     : getLatestStableRelease();
 };
 
-const downloadAndLaunchInstaller = async (asset: GitHubReleaseAsset) => {
+export const performUpdate = async (asset: GitHubReleaseAsset) => {
   const localPath = await invoke<string>("download_release_asset", {
     url: asset.browser_download_url,
     fileName: asset.name,
   });
-  await openPath(localPath);
+  
+  await invoke("install_update_and_restart", {
+    installerPath: localPath,
+  });
+
   try {
     await getCurrentWindow().close();
   } catch {
     // If closing fails, installer is still launched so this is non-fatal.
   }
+};
+
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  channel: string;
+  asset: GitHubReleaseAsset;
+}
+
+type UpdateListener = (info: UpdateInfo) => void;
+const listeners = new Set<UpdateListener>();
+
+export const onUpdateAvailable = (listener: UpdateListener) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 };
 
 export const checkForReleaseUpdateOnLaunch = async () => {
@@ -228,35 +255,17 @@ export const checkForReleaseUpdateOnLaunch = async () => {
       return;
     }
 
-    const approved = await confirm(
-      [
-        `A new ${channel} version is available.`,
-        `Current: ${resolvedCurrentVersion}`,
-        `Latest: ${latestNormalized}`,
-        "",
-        "Install update now?",
-      ].join("\n"),
-      {
-        title: "Update Available",
-        okLabel: "Auto Update",
-        cancelLabel: "Later",
-      },
-    );
+    const updateInfo: UpdateInfo = {
+      currentVersion: resolvedCurrentVersion,
+      latestVersion: latestNormalized,
+      channel,
+      asset: installerAsset,
+    };
 
-    if (!approved) {
-      console.info("[release-updater] User declined update prompt", {
-        channel,
-        currentVersion: resolvedCurrentVersion,
-        latestVersion: latestNormalized,
-      });
-      return;
-    }
-
-    try {
-      await downloadAndLaunchInstaller(installerAsset);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      window.alert(`Failed to install update: ${message}`);
+    if (listeners.size > 0) {
+      listeners.forEach((listener) => listener(updateInfo));
+    } else {
+      console.warn("[release-updater] No listeners registered for update UI.");
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

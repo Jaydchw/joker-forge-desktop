@@ -31,6 +31,8 @@ pub fn run() {
             commands::batch_export_jokers,
             commands::export_mod_package,
             commands::download_release_asset,
+            commands::install_update_and_restart,
+            commands::open_devtools,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

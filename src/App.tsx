@@ -32,6 +32,9 @@ import {
 } from "@/components/ui/context-menu";
 import { useEffect } from "react";
 import { checkForReleaseUpdateOnLaunch } from "@/lib/release-updater";
+import { UpdateDialog } from "@/components/bridge/update-dialog";
+
+import { invoke } from "@tauri-apps/api/core";
 
 function App() {
   useEffect(() => {
@@ -40,6 +43,7 @@ function App() {
 
   return (
     <Router>
+      <UpdateDialog />
       <EntityBridgeListener />
       <ContextMenu>
         <ContextMenuTrigger asChild>
@@ -56,11 +60,11 @@ function App() {
                   element={<ConsumableSetsPage />}
                 />
                 <Route path="/decks" element={<DecksPage />} />
-                <Route path="/enhancements" element={<EnhancementsPage />} />
-                <Route path="/editions" element={<EditionsPage />} />
                 <Route path="/boosters" element={<BoostersPage />} />
                 <Route path="/vouchers" element={<VouchersPage />} />
+                <Route path="/enhancements" element={<EnhancementsPage />} />
                 <Route path="/sounds" element={<SoundsPage />} />
+                <Route path="/editions" element={<EditionsPage />} />
                 <Route path="/metadata" element={<MetadataPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route
@@ -68,12 +72,12 @@ function App() {
                   element={<VanillaReforgedJokersPage />}
                 />
                 <Route
-                  path="/vanilla-reforged/consumables"
-                  element={<VanillaReforgedConsumablesPage />}
-                />
-                <Route
                   path="/vanilla-reforged/boosters"
                   element={<VanillaReforgedBoostersPage />}
+                />
+                <Route
+                  path="/vanilla-reforged/consumables"
+                  element={<VanillaReforgedConsumablesPage />}
                 />
                 <Route
                   path="/vanilla-reforged/enhancements"
@@ -103,6 +107,10 @@ function App() {
           <ContextMenuItem onClick={() => window.location.reload()}>
             Refresh
             <ContextMenuShortcut>F5</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => void invoke("open_devtools")}>
+            Developer Tools
+            <ContextMenuShortcut>F12</ContextMenuShortcut>
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>

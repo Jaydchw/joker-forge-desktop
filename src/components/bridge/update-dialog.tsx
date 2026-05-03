@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
-import { Copy, FolderOpen, CheckCircle } from "@phosphor-icons/react";
+import { ArrowRight, DownloadSimple } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
-import { openPath } from "@tauri-apps/plugin-opener";
 import {
   Dialog,
   DialogContent,
@@ -11,22 +10,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  onUpdateAvailable,
+  performUpdate,
+  type UpdateInfo,
+} from "@/lib/release-updater";
 
-interface ExportSuccessDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  modFolderPath: string;
-  fileCount: number;
-}
-
-export function ExportSuccessDialog({
-  open,
-  onOpenChange,
-  modFolderPath,
-  fileCount,
-}: ExportSuccessDialogProps) {
-  const [copied, setCopied] = useState(false);
-  const [openFolderError, setOpenFolderError] = useState<string | null>(null);
+export function UpdateDialog() {
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const confettiPieces = useMemo(
     () =>
@@ -47,37 +39,31 @@ export function ExportSuccessDialog({
   );
 
   useEffect(() => {
-    if (!open) {
-      setCopied(false);
-      setOpenFolderError(null);
-    }
-  }, [open]);
+    return onUpdateAvailable((info) => {
+      setUpdateInfo(info);
+    });
+  }, []);
 
-  const handleCopyPath = async () => {
-    try {
-      if (!modFolderPath) return;
-      await navigator.clipboard.writeText(modFolderPath);
-      setCopied(true);
-      setOpenFolderError(null);
-      window.setTimeout(() => setCopied(false), 1600);
-    } catch {
-      setCopied(false);
-      setOpenFolderError("Could not copy path to clipboard.");
-    }
-  };
+  if (!updateInfo) return null;
 
-  const handleOpenFolder = async () => {
+  const handleUpdate = async () => {
+    setIsUpdating(true);
     try {
-      if (!modFolderPath) return;
-      await openPath(modFolderPath);
-      setOpenFolderError(null);
-    } catch {
-      setOpenFolderError("Could not open the folder. Try Copy Path instead.");
+      await performUpdate(updateInfo.asset);
+    } catch (error) {
+      console.error("Update failed", error);
+      setIsUpdating(false);
+      setUpdateInfo(null);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={!!updateInfo}
+      onOpenChange={(open) => {
+        if (!open && !isUpdating) setUpdateInfo(null);
+      }}
+    >
       <DialogContent
         overlayContent={
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -103,66 +89,71 @@ export function ExportSuccessDialog({
             ))}
           </div>
         }
-        className="overflow-hidden border border-border/60 bg-card p-0 sm:max-w-md"
+        className="overflow-hidden border border-border/60 bg-card p-0 sm:max-w-md outline-none"
+        onPointerDownOutside={(e) => {
+          if (isUpdating) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isUpdating) e.preventDefault();
+        }}
       >
         <div className="relative p-6 pb-2">
           <DialogHeader className="text-left space-y-2">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-primary" weight="duotone" />
+              <DownloadSimple className="h-5 w-5 text-muted-foreground" weight="duotone" />
               <DialogTitle className="text-xl font-semibold tracking-tight">
-                Mod Exported
+                Update Available
               </DialogTitle>
             </div>
             <DialogDescription className="text-sm text-muted-foreground">
-              Folder export complete. Your mod is ready to test.
+              A new <strong className="text-foreground capitalize">{updateInfo.channel}</strong> version of Joker Forge is ready to install.
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="space-y-3 px-6 py-4">
+        <div className="px-6 py-4">
           <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-muted/30 p-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Export Location
+              Version Details
             </div>
-            <div className="break-all font-mono text-sm text-foreground">
-              {modFolderPath}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-muted/30 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Summary
-            </div>
-            <div className="text-sm text-foreground">
-              Wrote {fileCount} files to your mod folder.
+            <div className="flex items-center gap-2 font-mono text-sm">
+              <span
+                className="truncate text-muted-foreground"
+                title={updateInfo.currentVersion}
+              >
+                {updateInfo.currentVersion}
+              </span>
+              <ArrowRight
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60"
+                weight="bold"
+              />
+              <span
+                className="truncate font-medium text-foreground"
+                title={updateInfo.latestVersion}
+              >
+                {updateInfo.latestVersion}
+              </span>
             </div>
           </div>
         </div>
-
-        {openFolderError ? (
-          <div className="px-6 pb-2 text-xs text-destructive">
-            {openFolderError}
-          </div>
-        ) : null}
 
         <DialogFooter className="flex w-full flex-row gap-2 border-t border-border/40 bg-muted/10 p-4">
           <Button
             variant="outline"
             className="w-1/2 cursor-pointer"
             type="button"
-            onClick={handleCopyPath}
+            onClick={() => setUpdateInfo(null)}
+            disabled={isUpdating}
           >
-            <Copy className="mr-2 h-4 w-4" />
-            {copied ? "Copied" : "Copy Path"}
+            Remind Me Later
           </Button>
           <Button
-            variant="secondary"
-            className="w-1/2 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
+            className="w-1/2 cursor-pointer"
             type="button"
-            onClick={handleOpenFolder}
+            onClick={() => void handleUpdate()}
+            disabled={isUpdating}
           >
-            <FolderOpen className="mr-2 h-4 w-4" />
-            Open Folder
+            {isUpdating ? "Installing..." : "Install Now"}
           </Button>
         </DialogFooter>
       </DialogContent>

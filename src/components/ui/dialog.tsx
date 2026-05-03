@@ -49,15 +49,22 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  overlayContent,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
+  overlayContent?: React.ReactNode;
 }) {
   const ariaDescribedBy = props["aria-describedby"] ?? undefined;
 
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
+      {overlayContent && (
+        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
+          {overlayContent}
+        </div>
+      )}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(

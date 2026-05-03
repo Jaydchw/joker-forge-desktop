@@ -19,7 +19,6 @@ import {
   Star,
   Sparkle,
   CaretDown,
-  Gear,
   BookBookmark
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";

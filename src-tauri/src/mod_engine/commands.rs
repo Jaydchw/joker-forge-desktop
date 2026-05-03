@@ -737,3 +737,59 @@ pub async fn download_release_asset(
 
     Ok(target_path.to_string_lossy().to_string())
 }
+
+#[tauri::command]
+pub async fn install_update_and_restart(installer_path: String) -> Result<(), String> {
+    install_update_and_restart_impl(installer_path)
+}
+
+#[cfg(target_os = "windows")]
+fn install_update_and_restart_impl(installer_path: String) -> Result<(), String> {
+    use std::env;
+    use std::fs;
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
+
+    let exe_path = env::current_exe()
+        .map_err(|e| format!("Failed to get current executable path: {}", e))?;
+    
+    let mut script_path = env::temp_dir();
+    script_path.push(format!("update_{}.bat", std::process::id()));
+
+    let script_content = format!(
+        "@echo off\r\n\
+         ping 127.0.0.1 -n 3 > nul\r\n\
+         start /wait \"\" \"{}\" /S\r\n\
+         start \"\" \"{}\"\r\n\
+         del \"%~f0\"\r\n",
+        installer_path,
+        exe_path.to_string_lossy()
+    );
+
+    fs::write(&script_path, script_content)
+        .map_err(|e| format!("Failed to write update script: {}", e))?;
+
+    let create_no_window = 0x08000000;
+    Command::new("cmd.exe")
+        .arg("/C")
+        .arg(&script_path)
+        .creation_flags(create_no_window)
+        .spawn()
+        .map_err(|e| format!("Failed to spawn update script: {}", e))?;
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn install_update_and_restart_impl(installer_path: String) -> Result<(), String> {
+    use std::process::Command;
+    Command::new(&installer_path)
+        .spawn()
+        .map_err(|e| format!("Failed to launch installer: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_devtools(window: tauri::WebviewWindow) {
+    window.open_devtools();
+}
