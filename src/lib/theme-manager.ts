@@ -221,6 +221,62 @@ export const THEME_VARIABLE_GROUPS: Array<{
   },
 ];
 
+export const THEME_VARIABLE_USAGE: Record<ThemeVariable, string[]> = {
+  background: [
+    "App background",
+    "Rule Builder canvas + panels",
+    "Editor workspace surfaces",
+  ],
+  foreground: [
+    "Primary text + icons",
+    "Rule Builder Live Code panel text/caret",
+  ],
+  card: [
+    "Item info cards (jokers, vouchers, decks, consumables)",
+    "Rule Builder blocks + floating dock",
+    "Dialog surfaces",
+  ],
+  "card-foreground": ["Text/icons on item cards", "Rule Builder panel text"],
+  popover: ["Select menus + popovers", "Toast surfaces", "Context menus"],
+  "popover-foreground": ["Text/icons inside popovers", "Toast text"],
+  primary: [
+    "Primary buttons",
+    "Item badges + highlights",
+    "Rule Builder selection + code highlights",
+  ],
+  "primary-foreground": ["Text/icons on primary buttons", "Badge text"],
+  secondary: ["Secondary buttons", "Subtle chips + fills"],
+  "secondary-foreground": ["Text/icons on secondary"],
+  muted: [
+    "Muted chips + labels",
+    "Rule Builder variable pills",
+    "Subtle panels",
+  ],
+  "muted-foreground": [
+    "Helper text",
+    "Placeholders",
+    "Rule Builder list metadata",
+  ],
+  accent: ["Hover + selected rows", "Rule Builder block palette rows"],
+  "accent-foreground": ["Text/icons on accent"],
+  destructive: ["Delete buttons", "Rule Builder remove block button"],
+  border: [
+    "Card + panel borders",
+    "Rule Builder list dividers",
+    "Section separators",
+  ],
+  input: ["Text inputs + selects", "Rule Builder search fields"],
+  ring: ["Focus ring", "Rule Builder focus-visible outlines"],
+  sidebar: ["Sidebar background"],
+  "sidebar-foreground": ["Sidebar text/icons"],
+  "sidebar-primary": ["Sidebar primary buttons", "Active items"],
+  "sidebar-primary-foreground": ["Text/icons on sidebar primary"],
+  "sidebar-accent": ["Sidebar hover/selected"],
+  "sidebar-accent-foreground": ["Text/icons on sidebar accent"],
+  "sidebar-border": ["Sidebar borders", "Dividers"],
+  "sidebar-ring": ["Sidebar focus ring"],
+};
+
 const DEFAULT_UI: ThemeUiSettings = {
   fontScale: 1,
   radiusPx: 10,

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Info } from "@phosphor-icons/react";
 import {
   Dialog,
   DialogContent,
@@ -20,11 +21,17 @@ import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-p
 import {
   THEME_FONT_OPTIONS,
   THEME_VARIABLE_GROUPS,
+  THEME_VARIABLE_USAGE,
   type AppThemeDefinition,
   type ThemeFontFamily,
   type ThemeVariable,
 } from "@/lib/theme-manager";
 import { type ThemePreference } from "@/lib/storage";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ThemeEditorDialogProps {
   open: boolean;
@@ -33,7 +40,10 @@ interface ThemeEditorDialogProps {
   themeEditorMode: ThemePreference;
   setThemeEditorMode: (mode: ThemePreference) => void;
   updateDraftColor: (key: ThemeVariable, value: string) => void;
-  updateDraftUi: (key: "fontScale" | "radiusPx" | "fontFamily", value: number | ThemeFontFamily) => void;
+  updateDraftUi: (
+    key: "fontScale" | "radiusPx" | "fontFamily",
+    value: number | ThemeFontFamily,
+  ) => void;
 }
 
 export function ThemeEditorDialog({
@@ -58,7 +68,8 @@ export function ThemeEditorDialog({
 
   if (!draftTheme) return null;
 
-  const editorPalette = themeEditorMode === "light" ? draftTheme.light : draftTheme.dark;
+  const editorPalette =
+    themeEditorMode === "light" ? draftTheme.light : draftTheme.dark;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -91,22 +102,33 @@ export function ThemeEditorDialog({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground">Global Font Scale</Label>
+              <Label className="text-xs text-muted-foreground">
+                Global Font Scale
+              </Label>
               <span className="text-xs font-mono text-muted-foreground">
-                {Math.round((pendingFontScale ?? draftTheme.ui.fontScale) * 100)}%
+                {Math.round(
+                  (pendingFontScale ?? draftTheme.ui.fontScale) * 100,
+                )}
+                %
               </span>
             </div>
             <Slider
-              value={[Number((pendingFontScale ?? draftTheme.ui.fontScale).toFixed(2))]}
+              value={[
+                Number(
+                  (pendingFontScale ?? draftTheme.ui.fontScale).toFixed(2),
+                ),
+              ]}
               min={0.8}
               max={1.6}
               step={0.01}
               onValueChange={(value) => {
-                const next = value[0] ?? pendingFontScale ?? draftTheme.ui.fontScale;
+                const next =
+                  value[0] ?? pendingFontScale ?? draftTheme.ui.fontScale;
                 setPendingFontScale(Number(next.toFixed(2)));
               }}
               onValueCommit={(value) => {
-                const next = value[0] ?? pendingFontScale ?? draftTheme.ui.fontScale;
+                const next =
+                  value[0] ?? pendingFontScale ?? draftTheme.ui.fontScale;
                 updateDraftUi("fontScale", Number(next.toFixed(2)));
               }}
               className="cursor-pointer"
@@ -115,7 +137,9 @@ export function ThemeEditorDialog({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground">Global Border Radius</Label>
+              <Label className="text-xs text-muted-foreground">
+                Global Border Radius
+              </Label>
               <span className="text-xs font-mono text-muted-foreground">
                 {draftTheme.ui.radiusPx.toFixed(1)}px
               </span>
@@ -134,7 +158,9 @@ export function ThemeEditorDialog({
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Global App Font</Label>
+            <Label className="text-xs text-muted-foreground">
+              Global App Font
+            </Label>
             <Input
               value={fontSearch}
               onChange={(event) => setFontSearch(event.target.value)}
@@ -143,7 +169,9 @@ export function ThemeEditorDialog({
             />
             <Select
               value={draftTheme.ui.fontFamily}
-              onValueChange={(value) => updateDraftUi("fontFamily", value as ThemeFontFamily)}
+              onValueChange={(value) =>
+                updateDraftUi("fontFamily", value as ThemeFontFamily)
+              }
             >
               <SelectTrigger className="h-9 w-full">
                 <SelectValue placeholder="Select app font" />
@@ -167,7 +195,9 @@ export function ThemeEditorDialog({
         <div className="rounded-lg bg-muted/15 p-4 space-y-5">
           <div className="text-sm text-muted-foreground">
             Editing {themeEditorMode === "light" ? "Light" : "Dark"} palette for{" "}
-            <span className="text-foreground font-medium">{draftTheme.name}</span>
+            <span className="text-foreground font-medium">
+              {draftTheme.name}
+            </span>
           </div>
 
           {editorPalette &&
@@ -177,17 +207,52 @@ export function ThemeEditorDialog({
                   {group.heading}
                 </h4>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {group.items.map((item) => (
-                    <div key={item.key} className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">{item.label}</Label>
-                      <GenericDialogColorPicker
-                        value={editorPalette[item.key]}
-                        onChange={(value) => updateDraftColor(item.key, value)}
-                        defaultColor={editorPalette[item.key]}
-                        valueMode="with-hash"
-                      />
-                    </div>
-                  ))}
+                  {group.items.map((item) => {
+                    const usage = THEME_VARIABLE_USAGE[item.key] ?? [
+                      "General UI elements",
+                    ];
+                    return (
+                      <div key={item.key} className="space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <Label className="text-xs text-muted-foreground">
+                            {item.label}
+                          </Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground transition hover:text-foreground"
+                                aria-label={`Where ${item.label} is used`}
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent
+                              side="top"
+                              className="max-w-[240px] space-y-1"
+                            >
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-background/80">
+                                Used for
+                              </div>
+                              <ul className="list-disc space-y-0.5 pl-4">
+                                {usage.map((entry) => (
+                                  <li key={entry}>{entry}</li>
+                                ))}
+                              </ul>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <GenericDialogColorPicker
+                          value={editorPalette[item.key]}
+                          onChange={(value) =>
+                            updateDraftColor(item.key, value)
+                          }
+                          defaultColor={editorPalette[item.key]}
+                          valueMode="with-hash"
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
