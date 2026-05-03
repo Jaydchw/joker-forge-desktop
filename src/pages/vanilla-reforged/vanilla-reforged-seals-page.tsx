@@ -113,14 +113,6 @@ export default function VanillaReforgedSealsPage() {
     [handleCopy],
   );
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 text-muted-foreground">
-        Loading vanilla seals...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto pb-20 text-destructive">{error}</div>
@@ -130,6 +122,7 @@ export default function VanillaReforgedSealsPage() {
   return (
     <>
       <GenericItemPage<SealData>
+        isLoading={isLoading}
         title="Vanilla Seals"
         subtitle={subtitle}
         items={items}

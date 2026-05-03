@@ -134,11 +134,66 @@ function GenericItemPageInternal<T extends { id: string }>({
   const [isXlLayout, setIsXlLayout] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth >= 1280 : true,
   );
+  const storageKeyBase = `jokerforge-${title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+
+  const [prevTitle, setPrevTitle] = useState(title);
+
   const [viewMode, setViewMode] = useState<"regular" | "compact">(
-    defaultViewMode,
+    () => {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem(`${storageKeyBase}-view-mode`);
+        if (saved === "regular" || saved === "compact") return saved;
+      }
+      return defaultViewMode;
+    }
   );
-  const [columnMode, setColumnMode] = useState<ColumnMode>(defaultColumnMode);
-  const [compactCardSize, setCompactCardSize] = useState(defaultCompactSize);
+
+  const [columnMode, setColumnMode] = useState<ColumnMode>(
+    () => {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem(`${storageKeyBase}-column-mode`);
+        if (saved === "auto" || saved === "1" || saved === "2" || saved === "3") return saved as ColumnMode;
+      }
+      return defaultColumnMode;
+    }
+  );
+
+  const [compactCardSizeIndex, setCompactCardSizeIndex] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKeyBase}-compact-size-index`);
+      if (saved) return parseInt(saved, 10);
+    }
+    // 5 steps: 1=80, 2=120, 3=160, 4=200, 5=240. Default 140 -> maps closely to 3 (160) or 2 (120).
+    return Math.max(1, Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1));
+  });
+
+  if (title !== prevTitle) {
+    setPrevTitle(title);
+    if (typeof window !== "undefined") {
+      const savedViewMode = localStorage.getItem(`${storageKeyBase}-view-mode`);
+      setViewMode(savedViewMode === "regular" || savedViewMode === "compact" ? savedViewMode : defaultViewMode);
+
+      const savedColumnMode = localStorage.getItem(`${storageKeyBase}-column-mode`);
+      setColumnMode(savedColumnMode === "auto" || savedColumnMode === "1" || savedColumnMode === "2" || savedColumnMode === "3" ? (savedColumnMode as ColumnMode) : defaultColumnMode);
+
+      const savedCompactSizeIndex = localStorage.getItem(`${storageKeyBase}-compact-size-index`);
+      setCompactCardSizeIndex(savedCompactSizeIndex ? parseInt(savedCompactSizeIndex, 10) : Math.max(1, Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1)));
+    }
+  }
+
+  useEffect(() => {
+    localStorage.setItem(`${storageKeyBase}-view-mode`, viewMode);
+  }, [viewMode, storageKeyBase]);
+
+  useEffect(() => {
+    localStorage.setItem(`${storageKeyBase}-column-mode`, columnMode);
+  }, [columnMode, storageKeyBase]);
+
+  useEffect(() => {
+    localStorage.setItem(`${storageKeyBase}-compact-size-index`, compactCardSizeIndex.toString());
+  }, [compactCardSizeIndex, storageKeyBase]);
+
+  const actualCardSize = 80 + (compactCardSizeIndex - 1) * 40;
   const [virtualRows, setVirtualRows] = useState({ start: 0, end: 0 });
   const [, startTransition] = useTransition();
   const listContainerRef = useRef<HTMLDivElement | null>(null);
@@ -195,7 +250,7 @@ function GenericItemPageInternal<T extends { id: string }>({
 
   const effectiveColumnCount =
     viewMode === "compact"
-      ? Math.max(1, Math.floor(containerWidth / compactCardSize))
+      ? Math.max(1, Math.floor(containerWidth / actualCardSize))
       : columnMode === "auto"
         ? isXlLayout
           ? 2
@@ -215,7 +270,7 @@ function GenericItemPageInternal<T extends { id: string }>({
   const totalRows = Math.ceil(processedItems.length / effectiveColumnCount);
   const estimatedRowHeight =
     viewMode === "compact"
-      ? Math.max(96, compactCardSize + 20)
+      ? Math.max(96, actualCardSize + 20)
       : ESTIMATED_REGULAR_ROW_HEIGHT;
 
   useEffect(() => {
@@ -342,7 +397,7 @@ function GenericItemPageInternal<T extends { id: string }>({
   }[columnMode];
 
   const compactGridStyle = {
-    gridTemplateColumns: `repeat(auto-fill, minmax(${compactCardSize}px, 1fr))`,
+    gridTemplateColumns: `repeat(auto-fill, minmax(${actualCardSize}px, 1fr))`,
   };
 
   const skeletonCards =
@@ -351,7 +406,7 @@ function GenericItemPageInternal<T extends { id: string }>({
           <Skeleton
             key={`skeleton-${i}`}
             className="aspect-square rounded-2xl"
-            style={{ minWidth: compactCardSize }}
+            style={{ minWidth: actualCardSize }}
           />
         ))
       : Array.from({ length: 6 }, (_, i) => (
@@ -629,15 +684,15 @@ function GenericItemPageInternal<T extends { id: string }>({
                 Size
               </span>
               <Slider
-                value={[compactCardSize]}
-                onValueChange={([v]) => setCompactCardSize(v)}
-                min={80}
-                max={240}
-                step={8}
+                value={[compactCardSizeIndex]}
+                onValueChange={([v]) => setCompactCardSizeIndex(v)}
+                min={1}
+                max={5}
+                step={1}
                 className="flex-1"
               />
               <span className="text-xs font-mono text-muted-foreground shrink-0 w-8 text-right">
-                {compactCardSize}
+                {compactCardSizeIndex}
               </span>
             </div>
           )}

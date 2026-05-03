@@ -166,14 +166,6 @@ export default function VanillaReforgedEnhancementsPage() {
     [handleCopy],
   );
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 text-muted-foreground">
-        Loading vanilla enhancements...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto pb-20 text-destructive">{error}</div>
@@ -183,6 +175,7 @@ export default function VanillaReforgedEnhancementsPage() {
   return (
     <>
       <GenericItemPage<EnhancementData>
+        isLoading={isLoading}
         title="Vanilla Enhancements"
         subtitle={subtitle}
         items={items}

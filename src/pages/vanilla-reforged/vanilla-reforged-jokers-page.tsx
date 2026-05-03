@@ -208,14 +208,6 @@ export default function VanillaReforgedJokersPage() {
     [handleCopy],
   );
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 text-muted-foreground">
-        Loading vanilla jokers...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto pb-20 text-destructive">{error}</div>
@@ -225,6 +217,7 @@ export default function VanillaReforgedJokersPage() {
   return (
     <>
       <GenericItemPage<JokerData>
+        isLoading={isLoading}
         title="Vanilla Jokers"
         subtitle={subtitle}
         items={items}

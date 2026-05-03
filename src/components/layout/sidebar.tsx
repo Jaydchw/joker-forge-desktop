@@ -42,12 +42,6 @@ const PROJECT_MAIN = [
     href: "/metadata",
     color: "text-foreground",
   },
-  {
-    label: "Settings",
-    icon: Gear,
-    href: "/settings",
-    color: "text-foreground",
-  },
 ];
 
 const COLLAPSIBLE_GROUPS = [

@@ -124,14 +124,6 @@ export default function VanillaReforgedEditionsPage() {
     [handleCopy],
   );
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 text-muted-foreground">
-        Loading vanilla editions...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto pb-20 text-destructive">{error}</div>
@@ -141,6 +133,7 @@ export default function VanillaReforgedEditionsPage() {
   return (
     <>
       <GenericItemPage<EditionData>
+        isLoading={isLoading}
         title="Vanilla Editions"
         subtitle={subtitle}
         items={items}

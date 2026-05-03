@@ -155,14 +155,6 @@ export default function VanillaReforgedVouchersPage() {
     [handleCopy],
   );
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 text-muted-foreground">
-        Loading vanilla vouchers...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto pb-20 text-destructive">{error}</div>
@@ -172,6 +164,7 @@ export default function VanillaReforgedVouchersPage() {
   return (
     <>
       <GenericItemPage<VoucherData>
+        isLoading={isLoading}
         title="Vanilla Vouchers"
         subtitle={subtitle}
         items={items}

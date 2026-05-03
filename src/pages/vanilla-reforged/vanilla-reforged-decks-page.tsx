@@ -154,14 +154,6 @@ export default function VanillaReforgedDecksPage() {
     [handleCopy],
   );
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 text-muted-foreground">
-        Loading vanilla decks...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto pb-20 text-destructive">{error}</div>
@@ -171,6 +163,7 @@ export default function VanillaReforgedDecksPage() {
   return (
     <>
       <GenericItemPage<DeckData>
+        isLoading={isLoading}
         title="Vanilla Decks"
         subtitle={subtitle}
         items={items}

@@ -127,14 +127,6 @@ export default function VanillaReforgedBoostersPage() {
     [handleCopy],
   );
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 text-muted-foreground">
-        Loading vanilla boosters...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto pb-20 text-destructive">{error}</div>
@@ -143,6 +135,7 @@ export default function VanillaReforgedBoostersPage() {
 
   return (
     <GenericItemPage<BoosterData>
+      isLoading={isLoading}
       title="Vanilla Booster Packs"
       subtitle={subtitle}
       items={items}

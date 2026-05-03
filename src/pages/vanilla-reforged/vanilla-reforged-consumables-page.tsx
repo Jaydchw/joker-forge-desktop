@@ -148,14 +148,6 @@ export default function VanillaReforgedConsumablesPage() {
     [handleCopy],
   );
 
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto pb-20 text-muted-foreground">
-        Loading vanilla consumables...
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="max-w-7xl mx-auto pb-20 text-destructive">{error}</div>
@@ -165,6 +157,7 @@ export default function VanillaReforgedConsumablesPage() {
   return (
     <>
       <GenericItemPage<ConsumableData>
+        isLoading={isLoading}
         title="Vanilla Consumables"
         subtitle={subtitle}
         items={items}
