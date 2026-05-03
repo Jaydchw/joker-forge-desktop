@@ -14,6 +14,7 @@ import VouchersPage from "@/pages/vouchers-page";
 import SoundsPage from "@/pages/sounds-page";
 import MetadataPage from "@/pages/metadata-page";
 import SettingsPage from "@/pages/settings-page";
+import AcknowledgementsPage from "@/pages/acknowledgements-page";
 import VanillaReforgedJokersPage from "@/pages/vanilla-reforged/vanilla-reforged-jokers-page";
 import VanillaReforgedConsumablesPage from "@/pages/vanilla-reforged/vanilla-reforged-consumables-page";
 import VanillaReforgedBoostersPage from "@/pages/vanilla-reforged/vanilla-reforged-boosters-page";
@@ -28,7 +29,6 @@ import { useEffect } from "react";
 import { checkForReleaseUpdateOnLaunch } from "@/lib/release-updater";
 import { UpdateDialog } from "@/components/bridge/update-dialog";
 import { GithubStarDialog } from "@/components/bridge/github-star-dialog";
-
 
 function App() {
   useEffect(() => {
@@ -49,10 +49,7 @@ function App() {
               <Route path="/rarities" element={<RaritiesPage />} />
               <Route path="/seals" element={<SealsPage />} />
               <Route path="/consumables" element={<ConsumablesPage />} />
-              <Route
-                path="/consumable-sets"
-                element={<ConsumableSetsPage />}
-              />
+              <Route path="/consumable-sets" element={<ConsumableSetsPage />} />
               <Route path="/decks" element={<DecksPage />} />
               <Route path="/boosters" element={<BoostersPage />} />
               <Route path="/vouchers" element={<VouchersPage />} />
@@ -61,6 +58,10 @@ function App() {
               <Route path="/editions" element={<EditionsPage />} />
               <Route path="/metadata" element={<MetadataPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route
+                path="/acknowledgements"
+                element={<AcknowledgementsPage />}
+              />
               <Route
                 path="/vanilla-reforged/jokers"
                 element={<VanillaReforgedJokersPage />}
