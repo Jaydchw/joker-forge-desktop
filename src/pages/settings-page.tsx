@@ -27,6 +27,7 @@ import { ThemeEditorDialog } from "@/components/theme/theme-editor-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import {
   getBalatroInstallPath,
+  getJokerforgeAutoSaveDownloadsEnabled,
   getConfirmDeleteEnabled,
   getExportDestinationMode,
   getJokerforgeExportAsJsonEnabled,
@@ -34,6 +35,7 @@ import {
   getThemePreference,
   resetProjectData,
   setBalatroInstallPath,
+  setJokerforgeAutoSaveDownloadsEnabled,
   setConfirmDeleteEnabled,
   setExportDestinationMode,
   setJokerforgeExportAsJsonEnabled,
@@ -77,6 +79,7 @@ export default function SettingsPage() {
   const [splitLocalizationExport, setSplitLocalizationExport] = useState(false);
   const [exportToBalatroMods, setExportToBalatroMods] = useState(false);
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
+  const [autoSaveToDownloads, setAutoSaveToDownloads] = useState(false);
   const [isResetDataDialogOpen, setIsResetDataDialogOpen] = useState(false);
   const [isResetThemesDialogOpen, setIsResetThemesDialogOpen] = useState(false);
   const [isThemeEditorOpen, setIsThemeEditorOpen] = useState(false);
@@ -110,6 +113,7 @@ export default function SettingsPage() {
     setSplitLocalizationExport(getSplitLocalizationExportEnabled());
     setExportToBalatroMods(getExportDestinationMode() === "balatro-mods");
     setExportJokerforgeAsJson(getJokerforgeExportAsJsonEnabled());
+    setAutoSaveToDownloads(getJokerforgeAutoSaveDownloadsEnabled());
     setThemeMode(getThemePreference());
     setThemeEditorMode(getThemePreference());
     refreshThemes();
@@ -363,6 +367,27 @@ export default function SettingsPage() {
                   onCheckedChange={(value) => {
                     setExportJokerforgeAsJson(value);
                     setJokerforgeExportAsJsonEnabled(value);
+                  }}
+                  className="cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <Label htmlFor="auto-save-downloads">
+                    Auto-save Exports To Downloads
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Off: ask where to save each export. On: save directly to
+                    Downloads.
+                  </p>
+                </div>
+                <Switch
+                  id="auto-save-downloads"
+                  checked={autoSaveToDownloads}
+                  onCheckedChange={(value) => {
+                    setAutoSaveToDownloads(value);
+                    setJokerforgeAutoSaveDownloadsEnabled(value);
                   }}
                   className="cursor-pointer"
                 />

@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
-  FloppyDisk,
+  DownloadSimple,
   Upload,
   Export,
   Sun,
@@ -17,12 +17,16 @@ import { UnsupportedRulesDialog } from "@/components/layout/unsupported-rules-di
 import {
   getBalatroInstallPath,
   getExportDestinationMode,
+  getJokerforgeAutoSaveDownloadsEnabled,
+  getJokerforgeExportAsJsonEnabled,
   getSplitLocalizationExportEnabled,
   getThemePreference,
   setThemePreference,
   useProjectData,
+  type ProjectData,
 } from "@/lib/storage";
-import { serializeJokerforgeV2 } from "@/lib/jokerforge/exporter";
+import { exportJokerforgeV2, serializeJokerforgeV2 } from "@/lib/jokerforge/exporter";
+import { importJokerforgeFromText } from "@/lib/jokerforge/importer";
 import {
   exportModRust,
   type ExportModRustResult,
@@ -35,6 +39,7 @@ import {
   subscribeThemeChanges,
 } from "../../lib/theme-manager";
 import { AnimatePresence, motion } from "framer-motion";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 
 interface HeaderProps {
   title?: string;
@@ -52,7 +57,14 @@ export function Header({ title }: HeaderProps) {
   const [unsupportedParts, setUnsupportedParts] = useState<string[]>([]);
   const [showUnsupportedDialog, setShowUnsupportedDialog] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
-  const { data, projects, currentProjectId, switchProject } = useProjectData();
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const {
+    data,
+    projects,
+    currentProjectId,
+    switchProject,
+    importProject,
+  } = useProjectData();
 
   useEffect(() => {
     setThemePreference(theme);
@@ -120,6 +132,73 @@ export function Header({ title }: HeaderProps) {
   };
 
   const displayTitle = title || getPageTitle(location.pathname);
+
+  const applyImportedProject = (
+    project: ReturnType<typeof importJokerforgeFromText>["project"],
+  ) => {
+    importProject(project as ProjectData);
+  };
+
+  const handleImportClick = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleImportFileChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const fileText = await file.text();
+      const result = importJokerforgeFromText(fileText);
+      applyImportedProject(result.project);
+      const sourceLabel = result.source === "legacy" ? "legacy" : "v2";
+      pushGlobalAlert({
+        type: "success",
+        title: "Import Complete",
+        message: `Imported ${file.name} (${sourceLabel} format).`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown import error.";
+      pushGlobalAlert({
+        type: "danger",
+        title: "Import Failed",
+        message,
+      });
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleProjectExportClick = async () => {
+    try {
+      const extension = getJokerforgeExportAsJsonEnabled()
+        ? "json"
+        : "jokerforge";
+      const result = await exportJokerforgeV2(data, undefined, extension, {
+        autoSaveToDownloads: getJokerforgeAutoSaveDownloadsEnabled(),
+      });
+      if (result === "cancelled") return;
+      pushGlobalAlert({
+        type: "success",
+        title: "Export Complete",
+        message:
+          result === "downloaded"
+            ? `Downloaded .${extension} file.`
+            : `Saved .${extension} file.`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown export error.";
+      pushGlobalAlert({
+        type: "danger",
+        title: "Export Failed",
+        message,
+      });
+    }
+  };
 
   const doExport = async () => {
     try {
@@ -297,18 +376,20 @@ export function Header({ title }: HeaderProps) {
           <Button
             variant="ghost"
             size="sm"
+            onClick={handleImportClick}
             className="text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
           >
-            <FloppyDisk className="mr-2 h-4 w-4" />
-            Save
+            <Upload className="mr-2 h-4 w-4" />
+            Import
           </Button>
           <Button
             variant="ghost"
             size="sm"
+            onClick={handleProjectExportClick}
             className="text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
           >
-            <Upload className="mr-2 h-4 w-4" />
-            Load
+            <DownloadSimple className="mr-2 h-4 w-4" />
+            Export
           </Button>
           <div className="w-px h-4 bg-border mx-1" />
           <Button
@@ -337,6 +418,13 @@ export function Header({ title }: HeaderProps) {
         onOpenChange={setShowUnsupportedDialog}
         unsupportedParts={unsupportedParts}
         onExportAnyway={doExport}
+      />
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".jokerforge,.json,application/json"
+        className="hidden"
+        onChange={handleImportFileChange}
       />
     </>
   );

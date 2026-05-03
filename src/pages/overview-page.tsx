@@ -28,6 +28,7 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import {
+  getJokerforgeAutoSaveDownloadsEnabled,
   getJokerforgeExportAsJsonEnabled,
   type RecentActivityEntry,
   useProjectData,
@@ -39,7 +40,7 @@ import { ResourceLink } from "@/components/ui/resource-link";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { importJokerforgeFromText } from "@/lib/jokerforge/importer";
-import { downloadJokerforgeV2 } from "@/lib/jokerforge/exporter";
+import { exportJokerforgeV2 } from "@/lib/jokerforge/exporter";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
 
@@ -135,16 +136,22 @@ export function OverviewPage() {
     }
   };
 
-  const handleExportClick = () => {
+  const handleExportClick = async () => {
     try {
       const extension = getJokerforgeExportAsJsonEnabled()
         ? "json"
         : "jokerforge";
-      downloadJokerforgeV2(data, undefined, extension);
+      const result = await exportJokerforgeV2(data, undefined, extension, {
+        autoSaveToDownloads: getJokerforgeAutoSaveDownloadsEnabled(),
+      });
+      if (result === "cancelled") return;
       pushGlobalAlert({
         type: "success",
         title: "Export Complete",
-        message: `Downloaded .${extension} file.`,
+        message:
+          result === "downloaded"
+            ? `Downloaded .${extension} file.`
+            : `Saved .${extension} file.`,
       });
     } catch (error) {
       const message =

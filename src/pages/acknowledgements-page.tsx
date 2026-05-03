@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import {
   Heart,
   Sparkle,
@@ -10,7 +10,7 @@ import {
   Scroll,
 } from "@phosphor-icons/react";
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0, y: 18 },
   show: {
     opacity: 1,
@@ -19,7 +19,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 12 },
   show: { opacity: 1, y: 0, transition: { duration: 0.35 } },
 };
@@ -91,7 +91,7 @@ export default function AcknowledgementsPage() {
       <div className="pointer-events-none absolute inset-0 opacity-55">
         {floatingHearts.map((heart, index) => (
           <motion.div
-            key={`${heart.left}-${heart.top}-${index}`}
+            key={`${heart.left}-${index}`}
             className="absolute text-balatro-red/80 mix-blend-multiply"
             style={{ left: heart.left, top: "-12%" }}
             animate={{

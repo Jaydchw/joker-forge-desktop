@@ -1,5 +1,7 @@
 import type { ProjectData } from "@/lib/storage";
 import { normalizeProjectData } from "@/lib/jokerforge/legacy-transpiler";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 
 export interface JokerforgeV2Export {
   format: "jokerforge";
@@ -33,11 +35,14 @@ const sanitizeFilenameBase = (value: string): string => {
   return cleaned || "jokerforge-export";
 };
 
-export const downloadJokerforgeV2 = (
+export const exportJokerforgeV2 = async (
   project: ProjectData,
   fileName?: string,
   extension: "jokerforge" | "json" = "jokerforge",
-): void => {
+  options?: {
+    autoSaveToDownloads?: boolean;
+  },
+): Promise<"downloaded" | "saved" | "cancelled"> => {
   const baseName =
     fileName ||
     sanitizeFilenameBase(
@@ -45,15 +50,35 @@ export const downloadJokerforgeV2 = (
     );
 
   const content = serializeJokerforgeV2(project);
-  const blob = new Blob([content], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
+  const fullName = `${baseName}.${extension}`;
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${baseName}.${extension}`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  if (options?.autoSaveToDownloads) {
+    const blob = new Blob([content], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
 
-  URL.revokeObjectURL(url);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fullName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+    return "downloaded";
+  }
+
+  const targetPath = await save({
+    title: "Export Joker Forge Project",
+    defaultPath: fullName,
+    filters: [
+      {
+        name: extension === "json" ? "JSON" : "Joker Forge",
+        extensions: [extension],
+      },
+    ],
+  });
+
+  if (!targetPath) return "cancelled";
+  await writeTextFile(targetPath, content);
+  return "saved";
 };

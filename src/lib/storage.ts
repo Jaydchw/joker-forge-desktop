@@ -82,6 +82,8 @@ const BALATRO_AUTOFIND_ALERT_KEY = "joker_forge_balatro_autofind_alert";
 const SPLIT_LOCALIZATION_EXPORT_KEY = "joker_forge_split_localization_export";
 const EXPORT_DESTINATION_MODE_KEY = "joker_forge_export_destination_mode";
 const JOKERFORGE_EXPORT_AS_JSON_KEY = "joker_forge_export_as_json";
+const JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY =
+  "joker_forge_auto_save_downloads";
 const THEME_PREFERENCE_KEY = "joker_forge_theme_preference";
 const THEME_CHANGE_EVENT = "joker_forge_theme_change";
 const STORAGE_ERROR_ALERT_THROTTLE_MS = 4000;
@@ -1149,6 +1151,7 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(SPLIT_LOCALIZATION_EXPORT_KEY);
   window.localStorage.removeItem(EXPORT_DESTINATION_MODE_KEY);
   window.localStorage.removeItem(JOKERFORGE_EXPORT_AS_JSON_KEY);
+  window.localStorage.removeItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY);
   window.localStorage.removeItem(THEME_PREFERENCE_KEY);
   clearThemeStorage();
   if (isTauriRuntime()) {
@@ -1290,6 +1293,21 @@ export const setJokerforgeExportAsJsonEnabled = (value: boolean) => {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
     JOKERFORGE_EXPORT_AS_JSON_KEY,
+    value ? "true" : "false",
+  );
+};
+
+export const getJokerforgeAutoSaveDownloadsEnabled = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return (
+    window.localStorage.getItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY) === "true"
+  );
+};
+
+export const setJokerforgeAutoSaveDownloadsEnabled = (value: boolean) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY,
     value ? "true" : "false",
   );
 };
