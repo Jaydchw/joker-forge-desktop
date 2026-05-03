@@ -14,7 +14,6 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -24,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { ThemeEditorDialog } from "@/components/theme/theme-editor-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -44,8 +42,6 @@ import {
   type ThemePreference,
 } from "@/lib/storage";
 import {
-  THEME_FONT_OPTIONS,
-  THEME_VARIABLE_GROUPS,
   applyThemeFromStorage,
   createThemeFromBase,
   createThemeFromImported,
@@ -88,8 +84,6 @@ export default function SettingsPage() {
   const [themeMode, setThemeMode] = useState<ThemePreference>("dark");
   const [themeEditorMode, setThemeEditorMode] =
     useState<ThemePreference>("dark");
-  const [fontSearch, setFontSearch] = useState("");
-  const [pendingFontScale, setPendingFontScale] = useState<number | null>(null);
   const [themes, setThemes] = useState<AppThemeDefinition[]>([]);
   const [selectedThemeId, setSelectedThemeId] = useState("");
   const [draftTheme, setDraftTheme] = useState<AppThemeDefinition | null>(null);
@@ -130,19 +124,6 @@ export default function SettingsPage() {
     () => themes.find((item) => item.id === selectedThemeId) || null,
     [selectedThemeId, themes],
   );
-
-  const filteredFontOptions = useMemo(() => {
-    const query = fontSearch.trim().toLowerCase();
-    if (!query) return THEME_FONT_OPTIONS;
-    return THEME_FONT_OPTIONS.filter((option) =>
-      option.label.toLowerCase().includes(query),
-    );
-  }, [fontSearch]);
-
-  useEffect(() => {
-    if (!draftTheme) return;
-    setPendingFontScale(draftTheme.ui.fontScale);
-  }, [draftTheme?.id, draftTheme?.ui.fontScale]);
 
   const handleBrowseBalatroPath = async () => {
     const selected = await open({
@@ -320,11 +301,6 @@ export default function SettingsPage() {
     refreshThemes(getBuiltInTheme().id);
   };
 
-  const editorPalette =
-    draftTheme && themeEditorMode === "light"
-      ? draftTheme.light
-      : draftTheme?.dark;
-
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <div className="rounded-xl bg-card/70 p-6">
@@ -460,7 +436,6 @@ export default function SettingsPage() {
               </Button>
             </div>
           </div>
-
         </section>
 
         <section className="rounded-xl bg-card/70 p-5 space-y-5">
@@ -616,7 +591,9 @@ export default function SettingsPage() {
           <Button
             variant="outline"
             className="w-full cursor-pointer"
-            onClick={() => window.dispatchEvent(new CustomEvent('show-github-star-dialog'))}
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent("show-github-star-dialog"))
+            }
           >
             Show GitHub Star Dialog
           </Button>
@@ -625,7 +602,9 @@ export default function SettingsPage() {
             className="w-full cursor-pointer"
             onClick={() => {
               localStorage.removeItem("hasDismissedGithubStar");
-              window.alert("GitHub star preference cleared. The dialog can now appear again on launch.");
+              window.alert(
+                "GitHub star preference cleared. The dialog can now appear again on launch.",
+              );
             }}
           >
             Clear GitHub Star Preference
