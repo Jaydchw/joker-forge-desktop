@@ -14,7 +14,8 @@
     "build-stable": "npm run prepare:stable && npx tauri build",
     "build-nightly": "npm run prepare:nightly && npx tauri build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "reset": "npm run prepare:stable"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
