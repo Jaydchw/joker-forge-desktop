@@ -147,7 +147,11 @@ export default function VouchersPage() {
   const handleExport = useCallback(
     async (item: VoucherData) => {
       try {
-        await exportSingleItemRust(item as any, "voucher", data.metadata.prefix);
+        await exportSingleItemRust(
+          item as any,
+          "voucher",
+          data.metadata.prefix,
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         window.alert(`Voucher export failed: ${message}`);
@@ -500,6 +504,7 @@ export default function VouchersPage() {
         description={item.description}
         cost={item.cost}
         idValue={item.orderValue}
+        imageLayers={item.imageLayers}
         overlayImage={item.overlayImage}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
         onDuplicate={() => {
@@ -609,7 +614,7 @@ export default function VouchersPage() {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
-            onClick: () => { },
+            onClick: () => {},
             variant: "ghost",
           },
           {
@@ -625,7 +630,7 @@ export default function VouchersPage() {
     [handleUpdate, requestDelete, handleExport],
   );
 
-const renderCompactCard = useCallback(
+  const renderCompactCard = useCallback(
     (item: VoucherData) => (
       <GenericItemCardCompact
         name={item.name}

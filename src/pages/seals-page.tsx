@@ -326,17 +326,18 @@ export default function SealsPage() {
         name={item.name}
         description={item.description}
         idValue={item.orderValue}
+        imageLayers={item.imageLayers}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
         onDuplicate={() => {
-                  const duplicatedItem: SealData = {
-                    ...item,
-                    id: crypto.randomUUID(),
-                    name: `${item.name} (Copy)`,
-                    objectKey: `${item.objectKey}_copy`,
-                    orderValue: data.seals.length + 1,
-                  };
-                  updateSeals([...data.seals, duplicatedItem]);
-                }}
+          const duplicatedItem: SealData = {
+            ...item,
+            id: crypto.randomUUID(),
+            name: `${item.name} (Copy)`,
+            objectKey: `${item.objectKey}_copy`,
+            orderValue: data.seals.length + 1,
+          };
+          updateSeals([...data.seals, duplicatedItem]);
+        }}
         image={
           item.image ? (
             <img
@@ -423,7 +424,7 @@ export default function SealsPage() {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
-            onClick: () => { },
+            onClick: () => {},
             variant: "ghost",
           },
           {
@@ -439,7 +440,7 @@ export default function SealsPage() {
     [handleUpdate, requestDelete, handleExport],
   );
 
-const renderCompactCard = useCallback(
+  const renderCompactCard = useCallback(
     (item: SealData) => (
       <GenericItemCardCompact
         name={item.name}

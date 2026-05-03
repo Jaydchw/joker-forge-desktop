@@ -771,6 +771,7 @@ export default function JokersPage() {
         cost={joker.cost}
         idValue={joker.orderValue}
         rarity={joker.rarity}
+        imageLayers={joker.imageLayers}
         overlayImage={joker.overlayImage}
         onUpdate={(updates) => handleUpdate(joker.id, updates)}
         onDuplicate={() => {

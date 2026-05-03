@@ -88,15 +88,8 @@ import {
 } from "./selection-utils";
 import IconButton from "@/components/ui/icon-button";
 import ItemTypeBadge from "./item-type-badge";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuLabel,
-  ContextMenuSeparator,
-  ContextMenuShortcut,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+import { CustomContextMenu, type ContextMenuGroupConfig } from "@/components/ui/custom-context-menu";
+import { cn } from "@/lib/utils";
 
 export type ItemData = any;
 type ItemType = "joker" | "consumable" | "card" | "voucher" | "deck";
@@ -3400,48 +3393,245 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         }
       : null;
 
+  const contextMenuGroups = useMemo((): ContextMenuGroupConfig[] => {
+    const groups: ContextMenuGroupConfig[] = [];
+
+    if (isLiveCodeContextMenu) {
+      groups.push({
+        label: "Live Code",
+        items: [
+          {
+            label: "Copy Selected Text",
+            icon: Copy,
+            shortcut: "Ctrl+C",
+            disabled: !hasLiveCodeSelectedText,
+            onSelect: () => void handleCopyLiveCodeSelection(),
+          },
+        ],
+        separator: true,
+      });
+    }
+
+    if (hasBulkSelection) {
+      groups.push({
+        label: "Selection Actions",
+        items: [
+          {
+            label: `Selected Rules: ${selectedRuleIds.length}`,
+            show: true,
+            disabled: true,
+          },
+          {
+            label: "Move Selection Here",
+            disabled: !lastContextWorldPoint,
+            onSelect: moveSelectedRulesToContextPoint,
+          },
+          {
+            label: "Duplicate Selection",
+            icon: Copy,
+            shortcut: "Ctrl+D",
+            onSelect: duplicateSelectedRules,
+          },
+          {
+            label: "Delete Selection",
+            icon: Trash,
+            shortcut: "Del",
+            variant: "destructive",
+            onSelect: deleteSelectedRules,
+          },
+          {
+            label: "Clear Selection",
+            shortcut: "Esc",
+            onSelect: clearRuleSelection,
+          },
+        ],
+      });
+    } else {
+      groups.push({
+        label: `${contextTargetTitle} Actions`,
+        items: [
+          {
+            label: "Undo",
+            icon: ArrowCounterClockwise,
+            shortcut: "Ctrl+Z",
+            disabled: historyPastRef.current.length === 0,
+            onSelect: handleUndo,
+          },
+          {
+            label: "Redo",
+            icon: ArrowClockwise,
+            shortcut: "Ctrl+Y",
+            disabled: historyFutureRef.current.length === 0,
+            onSelect: handleRedo,
+          },
+        ],
+        separator: true,
+      });
+
+      groups.push({
+        items: [
+          {
+            label: "Recenter Canvas",
+            onSelect: handleRecenter,
+          },
+          {
+            label: "Auto Layout Rules",
+            shortcut: "Ctrl+Shift+L",
+            onSelect: handleAutoLayoutRules,
+          },
+        ],
+        separator: true,
+      });
+
+      const selectionItems = [];
+      if (contextTarget.ruleId) {
+        selectionItems.push({
+          label: "Select Rule",
+          onSelect: () => setSingleSelectedRule(contextTarget.ruleId!),
+        });
+      }
+      selectionItems.push({
+        label: "Select All Rules",
+        shortcut: "Ctrl+A",
+        disabled: rules.length === 0,
+        onSelect: selectAllRules,
+      });
+      groups.push({ items: selectionItems, separator: true });
+
+      const actionItems = [];
+      if (canPreviewContextTarget) {
+        actionItems.push({
+          label: "Preview Block Code",
+          icon: Eye,
+          onSelect: handleContextPreview,
+        });
+      }
+      if (contextTarget.ruleId) {
+        actionItems.push({
+          label: "Add Condition Group",
+          icon: Plus,
+          onSelect: () => addConditionGroup(contextTarget.ruleId!),
+        });
+        actionItems.push({
+          label: "Add Random Group",
+          icon: Plus,
+          onSelect: () => addRandomGroup(contextTarget.ruleId!),
+        });
+        actionItems.push({
+          label: "Add Loop Group",
+          icon: Plus,
+          onSelect: () => addLoopGroup(contextTarget.ruleId!),
+        });
+      }
+      if (itemType === "joker" && contextTarget.ruleId) {
+        actionItems.push({
+          label: "Toggle Blueprint Compatibility",
+          onSelect: () => toggleBlueprintCompatibility(contextTarget.ruleId!),
+        });
+      }
+      if (actionItems.length > 0) {
+        groups.push({ items: actionItems, separator: true });
+      }
+
+      groups.push({
+        items: [
+          {
+            label: "Duplicate",
+            icon: Copy,
+            shortcut: "Ctrl+D",
+            disabled: !canDuplicateContextTarget,
+            onSelect: handleContextDuplicate,
+          },
+          {
+            label: "Delete",
+            icon: Trash,
+            shortcut: "Del",
+            variant: "destructive",
+            disabled: !canDeleteContextTarget,
+            onSelect: handleContextDelete,
+          },
+        ],
+      });
+    }
+
+    return groups;
+  }, [
+    isLiveCodeContextMenu,
+    hasLiveCodeSelectedText,
+    handleCopyLiveCodeSelection,
+    hasBulkSelection,
+    selectedRuleIds.length,
+    lastContextWorldPoint,
+    moveSelectedRulesToContextPoint,
+    duplicateSelectedRules,
+    deleteSelectedRules,
+    clearRuleSelection,
+    contextTargetTitle,
+    handleUndo,
+    handleRedo,
+    handleRecenter,
+    handleAutoLayoutRules,
+    contextTarget.ruleId,
+    selectAllRules,
+    rules.length,
+    canPreviewContextTarget,
+    handleContextPreview,
+    addConditionGroup,
+    addRandomGroup,
+    addLoopGroup,
+    itemType,
+    toggleBlueprintCompatibility,
+    canDuplicateContextTarget,
+    handleContextDuplicate,
+    canDeleteContextTarget,
+    handleContextDelete,
+  ]);
+
   if (!isOpen) return null;
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
+    <CustomContextMenu
+      groups={contextMenuGroups}
+      className="w-62 shadow-[0_24px_45px_-20px_rgba(0,0,0,0.78)]"
+    >
+      <div
+        className="fixed inset-x-0 bottom-0 top-9 flex bg-background items-center justify-center z-120"
+        onContextMenuCapture={handleRuleBuilderContextMenuCapture}
+      >
         <div
-          className="fixed inset-x-0 bottom-0 top-9 flex bg-background items-center justify-center z-120"
-          onContextMenuCapture={handleRuleBuilderContextMenuCapture}
+          ref={modalRef}
+          className="bg-background w-full h-full overflow-hidden flex flex-col"
         >
-          <div
-            ref={modalRef}
-            className="bg-background w-full h-full overflow-hidden flex flex-col"
-          >
-            <div className="bg-background/95 backdrop-blur-md border-b border-border shadow-sm z-50 px-4 py-3">
-              <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Terminal className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase shrink-0">
-                    Rule Builder
-                  </span>
-                  {isReadOnly && (
-                    <Badge
-                      variant="secondary"
-                      className="text-[10px] uppercase tracking-wider"
-                    >
-                      Read Only
-                    </Badge>
-                  )}
-                  <span className="text-[11px] text-muted-foreground hidden xl:block truncate">
-                    Pan: {Math.round(panState.x)}, {Math.round(panState.y)}
-                  </span>
-                </div>
+          <div className="bg-background/95 backdrop-blur-md border-b border-border shadow-sm z-50 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <Terminal className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase shrink-0">
+                  Rule Builder
+                </span>
+                {isReadOnly && (
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] uppercase tracking-wider"
+                  >
+                    Read Only
+                  </Badge>
+                )}
+                <span className="text-[11px] text-muted-foreground hidden xl:block truncate">
+                  Pan: {Math.round(panState.x)}, {Math.round(panState.y)}
+                </span>
+              </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
                   <IconButton
                     icon={CornersIn}
                     onClick={handleRecenter}
                     tooltip="Recenter View"
+                    className="cursor-pointer"
                   />
                   <IconButton
                     icon={SquaresFour}
                     onClick={handleAutoLayoutRules}
                     tooltip="Auto Layout Rules"
+                    className="cursor-pointer"
                   />
                   <IconButton
                     icon={GridFour}
@@ -3455,545 +3645,396 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                     tooltip="Toggle Grid Snapping"
                     shortcut="S"
                     isActive={gridSnapping}
-                    className={
+                    className={cn(
+                      "cursor-pointer",
                       gridSnapping
                         ? "text-mint-light hover:text-mint-lighter"
                         : undefined
-                    }
+                    )}
                   />
                   <IconButton
                     icon={MagnifyingGlassMinus}
                     onClick={() => handleGridZoomChange("out")}
                     tooltip="Zoom Out"
                     shortcut="-"
+                    className="cursor-pointer"
                   />
                   <IconButton
                     icon={MagnifyingGlassPlus}
                     onClick={() => handleGridZoomChange("in")}
                     tooltip="Zoom In"
                     shortcut="+"
+                    className="cursor-pointer"
                   />
-                  <span className="text-[11px] text-muted-foreground w-12 text-center">
-                    {Math.round(panState.scale * 100)}%
-                  </span>
-                  <div className="w-px h-5 bg-border" />
-                  <Button
-                    variant={isReadOnly ? "outline" : "default"}
-                    size="sm"
-                    onClick={handleSaveAndClose}
-                    icon={
-                      isReadOnly ? (
-                        <X className="h-4 w-4" />
-                      ) : (
-                        <CheckCircle className="h-4 w-4" />
-                      )
-                    }
-                    className="text-xs cursor-pointer"
-                  >
-                    {isReadOnly ? "Close" : "Save Changes"}
-                  </Button>
-                </div>
+                <span className="text-[11px] text-muted-foreground w-12 text-center">
+                  {Math.round(panState.scale * 100)}%
+                </span>
+                <div className="w-px h-5 bg-border" />
+                <Button
+                  variant={isReadOnly ? "outline" : "default"}
+                  size="sm"
+                  onClick={handleSaveAndClose}
+                  icon={
+                    isReadOnly ? (
+                      <X className="h-4 w-4" />
+                    ) : (
+                      <CheckCircle className="h-4 w-4" />
+                    )
+                  }
+                  className="text-xs cursor-pointer"
+                >
+                  {isReadOnly ? "Close" : "Save Changes"}
+                </Button>
+              </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-medium text-foreground/70 uppercase tracking-wide">
-                    Mode
-                  </span>
-                  <span className="text-xs font-semibold text-foreground/90">
-                    {modeLabel}
-                  </span>
-                  <ItemTypeBadge itemType={itemType} />
-                </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-medium text-foreground/70 uppercase tracking-wide">
+                  Mode
+                </span>
+                <span className="text-xs font-semibold text-foreground/90">
+                  {modeLabel}
+                </span>
+                <ItemTypeBadge itemType={itemType} />
               </div>
             </div>
-            <div className="grow relative overflow-hidden">
+          <div className="grow relative overflow-hidden">
+            <div
+              className={`h-full w-full ${liveCodeIsVisible ? "flex" : "block"}`}
+            >
               <div
-                className={`h-full w-full ${liveCodeIsVisible ? "flex" : "block"}`}
+                ref={builderViewportRef}
+                className={`relative h-full overflow-hidden ${
+                  isMiddlePanning ? "cursor-grabbing" : "cursor-grab"
+                }`}
+                style={{ width: `${builderWidthPercent}%` }}
+                onMouseDownCapture={handleViewportMouseDownCapture}
+                onAuxClick={handleViewportAuxClick}
+                onMouseDown={handleCanvasMouseDown}
               >
                 <div
-                  ref={builderViewportRef}
-                  className={`relative h-full overflow-hidden ${
-                    isMiddlePanning ? "cursor-grabbing" : "cursor-grab"
-                  }`}
-                  style={{ width: `${builderWidthPercent}%` }}
-                  onMouseDownCapture={handleViewportMouseDownCapture}
-                  onAuxClick={handleViewportAuxClick}
-                  onMouseDown={handleCanvasMouseDown}
-                >
-                  <div
-                    className="absolute inset-0 w-full h-full pointer-events-none"
-                    style={{
-                      backgroundImage: createAlternatingDotPattern(),
-                      backgroundSize: `${24 * panState.scale}px ${24 * panState.scale}px`,
-                      backgroundPosition: `${panState.x}px ${panState.y}px`,
-                      backgroundColor: "hsl(var(--background))",
-                    }}
-                  />
-                  {isInitialLoadComplete &&
-                    rules.length === 0 &&
-                    showNoRulesMessage && (
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  style={{
+                    backgroundImage: createAlternatingDotPattern(),
+                    backgroundSize: `${24 * panState.scale}px ${24 * panState.scale}px`,
+                    backgroundPosition: `${panState.x}px ${panState.y}px`,
+                    backgroundColor: "hsl(var(--background))",
+                  }}
+                />
+                {isInitialLoadComplete &&
+                  rules.length === 0 &&
+                  showNoRulesMessage && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{
+                        duration: 0.4,
+                        ease: "easeOut",
+                        delay: 0.1,
+                      }}
+                      className="absolute inset-0 flex items-center justify-center z-40"
+                    >
                       <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
                         transition={{
-                          duration: 0.4,
+                          duration: 0.3,
+                          delay: 0.2,
                           ease: "easeOut",
-                          delay: 0.1,
                         }}
-                        className="absolute inset-0 flex items-center justify-center z-40"
+                        className="text-center bg-card/95 backdrop-blur-sm rounded-xl p-8 border border-border shadow-xl"
                       >
                         <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{
-                            duration: 0.3,
-                            delay: 0.2,
-                            ease: "easeOut",
-                          }}
-                          className="text-center bg-card/95 backdrop-blur-sm rounded-xl p-8 border border-border shadow-xl"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.4, duration: 0.3 }}
+                          className="text-foreground text-lg mb-3"
                         >
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.4, duration: 0.3 }}
-                            className="text-foreground text-lg mb-3"
-                          >
-                            No Rules Created
-                          </motion.div>
-                          <motion.p
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.5, duration: 0.3 }}
-                            className="text-muted-foreground text-sm max-w-md"
-                          >
-                            Select a trigger from the Block Palette to create
-                            your first rule.
-                          </motion.p>
+                          No Rules Created
                         </motion.div>
+                        <motion.p
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.5, duration: 0.3 }}
+                          className="text-muted-foreground text-sm max-w-md"
+                        >
+                          Select a trigger from the Block Palette to create
+                          your first rule.
+                        </motion.p>
                       </motion.div>
-                    )}
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    modifiers={
-                      activeId &&
-                      (activeId.startsWith("panel-") ||
-                        activeId.startsWith("palette:"))
-                        ? []
-                        : [restrictToVerticalAxis]
-                    }
+                    </motion.div>
+                  )}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  modifiers={
+                    activeId &&
+                    (activeId.startsWith("panel-") ||
+                      activeId.startsWith("palette:"))
+                      ? []
+                      : [restrictToVerticalAxis]
+                  }
+                >
+                  <TransformWrapper
+                    ref={transformRef}
+                    initialScale={1}
+                    initialPositionX={0}
+                    initialPositionY={0}
+                    minScale={0.5}
+                    maxScale={2.4}
+                    smooth={false}
+                    centerOnInit={false}
+                    limitToBounds={false}
+                    wheel={{
+                      disabled: false,
+                      step: 0.25,
+                      smoothStep: 0.25,
+                      wheelDisabled: false,
+                    }}
+                    pinch={{
+                      disabled: false,
+                    }}
+                    doubleClick={{
+                      disabled: true,
+                    }}
+                    panning={{
+                      allowLeftClickPan: false,
+                      allowRightClickPan: false,
+                      allowMiddleClickPan: true,
+                      wheelPanning: false,
+                      velocityDisabled: true,
+                    }}
+                    onTransformed={(_, state) => {
+                      setPanState({
+                        x: state.positionX,
+                        y: state.positionY,
+                        scale: state.scale,
+                      });
+                    }}
                   >
-                    <TransformWrapper
-                      ref={transformRef}
-                      initialScale={1}
-                      initialPositionX={0}
-                      initialPositionY={0}
-                      minScale={0.5}
-                      maxScale={2.4}
-                      smooth={false}
-                      centerOnInit={false}
-                      limitToBounds={false}
-                      wheel={{
-                        disabled: false,
-                        step: 0.25,
-                        smoothStep: 0.25,
-                        wheelDisabled: false,
+                    <TransformComponent
+                      wrapperClass="w-full h-full"
+                      contentClass="relative"
+                      wrapperStyle={{
+                        width: "100%",
+                        height: "100%",
+                        overflow: "hidden",
                       }}
-                      pinch={{
-                        disabled: false,
-                      }}
-                      doubleClick={{
-                        disabled: true,
-                      }}
-                      panning={{
-                        allowLeftClickPan: false,
-                        allowRightClickPan: false,
-                        allowMiddleClickPan: true,
-                        wheelPanning: false,
-                        velocityDisabled: true,
-                      }}
-                      onTransformed={(_, state) => {
-                        setPanState({
-                          x: state.positionX,
-                          y: state.positionY,
-                          scale: state.scale,
-                        });
+                      contentStyle={{
+                        width: "5600px",
+                        height: "3200px",
                       }}
                     >
-                      <TransformComponent
-                        wrapperClass="w-full h-full"
-                        contentClass="relative"
-                        wrapperStyle={{
-                          width: "100%",
-                          height: "100%",
-                          overflow: "hidden",
-                        }}
-                        contentStyle={{
-                          width: "5600px",
-                          height: "3200px",
-                        }}
-                      >
-                        <div className="relative z-10">
-                          <div className="p-6 min-h-full">
-                            <div className="relative">
-                              {rules.map((rule, index) => (
-                                <div
-                                  key={rule.id}
-                                  className="absolute"
-                                  style={{
-                                    left: rule.position?.x || 0,
-                                    top: rule.position?.y || 0,
-                                    zIndex:
-                                      selectedItem?.ruleId === rule.id
-                                        ? 50 + index
-                                        : 20 + index,
-                                  }}
-                                >
-                                  <RuleCard
-                                    rule={rule}
-                                    ruleIndex={index + 1}
-                                    selectedItem={selectedItem}
-                                    onSelectItem={handleSelectItem}
-                                    onSelectRuleCard={handleSelectRuleCard}
-                                    onDuplicateRule={duplicateRule}
-                                    onDeleteRule={deleteRule}
-                                    onDeleteCondition={deleteCondition}
-                                    onDeleteConditionGroup={
-                                      deleteConditionGroup
-                                    }
-                                    onDeleteEffect={deleteEffect}
-                                    onAddConditionGroup={addConditionGroup}
-                                    onAddRandomGroup={addRandomGroup}
-                                    onAddLoop={addLoopGroup}
-                                    onToggleBlueprintCompatibility={
-                                      toggleBlueprintCompatibility
-                                    }
-                                    onDeleteRandomGroup={deleteRandomGroup}
-                                    onDeleteLoopGroup={deleteLoopGroup}
-                                    onToggleGroupOperator={toggleGroupOperator}
-                                    onUpdatePosition={updateRulePosition}
-                                    onMoveSelectedRulesByDelta={
-                                      moveSelectedRulesByDelta
-                                    }
-                                    onFinalizeMultiRuleDrag={
-                                      finalizeSelectedRulesDrag
-                                    }
-                                    isRuleSelected={selectedRuleIdSet.has(
-                                      rule.id,
-                                    )}
-                                    selectedRuleCount={selectedRuleIds.length}
-                                    item={item as any}
-                                    itemType={itemType}
-                                    generateConditionTitle={
-                                      generateConditionTitleForCard
-                                    }
-                                    formatTriggerLabel={
-                                      formatTriggerLabelForCard
-                                    }
-                                    generateEffectTitle={
-                                      generateEffectTitleForCard
-                                    }
-                                    getParameterCount={getParameterCount}
-                                    onUpdateConditionOperator={
-                                      updateConditionOperator
-                                    }
-                                    onRuleDoubleClick={
-                                      handleRuleCardDoubleClick
-                                    }
-                                    onPreviewBlockCode={handlePreviewBlockCode}
-                                    scale={panState.scale}
-                                    isPaletteDragging={
-                                      !!activeId &&
-                                      activeId.startsWith("palette:")
-                                    }
-                                  />
-                                </div>
-                              ))}
-                            </div>
+                      <div className="relative z-10">
+                        <div className="p-6 min-h-full">
+                          <div className="relative">
+                            {rules.map((rule, index) => (
+                              <div
+                                key={rule.id}
+                                className="absolute"
+                                style={{
+                                  left: rule.position?.x || 0,
+                                  top: rule.position?.y || 0,
+                                  zIndex:
+                                    selectedItem?.ruleId === rule.id
+                                      ? 50 + index
+                                      : 20 + index,
+                                }}
+                              >
+                                <RuleCard
+                                  rule={rule}
+                                  ruleIndex={index + 1}
+                                  selectedItem={selectedItem}
+                                  onSelectItem={handleSelectItem}
+                                  onSelectRuleCard={handleSelectRuleCard}
+                                  onDuplicateRule={duplicateRule}
+                                  onDeleteRule={deleteRule}
+                                  onDeleteCondition={deleteCondition}
+                                  onDeleteConditionGroup={
+                                    deleteConditionGroup
+                                  }
+                                  onDeleteEffect={deleteEffect}
+                                  onAddConditionGroup={addConditionGroup}
+                                  onAddRandomGroup={addRandomGroup}
+                                  onAddLoop={addLoopGroup}
+                                  onToggleBlueprintCompatibility={
+                                    toggleBlueprintCompatibility
+                                  }
+                                  onDeleteRandomGroup={deleteRandomGroup}
+                                  onDeleteLoopGroup={deleteLoopGroup}
+                                  onToggleGroupOperator={toggleGroupOperator}
+                                  onUpdatePosition={updateRulePosition}
+                                  onMoveSelectedRulesByDelta={
+                                    moveSelectedRulesByDelta
+                                  }
+                                  onFinalizeMultiRuleDrag={
+                                    finalizeSelectedRulesDrag
+                                  }
+                                  isRuleSelected={selectedRuleIdSet.has(
+                                    rule.id,
+                                  )}
+                                  selectedRuleCount={selectedRuleIds.length}
+                                  item={item as any}
+                                  itemType={itemType}
+                                  generateConditionTitle={
+                                    generateConditionTitleForCard
+                                  }
+                                  formatTriggerLabel={
+                                    formatTriggerLabelForCard
+                                  }
+                                  generateEffectTitle={
+                                    generateEffectTitleForCard
+                                  }
+                                  getParameterCount={getParameterCount}
+                                  onUpdateConditionOperator={
+                                    updateConditionOperator
+                                  }
+                                  onRuleDoubleClick={
+                                    handleRuleCardDoubleClick
+                                  }
+                                  onPreviewBlockCode={handlePreviewBlockCode}
+                                  scale={panState.scale}
+                                  isPaletteDragging={
+                                    !!activeId &&
+                                    activeId.startsWith("palette:")
+                                  }
+                                />
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      </TransformComponent>
-                    </TransformWrapper>
+                      </div>
+                    </TransformComponent>
+                  </TransformWrapper>
 
-                    {selectionOverlayStyle ? (
-                      <div
-                        className="pointer-events-none absolute z-70 border border-primary/85 bg-primary/20 rounded-sm"
-                        style={selectionOverlayStyle}
-                      />
-                    ) : null}
+                  {selectionOverlayStyle ? (
+                    <div
+                      className="pointer-events-none absolute z-70 border border-primary/85 bg-primary/20 rounded-sm"
+                      style={selectionOverlayStyle}
+                    />
+                  ) : null}
 
-                    {panels.blockPalette.isVisible && (
-                      <BlockPalette
-                        position={panels.blockPalette.position}
-                        selectedRule={selectedRule}
-                        onAddTrigger={addTrigger}
-                        onAddCondition={addCondition}
-                        onAddEffect={addEffect}
-                        onClose={() => togglePanel("blockPalette")}
-                        onPositionChange={(position) =>
-                          updatePanelPosition("blockPalette", position)
-                        }
-                        itemType={itemType}
-                      />
-                    )}
-                    {itemType !== "consumable" &&
-                      panels.variables?.isVisible && (
-                        <Variables
-                          position={panels.variables.position}
-                          item={item as any}
-                          onUpdateItem={onUpdateItem}
-                          onClose={() => togglePanel("variables")}
-                          onPositionChange={(position) =>
-                            updatePanelPosition("variables", position)
-                          }
-                        />
-                      )}
-                    {panels.inspector.isVisible && (
-                      <Inspector
-                        position={panels.inspector.position}
-                        joker={item as any}
-                        selectedRule={selectedRule}
-                        selectedCondition={selectedCondition}
-                        selectedEffect={selectedEffect}
-                        selectedRandomGroup={selectedRandomGroup}
-                        selectedLoopGroup={selectedLoopGroup}
-                        onUpdateCondition={updateCondition}
-                        onUpdateEffect={updateEffect}
-                        onUpdateRandomGroup={updateRandomGroup}
-                        onUpdateLoopGroup={updateLoopGroup}
-                        onUpdateJoker={
-                          onUpdateItem as (updates: Partial<any>) => void
-                        }
-                        onClose={() => togglePanel("inspector")}
-                        onPositionChange={(position) =>
-                          updatePanelPosition("inspector", position)
-                        }
-                        onToggleVariablesPanel={() => togglePanel("variables")}
-                        onToggleGameVariablesPanel={() =>
-                          togglePanel("gameVariables")
-                        }
-                        onCreateRandomGroupFromEffect={
-                          createRandomGroupFromEffect
-                        }
-                        onCreateLoopGroupFromEffect={createLoopGroupFromEffect}
-                        selectedGameVariable={selectedGameVariable}
-                        onGameVariableApplied={handleGameVariableApplied}
-                        selectedItem={selectedItem}
-                        itemType={itemType}
-                      />
-                    )}
-
-                    {panels.gameVariables.isVisible && (
-                      <GameVariables
-                        position={panels.gameVariables.position}
-                        selectedGameVariable={selectedGameVariable}
-                        onSelectGameVariable={setSelectedGameVariable}
-                        onClose={() => togglePanel("gameVariables")}
-                        onPositionChange={(position) =>
-                          updatePanelPosition("gameVariables", position)
-                        }
-                      />
-                    )}
-
-                    {panels.history?.isVisible && (
-                      <HistoryPanel
-                        position={panels.history.position}
-                        entries={historyTimeline}
-                        currentIndex={historyCurrentIndex}
-                        onRestoreAt={restoreHistoryAt}
-                        onClose={() => togglePanel("history")}
-                        onPositionChange={(position) =>
-                          updatePanelPosition("history", position)
-                        }
-                      />
-                    )}
-                    <FloatingDock
-                      panels={panels}
-                      onTogglePanel={togglePanel}
+                  {panels.blockPalette.isVisible && (
+                    <BlockPalette
+                      position={panels.blockPalette.position}
+                      selectedRule={selectedRule}
+                      onAddTrigger={addTrigger}
+                      onAddCondition={addCondition}
+                      onAddEffect={addEffect}
+                      onClose={() => togglePanel("blockPalette")}
+                      onPositionChange={(position) =>
+                        updatePanelPosition("blockPalette", position)
+                      }
                       itemType={itemType}
                     />
-                  </DndContext>
-                </div>
+                  )}
+                  {itemType !== "consumable" &&
+                    panels.variables?.isVisible && (
+                      <Variables
+                        position={panels.variables.position}
+                        item={item as any}
+                        onUpdateItem={onUpdateItem}
+                        onClose={() => togglePanel("variables")}
+                        onPositionChange={(position) =>
+                          updatePanelPosition("variables", position)
+                        }
+                      />
+                    )}
+                  {panels.inspector.isVisible && (
+                    <Inspector
+                      position={panels.inspector.position}
+                      joker={item as any}
+                      selectedRule={selectedRule}
+                      selectedCondition={selectedCondition}
+                      selectedEffect={selectedEffect}
+                      selectedRandomGroup={selectedRandomGroup}
+                      selectedLoopGroup={selectedLoopGroup}
+                      onUpdateCondition={updateCondition}
+                      onUpdateEffect={updateEffect}
+                      onUpdateRandomGroup={updateRandomGroup}
+                      onUpdateLoopGroup={updateLoopGroup}
+                      onUpdateJoker={
+                        onUpdateItem as (updates: Partial<any>) => void
+                      }
+                      onClose={() => togglePanel("inspector")}
+                      onPositionChange={(position) =>
+                        updatePanelPosition("inspector", position)
+                      }
+                      onToggleVariablesPanel={() => togglePanel("variables")}
+                      onToggleGameVariablesPanel={() =>
+                        togglePanel("gameVariables")
+                      }
+                      onCreateRandomGroupFromEffect={
+                        createRandomGroupFromEffect
+                      }
+                      onCreateLoopGroupFromEffect={createLoopGroupFromEffect}
+                      selectedGameVariable={selectedGameVariable}
+                      onGameVariableApplied={handleGameVariableApplied}
+                      selectedItem={selectedItem}
+                      itemType={itemType}
+                    />
+                  )}
 
-                {liveCodeIsVisible && (
-                  <LiveCodePanel
-                    title={liveCodeTitle}
-                    code={liveCodeSnippet}
-                    isLoading={liveCodeIsLoading}
-                    statusMessage={liveCodeStatusMessage}
-                    isError={liveCodeIsError}
-                    errorDetails={liveCodeErrorDetails}
-                    widthPercent={liveCodeWidthPercent}
-                    isBlockPreview={!!liveCodePreviewTarget}
-                    onBackToItem={() => setLiveCodePreviewTarget(null)}
-                    onStartResize={handleLiveCodeResizeStart}
-                    onCodeChange={
-                      !isReadOnly && !liveCodePreviewTarget
-                        ? handleCodeChange
-                        : undefined
-                    }
-                    onResetCustomCode={handleResetCustomCode}
-                    hasCustomCode={!!customCode}
-                    sections={lastSectionsRef.current}
+                  {panels.gameVariables.isVisible && (
+                    <GameVariables
+                      position={panels.gameVariables.position}
+                      selectedGameVariable={selectedGameVariable}
+                      onSelectGameVariable={setSelectedGameVariable}
+                      onClose={() => togglePanel("gameVariables")}
+                      onPositionChange={(position) =>
+                        updatePanelPosition("gameVariables", position)
+                      }
+                    />
+                  )}
+
+                  {panels.history?.isVisible && (
+                    <HistoryPanel
+                      position={panels.history.position}
+                      entries={historyTimeline}
+                      currentIndex={historyCurrentIndex}
+                      onRestoreAt={restoreHistoryAt}
+                      onClose={() => togglePanel("history")}
+                      onPositionChange={(position) =>
+                        updatePanelPosition("history", position)
+                      }
+                    />
+                  )}
+                  <FloatingDock
+                    panels={panels}
+                    onTogglePanel={togglePanel}
+                    itemType={itemType}
                   />
-                )}
+                </DndContext>
               </div>
+
+              {liveCodeIsVisible && (
+                <LiveCodePanel
+                  title={liveCodeTitle}
+                  code={liveCodeSnippet}
+                  isLoading={liveCodeIsLoading}
+                  statusMessage={liveCodeStatusMessage}
+                  isError={liveCodeIsError}
+                  errorDetails={liveCodeErrorDetails}
+                  widthPercent={liveCodeWidthPercent}
+                  isBlockPreview={!!liveCodePreviewTarget}
+                  onBackToItem={() => setLiveCodePreviewTarget(null)}
+                  onStartResize={handleLiveCodeResizeStart}
+                  onCodeChange={
+                    !isReadOnly && !liveCodePreviewTarget
+                      ? handleCodeChange
+                      : undefined
+                  }
+                  onResetCustomCode={handleResetCustomCode}
+                  hasCustomCode={!!customCode}
+                  sections={lastSectionsRef.current}
+                />
+              )}
             </div>
           </div>
         </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="w-62 border-border/95 bg-card/98 shadow-[0_24px_45px_-20px_rgba(0,0,0,0.78)] backdrop-blur-md">
-        {isLiveCodeContextMenu ? (
-          <>
-            <ContextMenuLabel>Live Code</ContextMenuLabel>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onClick={() => void handleCopyLiveCodeSelection()}
-              disabled={!hasLiveCodeSelectedText}
-            >
-              <Copy className="h-4 w-4" />
-              Copy Selected Text
-              <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-          </>
-        ) : null}
-        {hasBulkSelection ? (
-          <>
-            <ContextMenuLabel>Selection Actions</ContextMenuLabel>
-            <ContextMenuLabel className="text-xs text-muted-foreground pt-0">
-              Selected Rules: {selectedRuleIds.length}
-            </ContextMenuLabel>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onClick={moveSelectedRulesToContextPoint}
-              disabled={!lastContextWorldPoint}
-            >
-              Move Selection Here
-            </ContextMenuItem>
-            <ContextMenuItem onClick={duplicateSelectedRules}>
-              <Copy className="h-4 w-4" />
-              Duplicate Selection
-              <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={deleteSelectedRules}
-              variant="destructive"
-            >
-              <Trash className="h-4 w-4" />
-              Delete Selection
-              <ContextMenuShortcut>Del</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={clearRuleSelection}>
-              Clear Selection
-              <ContextMenuShortcut>Esc</ContextMenuShortcut>
-            </ContextMenuItem>
-          </>
-        ) : (
-          <>
-            <ContextMenuLabel>{contextTargetTitle} Actions</ContextMenuLabel>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onClick={handleUndo}
-              disabled={historyPastRef.current.length === 0}
-            >
-              <ArrowCounterClockwise className="h-4 w-4" />
-              Undo
-              <ContextMenuShortcut>Ctrl+Z</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={handleRedo}
-              disabled={historyFutureRef.current.length === 0}
-            >
-              <ArrowClockwise className="h-4 w-4" />
-              Redo
-              <ContextMenuShortcut>Ctrl+Y</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleRecenter}>
-              Recenter Canvas
-            </ContextMenuItem>
-            <ContextMenuItem onClick={handleAutoLayoutRules}>
-              Auto Layout Rules
-              <ContextMenuShortcut>Ctrl+Shift+L</ContextMenuShortcut>
-            </ContextMenuItem>
-            {contextTarget.ruleId ? (
-              <ContextMenuItem
-                onClick={() => setSingleSelectedRule(contextTarget.ruleId!)}
-              >
-                Select Rule
-              </ContextMenuItem>
-            ) : null}
-            <ContextMenuItem
-              onClick={selectAllRules}
-              disabled={rules.length === 0}
-            >
-              Select All Rules
-              <ContextMenuShortcut>Ctrl+A</ContextMenuShortcut>
-            </ContextMenuItem>
-            {canPreviewContextTarget ? (
-              <ContextMenuItem onClick={handleContextPreview}>
-                <Eye className="h-4 w-4" />
-                Preview Block Code
-              </ContextMenuItem>
-            ) : null}
-            {contextTarget.ruleId ? (
-              <ContextMenuItem
-                onClick={() => addConditionGroup(contextTarget.ruleId!)}
-              >
-                <Plus className="h-4 w-4" />
-                Add Condition Group
-              </ContextMenuItem>
-            ) : null}
-            {contextTarget.ruleId ? (
-              <ContextMenuItem
-                onClick={() => addRandomGroup(contextTarget.ruleId!)}
-              >
-                <Plus className="h-4 w-4" />
-                Add Random Group
-              </ContextMenuItem>
-            ) : null}
-            {contextTarget.ruleId ? (
-              <ContextMenuItem
-                onClick={() => addLoopGroup(contextTarget.ruleId!)}
-              >
-                <Plus className="h-4 w-4" />
-                Add Loop Group
-              </ContextMenuItem>
-            ) : null}
-            {itemType === "joker" && contextTarget.ruleId ? (
-              <ContextMenuItem
-                onClick={() =>
-                  toggleBlueprintCompatibility(contextTarget.ruleId!)
-                }
-              >
-                Toggle Blueprint Compatibility
-              </ContextMenuItem>
-            ) : null}
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onClick={handleContextDuplicate}
-              disabled={!canDuplicateContextTarget}
-            >
-              <Copy className="h-4 w-4" />
-              Duplicate
-              <ContextMenuShortcut>Ctrl+D</ContextMenuShortcut>
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={handleContextDelete}
-              disabled={!canDeleteContextTarget}
-              variant="destructive"
-            >
-              <Trash className="h-4 w-4" />
-              Delete
-              <ContextMenuShortcut>Del</ContextMenuShortcut>
-            </ContextMenuItem>
-          </>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
+      </div>
+    </CustomContextMenu>
   );
 };
 

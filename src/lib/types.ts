@@ -50,6 +50,15 @@ export interface CustomCodeState {
   sections: Array<{ id: string; content: string }>;
 }
 
+export interface PixelLayerData {
+  id: string;
+  name: string;
+  visible: boolean;
+  opacity: number;
+  locked: boolean;
+  imageDataUrl: string;
+}
+
 export interface BaseGameObject {
   id: string;
   objectType: string;
@@ -57,6 +66,7 @@ export interface BaseGameObject {
   name: string;
   description: string;
   image: string;
+  imageLayers?: PixelLayerData[];
   overlayImage?: string;
   hasUserUploadedImage?: boolean;
   placeholderCreditIndex?: number;

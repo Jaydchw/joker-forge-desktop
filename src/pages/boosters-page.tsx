@@ -349,17 +349,18 @@ export default function BoostersPage() {
         description={item.description}
         cost={item.cost}
         idValue={item.orderValue}
+        imageLayers={item.imageLayers}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
         onDuplicate={() => {
-                  const duplicatedItem: BoosterData = {
-                    ...item,
-                    id: crypto.randomUUID(),
-                    name: `${item.name} (Copy)`,
-                    objectKey: `${item.objectKey}_copy`,
-                    orderValue: data.boosters.length + 1,
-                  };
-                  updateBoosters([...data.boosters, duplicatedItem]);
-                }}
+          const duplicatedItem: BoosterData = {
+            ...item,
+            id: crypto.randomUUID(),
+            name: `${item.name} (Copy)`,
+            objectKey: `${item.objectKey}_copy`,
+            orderValue: data.boosters.length + 1,
+          };
+          updateBoosters([...data.boosters, duplicatedItem]);
+        }}
         image={
           item.image ? (
             <img
@@ -427,7 +428,7 @@ export default function BoostersPage() {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
-            onClick: () => { },
+            onClick: () => {},
             variant: "ghost",
           },
           {
@@ -443,7 +444,7 @@ export default function BoostersPage() {
     [handleUpdate, requestDelete],
   );
 
-const renderCompactCard = useCallback(
+  const renderCompactCard = useCallback(
     (item: BoosterData) => (
       <GenericItemCardCompact
         name={item.name}

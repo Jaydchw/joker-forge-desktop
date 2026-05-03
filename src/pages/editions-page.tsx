@@ -126,7 +126,11 @@ export default function EditionsPage() {
   const handleExport = useCallback(
     async (item: EditionData) => {
       try {
-        await exportSingleItemRust(item as any, "edition", data.metadata.prefix);
+        await exportSingleItemRust(
+          item as any,
+          "edition",
+          data.metadata.prefix,
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         window.alert(`Edition export failed: ${message}`);
@@ -387,17 +391,18 @@ export default function EditionsPage() {
         name={item.name}
         description={item.description}
         idValue={item.orderValue}
+        imageLayers={item.imageLayers}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
         onDuplicate={() => {
-                  const duplicatedItem: EditionData = {
-                    ...item,
-                    id: crypto.randomUUID(),
-                    name: `${item.name} (Copy)`,
-                    objectKey: `${item.objectKey}_copy`,
-                    orderValue: data.editions.length + 1,
-                  };
-                  updateEditions([...data.editions, duplicatedItem]);
-                }}
+          const duplicatedItem: EditionData = {
+            ...item,
+            id: crypto.randomUUID(),
+            name: `${item.name} (Copy)`,
+            objectKey: `${item.objectKey}_copy`,
+            orderValue: data.editions.length + 1,
+          };
+          updateEditions([...data.editions, duplicatedItem]);
+        }}
         image={<Palette className="h-20 w-20 text-muted-foreground/20" />}
         properties={[
           {
@@ -484,7 +489,7 @@ export default function EditionsPage() {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
-            onClick: () => { },
+            onClick: () => {},
             variant: "ghost",
           },
           {
@@ -500,7 +505,7 @@ export default function EditionsPage() {
     [handleUpdate, requestDelete, handleExport],
   );
 
-const renderCompactCard = useCallback(
+  const renderCompactCard = useCallback(
     (item: EditionData) => (
       <GenericItemCardCompact
         name={item.name}

@@ -131,7 +131,11 @@ export default function EnhancementsPage() {
   const handleExport = useCallback(
     async (item: EnhancementData) => {
       try {
-        await exportSingleItemRust(item as any, "enhancement", data.metadata.prefix);
+        await exportSingleItemRust(
+          item as any,
+          "enhancement",
+          data.metadata.prefix,
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         window.alert(`Enhancement export failed: ${message}`);
@@ -328,6 +332,7 @@ export default function EnhancementsPage() {
         name={item.name}
         description={item.description}
         idValue={item.orderValue}
+        imageLayers={item.imageLayers}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
         onDuplicate={() => {
           const duplicatedItem: EnhancementData = {
@@ -469,7 +474,7 @@ export default function EnhancementsPage() {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
-            onClick: () => { },
+            onClick: () => {},
             variant: "ghost",
           },
           {
@@ -485,7 +490,7 @@ export default function EnhancementsPage() {
     [handleUpdate, requestDelete, handleExport],
   );
 
-const renderCompactCard = useCallback(
+  const renderCompactCard = useCallback(
     (item: EnhancementData) => (
       <GenericItemCardCompact
         name={item.name}
@@ -563,7 +568,7 @@ const renderCompactCard = useCallback(
     ),
     [requestDelete, handleExport, data.enhancements, updateEnhancements],
   );
-  
+
   return (
     <>
       <GenericItemPage<EnhancementData>

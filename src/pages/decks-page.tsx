@@ -341,6 +341,7 @@ export default function DecksPage() {
         name={deck.name}
         description={deck.description}
         idValue={deck.orderValue}
+        imageLayers={deck.imageLayers}
         onUpdate={(updates) => handleUpdate(deck.id, updates)}
         onDuplicate={() => {
           const duplicatedItem: DeckData = {
@@ -467,7 +468,7 @@ export default function DecksPage() {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
-            onClick: () => { },
+            onClick: () => {},
             variant: "ghost",
           },
           {
@@ -483,7 +484,7 @@ export default function DecksPage() {
     [handleUpdate, requestDelete, handleExport],
   );
 
-const renderCompactCard = useCallback(
+  const renderCompactCard = useCallback(
     (deck: DeckData) => (
       <GenericItemCardCompact
         name={deck.name}

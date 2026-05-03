@@ -131,7 +131,11 @@ export default function ConsumablesPage() {
   const handleExport = useCallback(
     async (item: ConsumableData) => {
       try {
-        await exportSingleItemRust(item as any, "consumable", data.metadata.prefix);
+        await exportSingleItemRust(
+          item as any,
+          "consumable",
+          data.metadata.prefix,
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         window.alert(`Consumable export failed: ${message}`);
@@ -352,18 +356,19 @@ export default function ConsumablesPage() {
         cost={item.cost}
         idValue={item.orderValue}
         consumableSet={item.set}
+        imageLayers={item.imageLayers}
         overlayImage={item.overlayImage}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
         onDuplicate={() => {
-                  const duplicatedItem: ConsumableData = {
-                    ...item,
-                    id: crypto.randomUUID(),
-                    name: `${item.name} (Copy)`,
-                    objectKey: `${item.objectKey}_copy`,
-                    orderValue: data.consumables.length + 1,
-                  };
-                  updateConsumables([...data.consumables, duplicatedItem]);
-                }}
+          const duplicatedItem: ConsumableData = {
+            ...item,
+            id: crypto.randomUUID(),
+            name: `${item.name} (Copy)`,
+            objectKey: `${item.objectKey}_copy`,
+            orderValue: data.consumables.length + 1,
+          };
+          updateConsumables([...data.consumables, duplicatedItem]);
+        }}
         image={
           item.image ? (
             <img
@@ -465,7 +470,7 @@ export default function ConsumablesPage() {
     [handleUpdate, requestDelete, handleExport],
   );
 
-const renderCompactCard = useCallback(
+  const renderCompactCard = useCallback(
     (item: ConsumableData) => (
       <GenericItemCardCompact
         name={item.name}

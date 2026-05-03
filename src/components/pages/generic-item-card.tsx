@@ -27,6 +27,7 @@ import { RaritySelect } from "@/components/balatro/rarity-select";
 import { ConsumableSetSelect } from "@/components/balatro/consumable-set-select";
 import { formatBalatroText } from "@/lib/balatro-text-formatter";
 import { sanitizeDescription } from "@/lib/description-sanitizer";
+import type { PixelLayerData } from "@/lib/types";
 
 export interface CardProperty {
   id: string;
@@ -54,6 +55,7 @@ export interface ActionConfig {
 
 interface GenericItemCardProps {
   image: ReactNode;
+  imageLayers?: PixelLayerData[];
   overlayImage?: string;
   name: string;
   description: string;
@@ -72,6 +74,7 @@ interface GenericItemCardProps {
     idValue?: number;
     objectKey?: string;
     image?: string;
+    imageLayers?: PixelLayerData[];
     placeholderCreditIndex?: number | undefined;
     placeholderCategory?: string | undefined;
     rarity?: number | string;
@@ -122,12 +125,14 @@ export const GenericItemCard = memo(function GenericItemCard({
   onUpdate,
   onDuplicate,
   editableImageSrc,
+  imageLayers,
   showPlaceholderPickerButton = false,
   onOpenPlaceholderPicker,
 }: GenericItemCardProps) {
   const isReadOnly = reforged;
   const resolvedEditableImageSrc =
     editableImageSrc || extractFirstImageSrc(image);
+  const resolvedEditableImageLayers = imageLayers;
   const [isPixelEditorOpen, setIsPixelEditorOpen] = useState(false);
   const [editingField, setEditingField] = useState<
     "none" | "name" | "desc" | "cost" | "id"
@@ -143,7 +148,8 @@ export const GenericItemCard = memo(function GenericItemCard({
     [description],
   );
   const renderedDescriptionHtml = useMemo(
-    () => formatBalatroText(sanitizedDescription || "No description provided..."),
+    () =>
+      formatBalatroText(sanitizedDescription || "No description provided..."),
     [sanitizedDescription],
   );
 
@@ -229,7 +235,10 @@ export const GenericItemCard = memo(function GenericItemCard({
     (a) => a !== deleteAction && labeledActionIds.has(a.id),
   );
   const iconActions = actions.filter(
-    (a) => a !== deleteAction && a !== duplicateAction && !labeledActionIds.has(a.id),
+    (a) =>
+      a !== deleteAction &&
+      a !== duplicateAction &&
+      !labeledActionIds.has(a.id),
   );
 
   const getPropertyStyles = (
@@ -516,7 +525,9 @@ export const GenericItemCard = memo(function GenericItemCard({
                     : () => startEdit("desc", sanitizedDescription)
                 }
               >
-                <span dangerouslySetInnerHTML={{ __html: renderedDescriptionHtml }} />
+                <span
+                  dangerouslySetInnerHTML={{ __html: renderedDescriptionHtml }}
+                />
               </div>
             )}
           </div>
@@ -567,9 +578,7 @@ export const GenericItemCard = memo(function GenericItemCard({
           <div
             className={cn(
               "flex items-center gap-2 pt-2",
-              isThin
-                ? "flex-nowrap overflow-visible pb-1"
-                : "justify-between",
+              isThin ? "flex-nowrap overflow-visible pb-1" : "justify-between",
             )}
           >
             {duplicateAction && (
@@ -719,7 +728,9 @@ export const GenericItemCard = memo(function GenericItemCard({
                           <span className="flex h-4 w-4 items-center justify-center">
                             {action.icon}
                           </span>
-                          <span className={cn(!useTextActionButtons && "hidden")}>
+                          <span
+                            className={cn(!useTextActionButtons && "hidden")}
+                          >
                             {action.id === "edit" ? "Edit" : "Rules"}
                           </span>
                         </span>
@@ -746,9 +757,11 @@ export const GenericItemCard = memo(function GenericItemCard({
         onOpenChange={setIsPixelEditorOpen}
         itemName={name}
         sourceImage={resolvedEditableImageSrc}
-        onSaveToItem={(imageDataUrl) =>
+        sourceLayers={resolvedEditableImageLayers}
+        onSaveToItem={({ imageDataUrl, layers }) =>
           onUpdate({
             image: imageDataUrl,
+            imageLayers: layers,
             placeholderCreditIndex: undefined,
             placeholderCategory: undefined,
           })
