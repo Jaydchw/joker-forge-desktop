@@ -33,6 +33,7 @@ import {
 import { useEffect } from "react";
 import { checkForReleaseUpdateOnLaunch } from "@/lib/release-updater";
 import { UpdateDialog } from "@/components/bridge/update-dialog";
+import { GithubStarDialog } from "@/components/bridge/github-star-dialog";
 
 import { invoke } from "@tauri-apps/api/core";
 
@@ -44,6 +45,7 @@ function App() {
   return (
     <Router>
       <UpdateDialog />
+      <GithubStarDialog />
       <EntityBridgeListener />
       <ContextMenu>
         <ContextMenuTrigger asChild>
