@@ -361,7 +361,9 @@ export default function SettingsPage() {
     refreshThemes();
 
     return subscribeThemeChanges(() => {
-      setThemeMode(getThemePreference());
+      const nextTheme = getThemePreference();
+      setThemeMode(nextTheme);
+      setThemeEditorMode(nextTheme);
       refreshThemes(selectedThemeId);
     });
   }, [selectedThemeId]);
