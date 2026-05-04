@@ -85,6 +85,7 @@ import {
   type ThemeVariable,
 } from "../lib/theme-manager";
 import KeybindInput from "@/components/settings/keybind-input";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 
 const cloneTheme = (theme: AppThemeDefinition): AppThemeDefinition => ({
   ...theme,
@@ -572,6 +573,19 @@ export default function SettingsPage() {
     };
     setRuleBuilderSettingsState(merged);
     setRuleBuilderSettings(merged);
+  };
+
+  const triggerDevAlert = (
+    type: "success" | "danger" | "caution" | "info",
+    multiline = false,
+  ) => {
+    pushGlobalAlert({
+      type,
+      title: `Developer ${type[0].toUpperCase()}${type.slice(1)} Alert`,
+      message: multiline
+        ? "This is a multiline alert example.\nAdditional detail can go here."
+        : "This is a developer test alert.",
+    });
   };
 
   return (
@@ -1104,6 +1118,49 @@ export default function SettingsPage() {
                 </p>
               </div>
 
+              <div className="space-y-2 px-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Alert Testing
+                </h4>
+                <div className="grid gap-3 py-1 sm:grid-cols-2 md:grid-cols-3">
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    onClick={() => triggerDevAlert("success")}
+                  >
+                    Spawn Success Alert
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    onClick={() => triggerDevAlert("info")}
+                  >
+                    Spawn Info Alert
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    onClick={() => triggerDevAlert("caution")}
+                  >
+                    Spawn Caution Alert
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    onClick={() => triggerDevAlert("danger")}
+                  >
+                    Spawn Danger Alert
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    onClick={() => triggerDevAlert("info", true)}
+                  >
+                    Spawn Multiline Alert
+                  </Button>
+                </div>
+              </div>
+
               <div className="grid gap-4 px-1 py-1 sm:grid-cols-2 md:grid-cols-4">
                 <Button
                   variant="outline"
@@ -1127,6 +1184,15 @@ export default function SettingsPage() {
                   }}
                 >
                   Clear GitHub Star Preference
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full cursor-pointer"
+                  onClick={() =>
+                    window.dispatchEvent(new CustomEvent("show-update-dialog"))
+                  }
+                >
+                  Show Update Dialog
                 </Button>
                 <Button
                   variant="outline"
