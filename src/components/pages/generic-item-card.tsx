@@ -24,7 +24,10 @@ import { PixelArtEditorDialog } from "@/components/pages/pixel-art-editor-dialog
 import { cn } from "@/lib/utils";
 import { RaritySelect } from "@/components/balatro/rarity-select";
 import { ConsumableSetSelect } from "@/components/balatro/consumable-set-select";
-import { formatBalatroText } from "@/lib/balatro-text-formatter";
+import {
+  formatBalatroText,
+  applyAutoFormatting,
+} from "@/lib/balatro-text-formatter";
 import { sanitizeDescription } from "@/lib/description-sanitizer";
 import { sanitizeKeyLikeValue } from "@/lib/item-field-validation";
 import type { PixelLayerData } from "@/lib/types";
@@ -196,6 +199,14 @@ export const GenericItemCard = memo(function GenericItemCard({
     setTempValue("");
   };
 
+  const handleDescriptionChange = (
+    e: React.ChangeEvent<HTMLTextAreaElement>,
+  ) => {
+    const nextValue = e.target.value;
+    const { formatted } = applyAutoFormatting(nextValue, tempValue);
+    setTempValue(formatted);
+  };
+
   const saveEdit = () => {
     if (isReadOnly) {
       setEditingField("none");
@@ -210,7 +221,8 @@ export const GenericItemCard = memo(function GenericItemCard({
         });
       }
     } else if (editingField === "desc") {
-      onUpdate({ description: tempValue });
+      const { formatted } = applyAutoFormatting(tempValue, sanitizedDescription);
+      onUpdate({ description: formatted });
     } else if (editingField === "cost") {
       const val = parseInt(tempValue);
       if (!isNaN(val)) onUpdate({ cost: val });
@@ -514,7 +526,7 @@ export const GenericItemCard = memo(function GenericItemCard({
               <textarea
                 ref={inputRef as React.RefObject<HTMLTextAreaElement>}
                 value={tempValue}
-                onChange={(e) => setTempValue(e.target.value)}
+                onChange={handleDescriptionChange}
                 onBlur={saveEdit}
                 onKeyDown={handleKeyDown}
                 className="w-full h-full text-[13px] resize-none font-medium leading-relaxed text-muted-foreground bg-transparent border-none p-0 outline-none focus:outline-none"
