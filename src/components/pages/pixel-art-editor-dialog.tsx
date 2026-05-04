@@ -3036,6 +3036,7 @@ export function PixelArtEditorDialog({
                         defaultColor="#fe5f55"
                         valueMode="with-hash"
                         placeholder="#FE5F55"
+                        showBadgePreview={false}
                       />
                     </div>
                   </div>

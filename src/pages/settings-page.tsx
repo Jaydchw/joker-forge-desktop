@@ -295,6 +295,7 @@ function ThemeEditorFields({
                         onChange={(value) => updateDraftColor(item.key, value)}
                         defaultColor={editorPalette[item.key]}
                         valueMode="with-hash"
+                        showBadgePreview={false}
                       />
                     </div>
                   );

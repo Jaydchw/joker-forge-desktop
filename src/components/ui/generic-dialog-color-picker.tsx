@@ -17,6 +17,7 @@ export interface GenericDialogColorPickerProps {
   defaultColor?: string;
   valueMode?: "with-hash" | "without-hash";
   placeholder?: string;
+  showBadgePreview?: boolean;
 }
 
 const normalizeColorHex = (
@@ -135,6 +136,7 @@ export function GenericDialogColorPicker({
   defaultColor = "#666666",
   valueMode = "with-hash",
   placeholder = "#666666",
+  showBadgePreview = true,
 }: GenericDialogColorPickerProps) {
   const normalized = normalizeColorHex(value, defaultColor);
   const rgb = useMemo(() => hexToRgb(normalized), [normalized]);
@@ -215,18 +217,26 @@ export function GenericDialogColorPicker({
               style={{ width: "100%", height: 300 }}
             />
 
-            <div className="grid grid-cols-[10rem_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+            <div
+              className={`grid items-center gap-3 rounded-lg border border-border/60 bg-muted/20 p-3 ${
+                showBadgePreview
+                  ? "grid-cols-[10rem_minmax(0,1fr)_auto]"
+                  : "grid-cols-[10rem_auto]"
+              }`}
+            >
               <div className="space-y-1">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Current Color</p>
                 <p className="font-mono text-sm">{normalized}</p>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Badge Preview</p>
-                <div className="rounded-md border border-black/15 px-3 py-1.5 text-center text-xs font-bold tracking-wide shadow-sm" style={{ backgroundColor: normalized, color: "#FFFFFF" }}>
-                  BADGE
+              {showBadgePreview ? (
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Badge Preview</p>
+                  <div className="rounded-md border border-black/15 px-3 py-1.5 text-center text-xs font-bold tracking-wide shadow-sm" style={{ backgroundColor: normalized, color: "#FFFFFF" }}>
+                    BADGE
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className="flex items-center gap-2">
                 <Button
