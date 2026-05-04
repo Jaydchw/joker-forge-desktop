@@ -817,7 +817,9 @@ export default function SettingsPage() {
                     id="rb-drag-box-selection"
                     checked={ruleBuilderSettings.enableDragBoxSelection}
                     onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ enableDragBoxSelection: value })
+                      updateRuleBuilderSettings({
+                        enableDragBoxSelection: value,
+                      })
                     }
                     className="cursor-pointer"
                   />
@@ -845,7 +847,9 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-middle-pan">Middle Click Drags Canvas</Label>
+                  <Label htmlFor="rb-middle-pan">
+                    Middle Click Drags Canvas
+                  </Label>
                   <Switch
                     id="rb-middle-pan"
                     checked={ruleBuilderSettings.enableMiddleMousePan}
@@ -909,7 +913,9 @@ export default function SettingsPage() {
                     className="cursor-pointer"
                     onClick={() =>
                       updateRuleBuilderSettings({
-                        shortcuts: { ...DEFAULT_RULE_BUILDER_SETTINGS.shortcuts },
+                        shortcuts: {
+                          ...DEFAULT_RULE_BUILDER_SETTINGS.shortcuts,
+                        },
                       })
                     }
                   >
@@ -917,29 +923,29 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
-                  {(Object.entries(ruleBuilderSettings.shortcuts) as Array<
-                    [RuleBuilderShortcutId, string]
-                  >).map(
-                    ([shortcutId, shortcut]) => (
-                      <div key={shortcutId} className="space-y-1">
-                        <Label htmlFor={`rb-shortcut-${shortcutId}`}>
-                          {shortcutId
-                            .replace(/([A-Z])/g, " $1")
-                            .replace(/^./, (char) => char.toUpperCase())}
-                        </Label>
-                        <KeybindInput
-                          value={shortcut}
-                          onChange={(next) =>
-                            updateRuleBuilderSettings({
-                              shortcuts: {
-                                [shortcutId]: next.toLowerCase(),
-                              } as Partial<RuleBuilderSettings["shortcuts"]>,
-                            })
-                          }
-                        />
-                      </div>
-                    ),
-                  )}
+                  {(
+                    Object.entries(ruleBuilderSettings.shortcuts) as Array<
+                      [RuleBuilderShortcutId, string]
+                    >
+                  ).map(([shortcutId, shortcut]) => (
+                    <div key={shortcutId} className="space-y-1">
+                      <Label htmlFor={`rb-shortcut-${shortcutId}`}>
+                        {shortcutId
+                          .replace(/([A-Z])/g, " $1")
+                          .replace(/^./, (char) => char.toUpperCase())}
+                      </Label>
+                      <KeybindInput
+                        value={shortcut}
+                        onChange={(next) =>
+                          updateRuleBuilderSettings({
+                            shortcuts: {
+                              [shortcutId]: next.toLowerCase(),
+                            } as Partial<RuleBuilderSettings["shortcuts"]>,
+                          })
+                        }
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
