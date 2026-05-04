@@ -85,6 +85,7 @@ const JOKERFORGE_EXPORT_AS_JSON_KEY = "joker_forge_export_as_json";
 const JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY =
   "joker_forge_auto_save_downloads";
 const AUTO_OPEN_NEW_ITEM_DIALOG_KEY = "joker_forge_auto_open_new_item_dialog";
+const RULE_BUILDER_SETTINGS_KEY = "joker_forge_rule_builder_settings";
 const THEME_PREFERENCE_KEY = "joker_forge_theme_preference";
 const THEME_CHANGE_EVENT = "joker_forge_theme_change";
 const STORAGE_ERROR_ALERT_THROTTLE_MS = 4000;
@@ -156,6 +157,70 @@ const maybeShowStorageErrorAlert = (error: unknown) => {
 
 export type ExportDestinationMode = "downloads" | "balatro-mods";
 export type ThemePreference = "light" | "dark";
+export type RuleBuilderShortcutId =
+  | "undo"
+  | "redo"
+  | "selectAll"
+  | "copySelection"
+  | "pasteSelection"
+  | "duplicateSelection"
+  | "deleteSelection"
+  | "clearSelection"
+  | "autoLayout"
+  | "toggleBlockPalette"
+  | "toggleVariables"
+  | "toggleGameVariables"
+  | "toggleInspector"
+  | "toggleLiveCode"
+  | "toggleHistory"
+  | "toggleGridSnap"
+  | "zoomIn"
+  | "zoomOut";
+
+export type RuleBuilderShortcutMap = Record<RuleBuilderShortcutId, string>;
+
+export interface RuleBuilderSettings {
+  defaultGridSnap: boolean;
+  enableDragBoxSelection: boolean;
+  enableLeftMousePan: boolean;
+  enableRightMousePan: boolean;
+  enableMiddleMousePan: boolean;
+  enableWheelZoom: boolean;
+  enablePinchZoom: boolean;
+  openInspectorOnFirstSelection: boolean;
+  shortcuts: RuleBuilderShortcutMap;
+}
+
+export const DEFAULT_RULE_BUILDER_SETTINGS: RuleBuilderSettings = {
+  defaultGridSnap: false,
+  enableDragBoxSelection: true,
+  enableLeftMousePan: false,
+  enableRightMousePan: false,
+  enableMiddleMousePan: true,
+  enableWheelZoom: true,
+  enablePinchZoom: true,
+  openInspectorOnFirstSelection: true,
+  shortcuts: {
+    undo: "ctrl+z",
+    redo: "ctrl+y",
+    selectAll: "ctrl+a",
+    copySelection: "ctrl+c",
+    pasteSelection: "ctrl+v",
+    duplicateSelection: "ctrl+d",
+    deleteSelection: "delete",
+    clearSelection: "esc",
+    autoLayout: "ctrl+shift+l",
+    toggleBlockPalette: "b",
+    toggleVariables: "v",
+    toggleGameVariables: "g",
+    toggleInspector: "p",
+    toggleLiveCode: "l",
+    toggleHistory: "h",
+    toggleGridSnap: "s",
+    zoomIn: "+",
+    zoomOut: "-",
+  },
+};
 
 const DEFAULT_STATS: ProjectStats = {
   jokers: 0,
@@ -1153,6 +1218,7 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(EXPORT_DESTINATION_MODE_KEY);
   window.localStorage.removeItem(JOKERFORGE_EXPORT_AS_JSON_KEY);
   window.localStorage.removeItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY);
+  window.localStorage.removeItem(RULE_BUILDER_SETTINGS_KEY);
   window.localStorage.removeItem(THEME_PREFERENCE_KEY);
   clearThemeStorage();
   if (isTauriRuntime()) {
@@ -1296,6 +1362,161 @@ export const setJokerforgeExportAsJsonEnabled = (value: boolean) => {
     JOKERFORGE_EXPORT_AS_JSON_KEY,
     value ? "true" : "false",
   );
+};
+
+const toShortcutString = (value: unknown, fallback: string): string => {
+  if (typeof value !== "string") return fallback;
+  const normalized = value.trim().toLowerCase();
+  return normalized || fallback;
+};
+
+const sanitizeRuleBuilderSettings = (
+  candidate: unknown,
+): RuleBuilderSettings => {
+  const safe =
+    candidate && typeof candidate === "object"
+      ? (candidate as Partial<RuleBuilderSettings>)
+      : {};
+
+  const safeShortcuts =
+    safe.shortcuts && typeof safe.shortcuts === "object"
+      ? (safe.shortcuts as Partial<RuleBuilderShortcutMap>)
+      : {};
+
+  return {
+    defaultGridSnap:
+      typeof safe.defaultGridSnap === "boolean"
+        ? safe.defaultGridSnap
+        : DEFAULT_RULE_BUILDER_SETTINGS.defaultGridSnap,
+    enableDragBoxSelection:
+      typeof safe.enableDragBoxSelection === "boolean"
+        ? safe.enableDragBoxSelection
+        : DEFAULT_RULE_BUILDER_SETTINGS.enableDragBoxSelection,
+    enableLeftMousePan:
+      typeof safe.enableLeftMousePan === "boolean"
+        ? safe.enableLeftMousePan
+        : DEFAULT_RULE_BUILDER_SETTINGS.enableLeftMousePan,
+    enableRightMousePan:
+      typeof safe.enableRightMousePan === "boolean"
+        ? safe.enableRightMousePan
+        : DEFAULT_RULE_BUILDER_SETTINGS.enableRightMousePan,
+    enableMiddleMousePan:
+      typeof safe.enableMiddleMousePan === "boolean"
+        ? safe.enableMiddleMousePan
+        : DEFAULT_RULE_BUILDER_SETTINGS.enableMiddleMousePan,
+    enableWheelZoom:
+      typeof safe.enableWheelZoom === "boolean"
+        ? safe.enableWheelZoom
+        : DEFAULT_RULE_BUILDER_SETTINGS.enableWheelZoom,
+    enablePinchZoom:
+      typeof safe.enablePinchZoom === "boolean"
+        ? safe.enablePinchZoom
+        : DEFAULT_RULE_BUILDER_SETTINGS.enablePinchZoom,
+    openInspectorOnFirstSelection:
+      typeof safe.openInspectorOnFirstSelection === "boolean"
+        ? safe.openInspectorOnFirstSelection
+        : DEFAULT_RULE_BUILDER_SETTINGS.openInspectorOnFirstSelection,
+    shortcuts: {
+      undo: toShortcutString(
+        safeShortcuts.undo,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.undo,
+      ),
+      redo: toShortcutString(
+        safeShortcuts.redo,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.redo,
+      ),
+      selectAll: toShortcutString(
+        safeShortcuts.selectAll,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.selectAll,
+      ),
+      copySelection: toShortcutString(
+        safeShortcuts.copySelection,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.copySelection,
+      ),
+      pasteSelection: toShortcutString(
+        safeShortcuts.pasteSelection,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.pasteSelection,
+      ),
+      duplicateSelection: toShortcutString(
+        safeShortcuts.duplicateSelection,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.duplicateSelection,
+      ),
+      deleteSelection: toShortcutString(
+        safeShortcuts.deleteSelection,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.deleteSelection,
+      ),
+      clearSelection: toShortcutString(
+        safeShortcuts.clearSelection,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.clearSelection,
+      ),
+      autoLayout: toShortcutString(
+        safeShortcuts.autoLayout,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.autoLayout,
+      ),
+      toggleBlockPalette: toShortcutString(
+        safeShortcuts.toggleBlockPalette,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.toggleBlockPalette,
+      ),
+      toggleVariables: toShortcutString(
+        safeShortcuts.toggleVariables,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.toggleVariables,
+      ),
+      toggleGameVariables: toShortcutString(
+        safeShortcuts.toggleGameVariables,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.toggleGameVariables,
+      ),
+      toggleInspector: toShortcutString(
+        safeShortcuts.toggleInspector,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.toggleInspector,
+      ),
+      toggleLiveCode: toShortcutString(
+        safeShortcuts.toggleLiveCode,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.toggleLiveCode,
+      ),
+      toggleHistory: toShortcutString(
+        safeShortcuts.toggleHistory,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.toggleHistory,
+      ),
+      toggleGridSnap: toShortcutString(
+        safeShortcuts.toggleGridSnap,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.toggleGridSnap,
+      ),
+      zoomIn: toShortcutString(
+        safeShortcuts.zoomIn,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.zoomIn,
+      ),
+      zoomOut: toShortcutString(
+        safeShortcuts.zoomOut,
+        DEFAULT_RULE_BUILDER_SETTINGS.shortcuts.zoomOut,
+      ),
+    },
+  };
+};
+
+export const getRuleBuilderSettings = (): RuleBuilderSettings => {
+  if (typeof window === "undefined") return DEFAULT_RULE_BUILDER_SETTINGS;
+  const stored = window.localStorage.getItem(RULE_BUILDER_SETTINGS_KEY);
+  if (!stored) return DEFAULT_RULE_BUILDER_SETTINGS;
+  try {
+    return sanitizeRuleBuilderSettings(JSON.parse(stored));
+  } catch {
+    return DEFAULT_RULE_BUILDER_SETTINGS;
+  }
+};
+
+export const setRuleBuilderSettings = (
+  settings: Partial<RuleBuilderSettings>,
+) => {
+  if (typeof window === "undefined") return;
+  const merged = sanitizeRuleBuilderSettings({
+    ...getRuleBuilderSettings(),
+    ...settings,
+    shortcuts: {
+      ...getRuleBuilderSettings().shortcuts,
+      ...(settings.shortcuts ?? {}),
+    },
+  });
+  window.localStorage.setItem(RULE_BUILDER_SETTINGS_KEY, JSON.stringify(merged));
 };
 
 export const getJokerforgeAutoSaveDownloadsEnabled = (): boolean => {

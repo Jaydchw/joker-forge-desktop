@@ -14,6 +14,7 @@ import {
   Folder,
   Sliders,
   ArrowsCounterClockwise,
+  Keyboard,
 } from "@phosphor-icons/react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -46,6 +47,7 @@ import {
   getJokerforgeExportAsJsonEnabled,
   getSplitLocalizationExportEnabled,
   getThemePreference,
+  getRuleBuilderSettings,
   resetProjectData,
   setBalatroInstallPath,
   setAutoOpenNewItemDialogEnabled,
@@ -55,6 +57,10 @@ import {
   setJokerforgeExportAsJsonEnabled,
   setSplitLocalizationExportEnabled,
   setThemePreference,
+  setRuleBuilderSettings,
+  type RuleBuilderShortcutId,
+  type RuleBuilderSettings,
+  DEFAULT_RULE_BUILDER_SETTINGS,
   type ThemePreference,
 } from "@/lib/storage";
 import {
@@ -78,6 +84,7 @@ import {
   type ThemeFontFamily,
   type ThemeVariable,
 } from "../lib/theme-manager";
+import KeybindInput from "@/components/settings/keybind-input";
 
 const cloneTheme = (theme: AppThemeDefinition): AppThemeDefinition => ({
   ...theme,
@@ -90,7 +97,13 @@ const sanitizeFileName = (value: string) =>
   (value || "theme").replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") ||
   "theme";
 
-type SettingsCategory = "general" | "paths" | "theme" | "dev" | "data";
+type SettingsCategory =
+  | "general"
+  | "ruleBuilder"
+  | "paths"
+  | "theme"
+  | "dev"
+  | "data";
 
 function ThemeEditorFields({
   draftTheme,
@@ -304,6 +317,8 @@ export default function SettingsPage() {
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
   const [autoSaveToDownloads, setAutoSaveToDownloads] = useState(false);
   const [autoOpenNewItemDialog, setAutoOpenNewItemDialog] = useState(true);
+  const [ruleBuilderSettings, setRuleBuilderSettingsState] =
+    useState<RuleBuilderSettings>(DEFAULT_RULE_BUILDER_SETTINGS);
   const [isResetDataDialogOpen, setIsResetDataDialogOpen] = useState(false);
   const [isResetThemesDialogOpen, setIsResetThemesDialogOpen] = useState(false);
 
@@ -338,6 +353,7 @@ export default function SettingsPage() {
     setExportJokerforgeAsJson(getJokerforgeExportAsJsonEnabled());
     setAutoSaveToDownloads(getJokerforgeAutoSaveDownloadsEnabled());
     setAutoOpenNewItemDialog(getAutoOpenNewItemDialogEnabled());
+    setRuleBuilderSettingsState(getRuleBuilderSettings());
     setThemeMode(getThemePreference());
     setThemeEditorMode(getThemePreference());
     refreshThemes();
@@ -534,11 +550,29 @@ export default function SettingsPage() {
     icon: ComponentType<{ className?: string }>;
   }> = [
     { id: "general", label: "General", icon: Sliders },
+    { id: "ruleBuilder", label: "Rule Builder", icon: Keyboard },
     { id: "paths", label: "Paths", icon: Folder },
     { id: "theme", label: "Theme", icon: Palette },
     { id: "dev", label: "Developer", icon: Wrench },
     { id: "data", label: "Data", icon: Database },
   ];
+
+  const updateRuleBuilderSettings = (
+    next: Omit<Partial<RuleBuilderSettings>, "shortcuts"> & {
+      shortcuts?: Partial<RuleBuilderSettings["shortcuts"]>;
+    },
+  ) => {
+    const merged: RuleBuilderSettings = {
+      ...ruleBuilderSettings,
+      ...next,
+      shortcuts: {
+        ...ruleBuilderSettings.shortcuts,
+        ...(next.shortcuts ?? {}),
+      },
+    };
+    setRuleBuilderSettingsState(merged);
+    setRuleBuilderSettings(merged);
+  };
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -730,6 +764,168 @@ export default function SettingsPage() {
                     }}
                     className="cursor-pointer"
                   />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeCategory === "ruleBuilder" && (
+            <div className="space-y-4">
+              <div className="px-1 py-2 border-b border-border/60">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Keyboard className="h-4 w-4" />
+                  Rule Builder
+                </h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Behavior and keyboard shortcuts for the rule editor.
+                </p>
+              </div>
+
+              <div className="space-y-2 px-1 py-1">
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-default-grid-snap">
+                    Default Grid Snap
+                  </Label>
+                  <Switch
+                    id="rb-default-grid-snap"
+                    checked={ruleBuilderSettings.defaultGridSnap}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ defaultGridSnap: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-drag-box-selection">
+                    Enable Drag-box Selection
+                  </Label>
+                  <Switch
+                    id="rb-drag-box-selection"
+                    checked={ruleBuilderSettings.enableDragBoxSelection}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ enableDragBoxSelection: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-left-pan">Left Click Drags Canvas</Label>
+                  <Switch
+                    id="rb-left-pan"
+                    checked={ruleBuilderSettings.enableLeftMousePan}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ enableLeftMousePan: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-right-pan">Right Click Drags Canvas</Label>
+                  <Switch
+                    id="rb-right-pan"
+                    checked={ruleBuilderSettings.enableRightMousePan}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ enableRightMousePan: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-middle-pan">Middle Click Drags Canvas</Label>
+                  <Switch
+                    id="rb-middle-pan"
+                    checked={ruleBuilderSettings.enableMiddleMousePan}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ enableMiddleMousePan: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-wheel-zoom">Enable Wheel Zoom</Label>
+                  <Switch
+                    id="rb-wheel-zoom"
+                    checked={ruleBuilderSettings.enableWheelZoom}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ enableWheelZoom: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-pinch-zoom">Enable Pinch Zoom</Label>
+                  <Switch
+                    id="rb-pinch-zoom"
+                    checked={ruleBuilderSettings.enablePinchZoom}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ enablePinchZoom: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-open-inspector">
+                    Open Inspector On First Selection
+                  </Label>
+                  <Switch
+                    id="rb-open-inspector"
+                    checked={ruleBuilderSettings.openInspectorOnFirstSelection}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({
+                        openInspectorOnFirstSelection: value,
+                      })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3 px-1 py-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    Keybind format:{" "}
+                    <span className="font-mono">ctrl+shift+l</span>,{" "}
+                    <span className="font-mono">delete</span>,{" "}
+                    <span className="font-mono">b</span>.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="cursor-pointer"
+                    onClick={() =>
+                      updateRuleBuilderSettings({
+                        shortcuts: { ...DEFAULT_RULE_BUILDER_SETTINGS.shortcuts },
+                      })
+                    }
+                  >
+                    Reset All Keybinds
+                  </Button>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(Object.entries(ruleBuilderSettings.shortcuts) as Array<
+                    [RuleBuilderShortcutId, string]
+                  >).map(
+                    ([shortcutId, shortcut]) => (
+                      <div key={shortcutId} className="space-y-1">
+                        <Label htmlFor={`rb-shortcut-${shortcutId}`}>
+                          {shortcutId
+                            .replace(/([A-Z])/g, " $1")
+                            .replace(/^./, (char) => char.toUpperCase())}
+                        </Label>
+                        <KeybindInput
+                          value={shortcut}
+                          onChange={(next) =>
+                            updateRuleBuilderSettings({
+                              shortcuts: {
+                                [shortcutId]: next.toLowerCase(),
+                              } as Partial<RuleBuilderSettings["shortcuts"]>,
+                            })
+                          }
+                        />
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             </div>

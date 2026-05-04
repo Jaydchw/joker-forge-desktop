@@ -90,6 +90,11 @@ import IconButton from "@/components/ui/icon-button";
 import ItemTypeBadge from "./item-type-badge";
 import { CustomContextMenu, type ContextMenuGroupConfig } from "@/components/ui/custom-context-menu";
 import { cn } from "@/lib/utils";
+import {
+  getRuleBuilderSettings,
+  setRuleBuilderSettings,
+  type RuleBuilderSettings,
+} from "@/lib/storage";
 
 export type ItemData = any;
 type ItemType = "joker" | "consumable" | "card" | "voucher" | "deck";
@@ -190,7 +195,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   reforged = false,
 }) => {
   const isReadOnly = reforged;
-  const { userConfig, setUserConfig } = useContext(UserConfigContext);
+  const { userConfig } = useContext(UserConfigContext);
+  const [ruleBuilderSettings, setRuleBuilderSettingsState] =
+    useState<RuleBuilderSettings>(() => getRuleBuilderSettings());
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -205,7 +212,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
   const [panState, setPanState] = useState({ x: 0, y: 0, scale: 1 });
   const [gridSnapping, setGridSnapping] = useState<boolean>(
-    userConfig.defaultGridSnap ?? false,
+    getRuleBuilderSettings().defaultGridSnap ?? userConfig.defaultGridSnap ?? false,
   );
   const { panels, togglePanel, updatePanelPosition } = usePanelState(itemType);
 
@@ -865,6 +872,58 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     }
   }, [getLiveCodeSelectedText]);
 
+  const normalizeShortcutKey = useCallback((key: string): string => {
+    const normalized = key.toLowerCase();
+    if (normalized === "escape") return "esc";
+    if (normalized === "backspace") return "delete";
+    if (normalized === " ") return "space";
+    return normalized;
+  }, []);
+
+  const shortcutMatches = useCallback(
+    (event: KeyboardEvent, shortcut: string): boolean => {
+      const parts = shortcut
+        .toLowerCase()
+        .split("+")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (parts.length === 0) return false;
+
+      const wantsCtrl = parts.includes("ctrl");
+      const wantsMeta = parts.includes("meta");
+      const wantsShift = parts.includes("shift");
+      const wantsAlt = parts.includes("alt");
+      const keyPart =
+        parts.find(
+          (part) =>
+            part !== "ctrl" &&
+            part !== "meta" &&
+            part !== "shift" &&
+            part !== "alt",
+        ) ?? "";
+      const normalizedEventKey = normalizeShortcutKey(event.key);
+
+      if (wantsCtrl !== (event.ctrlKey || event.metaKey)) return false;
+      if (wantsMeta !== event.metaKey) return false;
+      if (wantsShift !== event.shiftKey) return false;
+      if (wantsAlt !== event.altKey) return false;
+
+      if (keyPart === "plus") {
+        return normalizedEventKey === "+" || normalizedEventKey === "=";
+      }
+
+      return normalizedEventKey === normalizeShortcutKey(keyPart);
+    },
+    [normalizeShortcutKey],
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const settings = getRuleBuilderSettings();
+    setRuleBuilderSettingsState(settings);
+    setGridSnapping(settings.defaultGridSnap);
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
       const handleKeyPress = (event: KeyboardEvent) => {
@@ -886,57 +945,66 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           return;
         }
 
-        if ((event.ctrlKey || event.metaKey) && !event.altKey) {
-          const key = event.key.toLowerCase();
-          if (key === "c" && getLiveCodeSelectedText()) {
-            // Allow native copy to handle selected live code text.
-            return;
-          }
-          if (key === "l" && event.shiftKey) {
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.copySelection) &&
+          getLiveCodeSelectedText()
+        ) {
+          // Allow native copy to handle selected live code text.
+          return;
+        }
+
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.autoLayout)) {
+          event.preventDefault();
+          handleAutoLayoutRules();
+          return;
+        }
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.undo)) {
+          event.preventDefault();
+          handleUndo();
+          return;
+        }
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.redo)) {
+          event.preventDefault();
+          handleRedo();
+          return;
+        }
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.selectAll)) {
+          event.preventDefault();
+          selectAllRules();
+          return;
+        }
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.copySelection) &&
+          selectedRuleIds.length > 0
+        ) {
+          event.preventDefault();
+          copySelectedRules();
+          return;
+        }
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.pasteSelection) &&
+          copiedRulesRef.current.length > 0
+        ) {
+          event.preventDefault();
+          pasteCopiedRules();
+          return;
+        }
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.duplicateSelection)
+        ) {
+          if (selectedRuleIds.length > 1) {
             event.preventDefault();
-            handleAutoLayoutRules();
+            duplicateSelectedRules();
             return;
           }
-          if (key === "z" && !event.shiftKey) {
+          if (selectedRuleIds.length === 1) {
             event.preventDefault();
-            handleUndo();
+            duplicateRule(selectedRuleIds[0]);
             return;
-          }
-          if (key === "y" || (key === "z" && event.shiftKey)) {
-            event.preventDefault();
-            handleRedo();
-            return;
-          }
-          if (key === "a") {
-            event.preventDefault();
-            selectAllRules();
-            return;
-          }
-          if (key === "c" && selectedRuleIds.length > 0) {
-            event.preventDefault();
-            copySelectedRules();
-            return;
-          }
-          if (key === "v" && copiedRulesRef.current.length > 0) {
-            event.preventDefault();
-            pasteCopiedRules();
-            return;
-          }
-          if (key === "d") {
-            if (selectedRuleIds.length > 1) {
-              event.preventDefault();
-              duplicateSelectedRules();
-              return;
-            }
-            if (selectedRuleIds.length === 1) {
-              event.preventDefault();
-              duplicateRule(selectedRuleIds[0]);
-              return;
-            }
           }
         }
 
-        if (event.key === "Delete" || event.key === "Backspace") {
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.deleteSelection)) {
           if (selectedRuleIds.length > 1) {
             event.preventDefault();
             deleteSelectedRules();
@@ -950,7 +1018,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         }
 
         if (
-          event.key.toLowerCase() === "escape" &&
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.clearSelection) &&
           selectedRuleIds.length > 0
         ) {
           event.preventDefault();
@@ -958,42 +1026,63 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           return;
         }
 
-        switch (event.key.toLowerCase()) {
-          case "b":
-            togglePanel("blockPalette");
-            break;
-          case "i":
-            togglePanel("jokerInfo");
-            break;
-          case "v":
-            // Only allow variables panel for jokers
-            if (itemType === "joker") {
-              togglePanel("variables");
-            }
-            break;
-          case "g":
-            togglePanel("gameVariables");
-            break;
-          case "p":
-            togglePanel("inspector");
-            break;
-          case "l":
-            togglePanel("liveCode");
-            break;
-          case "h":
-            togglePanel("history");
-            break;
-          case "s":
-            setGridSnapping((prev) => !prev);
-            break;
-          case "=":
-          case "+":
-            handleGridZoomChange("in");
-            break;
-          case "-":
-          case "_":
-            handleGridZoomChange("out");
-            break;
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.toggleBlockPalette)
+        ) {
+          togglePanel("blockPalette");
+          return;
+        }
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.toggleVariables) &&
+          itemType === "joker"
+        ) {
+          togglePanel("variables");
+          return;
+        }
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.toggleGameVariables)
+        ) {
+          togglePanel("gameVariables");
+          return;
+        }
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.toggleInspector)
+        ) {
+          togglePanel("inspector");
+          return;
+        }
+        if (
+          shortcutMatches(event, ruleBuilderSettings.shortcuts.toggleLiveCode)
+        ) {
+          togglePanel("liveCode");
+          return;
+        }
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.toggleHistory)) {
+          togglePanel("history");
+          return;
+        }
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.toggleGridSnap)) {
+          setGridSnapping((prev) => {
+            const next = !prev;
+            setRuleBuilderSettings({
+              ...ruleBuilderSettings,
+              defaultGridSnap: next,
+            });
+            setRuleBuilderSettingsState((existing) => ({
+              ...existing,
+              defaultGridSnap: next,
+            }));
+            return next;
+          });
+          return;
+        }
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.zoomIn)) {
+          handleGridZoomChange("in");
+          return;
+        }
+        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.zoomOut)) {
+          handleGridZoomChange("out");
+          return;
         }
       };
 
@@ -1011,6 +1100,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     clearRuleSelection,
     isOpen,
     itemType,
+    ruleBuilderSettings,
+    shortcutMatches,
     selectAllRules,
     selectedRuleIds,
     togglePanel,
@@ -1024,7 +1115,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         togglePanel("inspector");
       }
       setInspectorIsOpen(false);
-    } else if (isFirstSelection) {
+    } else if (isFirstSelection && ruleBuilderSettings.openInspectorOnFirstSelection) {
       if (!panels.inspector.isVisible) {
         togglePanel("inspector");
       }
@@ -1035,6 +1126,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     inspectorIsOpen,
     isFirstSelection,
     panels.inspector.isVisible,
+    ruleBuilderSettings.openInspectorOnFirstSelection,
     togglePanel,
   ]);
 
@@ -2530,6 +2622,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   const handleCanvasMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!ruleBuilderSettings.enableDragBoxSelection) return;
+      if (ruleBuilderSettings.enableLeftMousePan && !event.shiftKey) return;
       if (event.button !== 0) return;
 
       const target = event.target as HTMLElement;
@@ -2562,11 +2656,15 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       setSelectedItem(null);
       setSelectedRuleIds([]);
     },
-    [],
+    [
+      ruleBuilderSettings.enableDragBoxSelection,
+      ruleBuilderSettings.enableLeftMousePan,
+    ],
   );
 
   const handleViewportMouseDownCapture = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!ruleBuilderSettings.enableMiddleMousePan) return;
       if (event.button !== 1) return;
 
       event.preventDefault();
@@ -2581,7 +2679,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       };
       setIsMiddlePanning(true);
     },
-    [panState.x, panState.y, panState.scale],
+    [panState.x, panState.y, panState.scale, ruleBuilderSettings.enableMiddleMousePan],
   );
 
   const handleViewportAuxClick = useCallback(
@@ -3637,11 +3735,18 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 <IconButton
                   icon={GridFour}
                   onClick={() => {
-                    setUserConfig((prevConfig) => ({
-                      ...prevConfig,
-                      defaultGridSnap: !gridSnapping,
-                    }));
-                    setGridSnapping((prev) => !prev);
+                    setGridSnapping((prev) => {
+                      const next = !prev;
+                      setRuleBuilderSettings({
+                        ...ruleBuilderSettings,
+                        defaultGridSnap: next,
+                      });
+                      setRuleBuilderSettingsState((existing) => ({
+                        ...existing,
+                        defaultGridSnap: next,
+                      }));
+                      return next;
+                    });
                   }}
                   tooltip="Toggle Grid Snapping"
                   shortcut="S"
@@ -3789,21 +3894,21 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                     centerOnInit={false}
                     limitToBounds={false}
                     wheel={{
-                      disabled: false,
+                      disabled: !ruleBuilderSettings.enableWheelZoom,
                       step: 0.25,
                       smoothStep: 0.25,
-                      wheelDisabled: false,
+                      wheelDisabled: !ruleBuilderSettings.enableWheelZoom,
                     }}
                     pinch={{
-                      disabled: false,
+                      disabled: !ruleBuilderSettings.enablePinchZoom,
                     }}
                     doubleClick={{
                       disabled: true,
                     }}
                     panning={{
-                      allowLeftClickPan: false,
-                      allowRightClickPan: false,
-                      allowMiddleClickPan: true,
+                      allowLeftClickPan: ruleBuilderSettings.enableLeftMousePan,
+                      allowRightClickPan: ruleBuilderSettings.enableRightMousePan,
+                      allowMiddleClickPan: ruleBuilderSettings.enableMiddleMousePan,
                       wheelPanning: false,
                       velocityDisabled: true,
                     }}
