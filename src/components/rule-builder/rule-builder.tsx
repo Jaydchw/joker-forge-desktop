@@ -3602,7 +3602,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           className="bg-background w-full h-full overflow-hidden flex flex-col"
         >
           <div className="bg-background/95 backdrop-blur-md border-b border-border shadow-sm z-50 px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
+            <div className="flex flex-col gap-3 min-w-0 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
               <div className="flex items-center gap-2 min-w-0">
                 <Terminal className="h-4 w-4 text-muted-foreground shrink-0" />
                 <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase shrink-0">
@@ -3621,51 +3621,52 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 </span>
               </div>
 
-                  <IconButton
-                    icon={CornersIn}
-                    onClick={handleRecenter}
-                    tooltip="Recenter View"
-                    className="cursor-pointer"
-                  />
-                  <IconButton
-                    icon={SquaresFour}
-                    onClick={handleAutoLayoutRules}
-                    tooltip="Auto Layout Rules"
-                    className="cursor-pointer"
-                  />
-                  <IconButton
-                    icon={GridFour}
-                    onClick={() => {
-                      setUserConfig((prevConfig) => ({
-                        ...prevConfig,
-                        defaultGridSnap: !gridSnapping,
-                      }));
-                      setGridSnapping((prev) => !prev);
-                    }}
-                    tooltip="Toggle Grid Snapping"
-                    shortcut="S"
-                    isActive={gridSnapping}
-                    className={cn(
-                      "cursor-pointer",
-                      gridSnapping
-                        ? "text-mint-light hover:text-mint-lighter"
-                        : undefined
-                    )}
-                  />
-                  <IconButton
-                    icon={MagnifyingGlassMinus}
-                    onClick={() => handleGridZoomChange("out")}
-                    tooltip="Zoom Out"
-                    shortcut="-"
-                    className="cursor-pointer"
-                  />
-                  <IconButton
-                    icon={MagnifyingGlassPlus}
-                    onClick={() => handleGridZoomChange("in")}
-                    tooltip="Zoom In"
-                    shortcut="+"
-                    className="cursor-pointer"
-                  />
+              <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-self-center">
+                <IconButton
+                  icon={CornersIn}
+                  onClick={handleRecenter}
+                  tooltip="Recenter View"
+                  className="cursor-pointer"
+                />
+                <IconButton
+                  icon={SquaresFour}
+                  onClick={handleAutoLayoutRules}
+                  tooltip="Auto Layout Rules"
+                  className="cursor-pointer"
+                />
+                <IconButton
+                  icon={GridFour}
+                  onClick={() => {
+                    setUserConfig((prevConfig) => ({
+                      ...prevConfig,
+                      defaultGridSnap: !gridSnapping,
+                    }));
+                    setGridSnapping((prev) => !prev);
+                  }}
+                  tooltip="Toggle Grid Snapping"
+                  shortcut="S"
+                  isActive={gridSnapping}
+                  className={cn(
+                    "cursor-pointer",
+                    gridSnapping
+                      ? "text-mint-light hover:text-mint-lighter"
+                      : undefined
+                  )}
+                />
+                <IconButton
+                  icon={MagnifyingGlassMinus}
+                  onClick={() => handleGridZoomChange("out")}
+                  tooltip="Zoom Out"
+                  shortcut="-"
+                  className="cursor-pointer"
+                />
+                <IconButton
+                  icon={MagnifyingGlassPlus}
+                  onClick={() => handleGridZoomChange("in")}
+                  tooltip="Zoom In"
+                  shortcut="+"
+                  className="cursor-pointer"
+                />
                 <span className="text-[11px] text-muted-foreground w-12 text-center">
                   {Math.round(panState.scale * 100)}%
                 </span>
@@ -3687,7 +3688,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 </Button>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 lg:justify-self-end">
                 <span className="text-xs font-medium text-foreground/70 uppercase tracking-wide">
                   Mode
                 </span>
@@ -3697,6 +3698,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 <ItemTypeBadge itemType={itemType} />
               </div>
             </div>
+          </div>
           <div className="grow relative overflow-hidden">
             <div
               className={`h-full w-full ${liveCodeIsVisible ? "flex" : "block"}`}
