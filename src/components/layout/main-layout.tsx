@@ -19,6 +19,7 @@ interface MainLayoutProps {
 export function MainLayout({ children, pageTitle }: MainLayoutProps) {
   const [isPinned, setIsPinned] = useState(false);
   const [isHoverOpen, setIsHoverOpen] = useState(false);
+  const [hasOpenDialog, setHasOpenDialog] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPointerOverSidebarRef = useRef(false);
   const { alerts, pushAlerts, dismissAlert } = useAlertQueue();
@@ -26,6 +27,7 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
   const isVisible = isPinned || isHoverOpen;
 
   const handleMouseEnter = () => {
+    if (hasOpenDialog) return;
     isPointerOverSidebarRef.current = true;
     if (isPinned) return;
     if (hoverTimeoutRef.current) {
@@ -36,6 +38,7 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
   };
 
   const handleMouseLeave = () => {
+    if (hasOpenDialog) return;
     isPointerOverSidebarRef.current = false;
     if (isPinned) return;
     hoverTimeoutRef.current = setTimeout(() => {
@@ -50,6 +53,7 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
     const TITLEBAR_HEIGHT = 36;
 
     const handleMouseMove = (event: MouseEvent) => {
+      if (hasOpenDialog) return;
       const isInEdgeZone =
         event.clientX <= EDGE_TRIGGER_WIDTH && event.clientY >= TITLEBAR_HEIGHT;
 
@@ -84,7 +88,26 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
         hoverTimeoutRef.current = null;
       }
     };
-  }, [isHoverOpen, isPinned]);
+  }, [hasOpenDialog, isHoverOpen, isPinned]);
+
+  useEffect(() => {
+    const syncDialogState = () => {
+      const openDialogs = document.querySelectorAll("[data-slot='dialog-content']");
+      setHasOpenDialog(openDialogs.length > 0);
+    };
+
+    syncDialogState();
+    const observer = new MutationObserver(syncDialogState);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (hasOpenDialog && !isPinned) {
+      setIsHoverOpen(false);
+    }
+  }, [hasOpenDialog, isPinned]);
 
   useEffect(() => {
     let isMounted = true;
@@ -116,7 +139,7 @@ export function MainLayout({ children, pageTitle }: MainLayoutProps) {
     <div className="flex h-screen w-full bg-background overflow-hidden text-foreground transition-colors duration-300">
       <TitleBar />
 
-      <div className="pt-9 z-50 relative">
+      <div className="pt-9 z-40 relative">
         <Sidebar
           isVisible={isVisible}
           isPinned={isPinned}
