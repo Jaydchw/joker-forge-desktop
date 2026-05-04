@@ -41,6 +41,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function EnhancementsPage() {
@@ -61,11 +62,10 @@ export default function EnhancementsPage() {
   const processEnhancementImage = processBalatroCardImage;
 
   const handleUpdate = useCallback(
-    (id: string, updates: Partial<EnhancementData>) => {
+    (id: string, updates: Partial<EnhancementData>) =>
       updateEnhancements(
-        data.enhancements.map((e) => (e.id === id ? { ...e, ...updates } : e)),
-      );
-    },
+        applyItemUpdatesWithOrderSwap(data.enhancements, id, updates),
+      ),
     [data.enhancements, updateEnhancements],
   );
 

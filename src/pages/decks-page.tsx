@@ -42,6 +42,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function DecksPage() {
@@ -59,11 +60,8 @@ export default function DecksPage() {
   const processDeckImage = processBalatroCardImage;
 
   const handleUpdate = useCallback(
-    (id: string, updates: Partial<DeckData>) => {
-      updateDecks(
-        data.decks.map((d) => (d.id === id ? { ...d, ...updates } : d)),
-      );
-    },
+    (id: string, updates: Partial<DeckData>) =>
+      updateDecks(applyItemUpdatesWithOrderSwap(data.decks, id, updates)),
     [data.decks, updateDecks],
   );
 

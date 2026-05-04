@@ -39,6 +39,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function SealsPage() {
@@ -56,11 +57,8 @@ export default function SealsPage() {
   const processSealImage = processBalatroCardImage;
 
   const handleUpdate = useCallback(
-    (id: string, updates: Partial<SealData>) => {
-      updateSeals(
-        data.seals.map((s) => (s.id === id ? { ...s, ...updates } : s)),
-      );
-    },
+    (id: string, updates: Partial<SealData>) =>
+      updateSeals(applyItemUpdatesWithOrderSwap(data.seals, id, updates)),
     [data.seals, updateSeals],
   );
 

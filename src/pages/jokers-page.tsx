@@ -63,6 +63,7 @@ import {
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { getAllVariables } from "@/lib/user-variable-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 
 const getVariableDisplayValue = (variable: UserVariable): string => {
   if (variable.type === "suit") return variable.initialSuit || "Spades";
@@ -93,11 +94,8 @@ export default function JokersPage() {
 
   // 2. Stable Handlers
   const handleUpdate = useCallback(
-    (id: string, updates: Partial<JokerData>) => {
-      updateJokers(
-        data.jokers.map((j) => (j.id === id ? { ...j, ...updates } : j)),
-      );
-    },
+    (id: string, updates: Partial<JokerData>) =>
+      updateJokers(applyItemUpdatesWithOrderSwap(data.jokers, id, updates)),
     [data.jokers, updateJokers],
   );
 

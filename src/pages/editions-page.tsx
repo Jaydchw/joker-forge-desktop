@@ -39,6 +39,7 @@ import { CUSTOM_SHADERS, SOUNDS, VANILLA_SHADERS } from "@/lib/balatro-utils";
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 
 export default function EditionsPage() {
   const { data, updateEditions, isHydrating } = useProjectData();
@@ -52,16 +53,12 @@ export default function EditionsPage() {
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<EditionData>) => {
+      const normalizedUpdates = {
+        ...updates,
+        shader: updates.shader === "" ? false : updates.shader,
+      };
       updateEditions(
-        data.editions.map((e) =>
-          e.id === id
-            ? {
-                ...e,
-                ...updates,
-                shader: updates.shader === "" ? false : updates.shader,
-              }
-            : e,
-        ),
+        applyItemUpdatesWithOrderSwap(data.editions, id, normalizedUpdates),
       );
     },
     [data.editions, updateEditions],

@@ -41,6 +41,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 
 export default function ConsumablesPage() {
@@ -60,11 +61,10 @@ export default function ConsumablesPage() {
   const processConsumableImage = processBalatroCardImage;
 
   const handleUpdate = useCallback(
-    (id: string, updates: Partial<ConsumableData>) => {
+    (id: string, updates: Partial<ConsumableData>) =>
       updateConsumables(
-        data.consumables.map((c) => (c.id === id ? { ...c, ...updates } : c)),
-      );
-    },
+        applyItemUpdatesWithOrderSwap(data.consumables, id, updates),
+      ),
     [data.consumables, updateConsumables],
   );
 

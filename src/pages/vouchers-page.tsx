@@ -49,6 +49,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 
 export default function VouchersPage() {
   const { data, updateVouchers, isHydrating } = useProjectData();
@@ -68,19 +69,13 @@ export default function VouchersPage() {
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<VoucherData>) => {
+      const normalizedUpdates = {
+        ...updates,
+        draw_shader_sprite:
+          updates.draw_shader_sprite === "" ? false : updates.draw_shader_sprite,
+      };
       updateVouchers(
-        data.vouchers.map((v) =>
-          v.id === id
-            ? {
-                ...v,
-                ...updates,
-                draw_shader_sprite:
-                  updates.draw_shader_sprite === ""
-                    ? false
-                    : updates.draw_shader_sprite,
-              }
-            : v,
-        ),
+        applyItemUpdatesWithOrderSwap(data.vouchers, id, normalizedUpdates),
       );
     },
     [data.vouchers, updateVouchers],

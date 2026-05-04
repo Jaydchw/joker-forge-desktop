@@ -34,6 +34,7 @@ import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 
 export default function BoostersPage() {
   const { data, updateBoosters, isHydrating } = useProjectData();
@@ -49,11 +50,8 @@ export default function BoostersPage() {
   const processBoosterImage = processBalatroCardImage;
 
   const handleUpdate = useCallback(
-    (id: string, updates: Partial<BoosterData>) => {
-      updateBoosters(
-        data.boosters.map((b) => (b.id === id ? { ...b, ...updates } : b)),
-      );
-    },
+    (id: string, updates: Partial<BoosterData>) =>
+      updateBoosters(applyItemUpdatesWithOrderSwap(data.boosters, id, updates)),
     [data.boosters, updateBoosters],
   );
 
