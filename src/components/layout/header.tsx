@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   DownloadSimple,
   Upload,
@@ -10,10 +10,12 @@ import {
   Heart,
   CaretDown,
   Package,
+  X,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ExportSuccessDialog } from "@/components/layout/export-success-dialog";
 import { UnsupportedRulesDialog } from "@/components/layout/unsupported-rules-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   getBalatroInstallPath,
   getExportDestinationMode,
@@ -40,13 +42,22 @@ import {
 } from "../../lib/theme-manager";
 import { AnimatePresence, motion } from "framer-motion";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import type { PreExportIssue } from "@/lib/pre-export-checks";
+import type { NavigationTarget } from "@/lib/navigation-target";
+import { toast } from "sonner";
 
 interface HeaderProps {
   title?: string;
 }
 
+type DeletableIssueTarget = {
+  path: string;
+  itemId: string;
+};
+
 export function Header({ title }: HeaderProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     getThemePreference(),
   );
@@ -56,7 +67,14 @@ export function Header({ title }: HeaderProps) {
   );
   const [unsupportedParts, setUnsupportedParts] = useState<string[]>([]);
   const [showUnsupportedDialog, setShowUnsupportedDialog] = useState(false);
+  const [isDeleteProblematicConfirmOpen, setIsDeleteProblematicConfirmOpen] =
+    useState(false);
+  const [problematicTargetsToDelete, setProblematicTargetsToDelete] = useState<
+    DeletableIssueTarget[]
+  >([]);
+  const [problematicIssueCount, setProblematicIssueCount] = useState(0);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const preExportToastIdRef = useRef<string | number | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const {
     data,
@@ -64,6 +82,17 @@ export function Header({ title }: HeaderProps) {
     currentProjectId,
     switchProject,
     importProject,
+    updateJokers,
+    updateConsumables,
+    updateVouchers,
+    updateDecks,
+    updateEnhancements,
+    updateSeals,
+    updateEditions,
+    updateBoosters,
+    updateRarities,
+    updateConsumableSets,
+    updateSounds,
   } = useProjectData();
 
   useEffect(() => {
@@ -240,8 +269,215 @@ export function Header({ title }: HeaderProps) {
     }
   };
 
+  const navigateToTarget = (target: NavigationTarget) => {
+    const params = new URLSearchParams();
+    if (target.itemId) {
+      params.set("activityItemId", target.itemId);
+    }
+    if (target.editor) {
+      params.set("activityEditor", target.editor);
+    }
+    const query = params.toString();
+    navigate(query ? `${target.path}?${query}` : target.path);
+  };
+
+  const getDeletableTargetsFromIssues = (
+    issues: PreExportIssue[],
+  ): DeletableIssueTarget[] => {
+    const deletablePaths = new Set([
+      "/jokers",
+      "/consumables",
+      "/vouchers",
+      "/decks",
+      "/enhancements",
+      "/seals",
+      "/editions",
+      "/boosters",
+      "/rarities",
+      "/consumable-sets",
+      "/sounds",
+    ]);
+    const deduped = new Map<string, DeletableIssueTarget>();
+
+    issues.forEach((issue) => {
+      const target = issue.target;
+      if (!target?.path || !target.itemId) return;
+      if (!deletablePaths.has(target.path)) return;
+      const dedupeKey = `${target.path}::${target.itemId}`;
+      if (deduped.has(dedupeKey)) return;
+      deduped.set(dedupeKey, { path: target.path, itemId: target.itemId });
+    });
+
+    return Array.from(deduped.values());
+  };
+
+  const showPreExportIssuesToast = (issues: PreExportIssue[]) => {
+    const deletableTargets = getDeletableTargetsFromIssues(issues);
+    setProblematicTargetsToDelete(deletableTargets);
+    setProblematicIssueCount(issues.length);
+
+    if (preExportToastIdRef.current !== null) {
+      toast.dismiss(preExportToastIdRef.current);
+    }
+
+    const nextToastId = toast.custom(
+      (toastId) => (
+        <div className="w-[min(580px,calc(100vw-2rem))] rounded-lg border border-amber-300/30 bg-zinc-950 text-white shadow-xl">
+          <div className="px-4 pt-3 pb-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Pre-export checks failed</p>
+                <p className="mt-1 text-xs text-white/70">
+                  Fix these before exporting. Click any bullet to jump there.
+                </p>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0 cursor-pointer text-white/70 hover:bg-white/10 hover:text-white"
+                onClick={() => toast.dismiss(toastId)}
+                aria-label="Dismiss validation toast"
+                title="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <ul className="mt-3 max-h-64 list-disc space-y-2 overflow-y-auto pl-5 pr-1 text-xs">
+              {issues.map((issue) => (
+                <li key={issue.id}>
+                  <button
+                    type="button"
+                    className="cursor-pointer text-left underline decoration-white/35 underline-offset-2 hover:text-white"
+                    onClick={() => {
+                      if (issue.target) {
+                        navigateToTarget(issue.target);
+                      }
+                      toast.dismiss(toastId);
+                    }}
+                  >
+                    {issue.message}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              {deletableTargets.length > 0 ? (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-8 cursor-pointer"
+                  onClick={() => {
+                    setIsDeleteProblematicConfirmOpen(true);
+                    toast.dismiss(toastId);
+                  }}
+                  aria-label="Delete all problematic items"
+                  title="Delete all problematic items"
+                >
+                  Delete All Problematic Items
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ),
+      {
+        duration: 120000,
+        onDismiss: () => {
+          if (preExportToastIdRef.current === nextToastId) {
+            preExportToastIdRef.current = null;
+          }
+        },
+      },
+    );
+
+    preExportToastIdRef.current = nextToastId;
+  };
+
+  const handleDeleteProblematicItems = () => {
+    const idsByPath = new Map<string, Set<string>>();
+    problematicTargetsToDelete.forEach(({ path, itemId }) => {
+      const ids = idsByPath.get(path) || new Set<string>();
+      ids.add(itemId);
+      idsByPath.set(path, ids);
+    });
+
+    let removed = 0;
+
+    const countRemoved = <T extends { id: string }>(
+      items: T[],
+      ids: Set<string> | undefined,
+      updater: (next: T[]) => void,
+    ) => {
+      if (!ids || ids.size === 0) return;
+      const next = items.filter((item) => !ids.has(item.id));
+      removed += items.length - next.length;
+      updater(next);
+    };
+
+    countRemoved(data.jokers, idsByPath.get("/jokers"), updateJokers);
+    countRemoved(
+      data.consumables,
+      idsByPath.get("/consumables"),
+      updateConsumables,
+    );
+    countRemoved(data.vouchers, idsByPath.get("/vouchers"), updateVouchers);
+    countRemoved(data.decks, idsByPath.get("/decks"), updateDecks);
+    countRemoved(
+      data.enhancements,
+      idsByPath.get("/enhancements"),
+      updateEnhancements,
+    );
+    countRemoved(data.seals, idsByPath.get("/seals"), updateSeals);
+    countRemoved(data.editions, idsByPath.get("/editions"), updateEditions);
+    countRemoved(data.boosters, idsByPath.get("/boosters"), updateBoosters);
+    countRemoved(data.rarities, idsByPath.get("/rarities"), updateRarities);
+    countRemoved(
+      data.consumableSets,
+      idsByPath.get("/consumable-sets"),
+      updateConsumableSets,
+    );
+    countRemoved(data.sounds, idsByPath.get("/sounds"), updateSounds);
+
+    setIsDeleteProblematicConfirmOpen(false);
+    setProblematicTargetsToDelete([]);
+    if (preExportToastIdRef.current !== null) {
+      toast.dismiss(preExportToastIdRef.current);
+      preExportToastIdRef.current = null;
+    }
+
+    if (removed > 0) {
+      pushGlobalAlert({
+        type: "caution",
+        title: "Problematic Items Deleted",
+        message: `Deleted ${removed} item${removed === 1 ? "" : "s"}. Run Export Mod again.`,
+      });
+    }
+  };
+
   const handleExportMod = async () => {
     if (isExporting) return;
+
+    let issues: PreExportIssue[] = [];
+    try {
+      // Keep validation strictly export-triggered: no startup/background checks.
+      const { runPreExportChecks } = await import("@/lib/pre-export-checks");
+      issues = runPreExportChecks(data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[pre-export-checks] Failed to run checks", message);
+      pushGlobalAlert({
+        type: "danger",
+        title: "Validation Error",
+        message:
+          "Pre-export checks failed to run. Export is blocked until this is resolved. Please restart the app and try again.",
+      });
+      return;
+    }
+
+    if (issues.length > 0) {
+      showPreExportIssuesToast(issues);
+      return;
+    }
 
     const unsupported = new Set<string>([
       ...data.jokers.flatMap((item) =>
@@ -418,6 +654,15 @@ export function Header({ title }: HeaderProps) {
         onOpenChange={setShowUnsupportedDialog}
         unsupportedParts={unsupportedParts}
         onExportAnyway={doExport}
+      />
+      <ConfirmDialog
+        open={isDeleteProblematicConfirmOpen}
+        onOpenChange={setIsDeleteProblematicConfirmOpen}
+        title="Delete all problematic items?"
+        description={`This will delete ${problematicTargetsToDelete.length} item${problematicTargetsToDelete.length === 1 ? "" : "s"} linked to ${problematicIssueCount} pre-export issue${problematicIssueCount === 1 ? "" : "s"}. This cannot be undone.`}
+        confirmLabel="Delete Items"
+        confirmVariant="destructive"
+        onConfirm={handleDeleteProblematicItems}
       />
       <input
         ref={importInputRef}

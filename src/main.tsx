@@ -25,6 +25,18 @@ async function bootstrap() {
       <App />
     </React.StrictMode>,
   );
+
+  const resetCursor = () => {
+    if (typeof document === "undefined") return;
+    document.documentElement.style.cursor = "default";
+    document.body.style.cursor = "default";
+  };
+
+  // Guard against WebView occasionally keeping a startup "busy" cursor.
+  requestAnimationFrame(() => {
+    resetCursor();
+    window.setTimeout(resetCursor, 250);
+  });
 }
 
 void bootstrap();

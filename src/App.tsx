@@ -29,6 +29,7 @@ import { useEffect } from "react";
 import { checkForReleaseUpdateOnLaunch } from "@/lib/release-updater";
 import { UpdateDialog } from "@/components/bridge/update-dialog";
 import { GithubStarDialog } from "@/components/bridge/github-star-dialog";
+import { Toaster } from "sonner";
 
 function App() {
   useEffect(() => {
@@ -40,6 +41,7 @@ function App() {
       <UpdateDialog />
       <GithubStarDialog />
       <EntityBridgeListener />
+      <Toaster position="bottom-right" richColors closeButton />
       <CustomContextMenu>
         <div className="h-full w-full">
           <MainLayout>
