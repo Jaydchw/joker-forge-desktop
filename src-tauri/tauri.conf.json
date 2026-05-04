@@ -14,6 +14,8 @@
         "title": "Joker Forge",
         "width": 1600,
         "height": 900,
+        "minWidth": 1100,
+        "minHeight": 700,
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
