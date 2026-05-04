@@ -11,6 +11,7 @@ import {
   CaretDown,
   Package,
   X,
+  BookBookmark,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ExportSuccessDialog } from "@/components/layout/export-success-dialog";
@@ -45,6 +46,8 @@ import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import type { PreExportIssue } from "@/lib/pre-export-checks";
 import type { NavigationTarget } from "@/lib/navigation-target";
 import { toast } from "sonner";
+import { useTemplateStore } from "@/lib/templates";
+import { TemplateLibraryDialog } from "@/components/templates/template-library-dialog";
 
 interface HeaderProps {
   title?: string;
@@ -74,6 +77,7 @@ export function Header({ title }: HeaderProps) {
   >([]);
   const [problematicIssueCount, setProblematicIssueCount] = useState(0);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const [isTemplateLibraryOpen, setIsTemplateLibraryOpen] = useState(false);
   const preExportToastIdRef = useRef<string | number | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const {
@@ -94,6 +98,15 @@ export function Header({ title }: HeaderProps) {
     updateConsumableSets,
     updateSounds,
   } = useProjectData();
+  const {
+    templates,
+    deleteTemplates,
+    upsertImportedTemplates,
+    updateTemplateName,
+    updateItemTemplate,
+    duplicateTemplate,
+  } =
+    useTemplateStore();
 
   useEffect(() => {
     setThemePreference(theme);
@@ -612,6 +625,15 @@ export function Header({ title }: HeaderProps) {
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => setIsTemplateLibraryOpen(true)}
+            className="text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
+          >
+            <BookBookmark className="mr-2 h-4 w-4" />
+            Templates
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleImportClick}
             className="text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
           >
@@ -670,6 +692,16 @@ export function Header({ title }: HeaderProps) {
         accept=".jokerforge,.json,application/json"
         className="hidden"
         onChange={handleImportFileChange}
+      />
+      <TemplateLibraryDialog
+        open={isTemplateLibraryOpen}
+        onOpenChange={setIsTemplateLibraryOpen}
+        templates={templates}
+        onDeleteTemplates={deleteTemplates}
+        onImportTemplates={upsertImportedTemplates}
+        onUpdateTemplateName={updateTemplateName}
+        onUpdateItemTemplate={updateItemTemplate}
+        onDuplicateTemplate={duplicateTemplate}
       />
     </>
   );

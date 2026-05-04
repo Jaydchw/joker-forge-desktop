@@ -261,7 +261,7 @@ export function Sidebar({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className={cn(
-        "fixed left-4 top-28 bottom-4 z-50 w-64 rounded-xl",
+        "fixed left-4 top-28 bottom-4 z-40 w-64 rounded-xl",
         "bg-sidebar backdrop-blur-xl shadow-2xl",
         "flex flex-col overflow-hidden border border-sidebar-border transition-colors duration-300",
       )}

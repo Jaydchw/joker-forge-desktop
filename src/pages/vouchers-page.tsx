@@ -13,9 +13,6 @@ import {
   PencilSimple,
   Sparkle,
   Trash,
-  Image as ImageIcon,
-  TextT,
-  LockKey,
   LockOpen,
   Lock,
   Eye,
@@ -25,31 +22,25 @@ import {
   Prohibit,
   VideoCamera,
   DownloadSimple,
+  BookmarksSimple,
 } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
-import {
-  GenericItemDialog,
-  DialogTab,
-} from "@/components/pages/generic-item-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { BalatroCard } from "@/components/balatro/balatro-card";
-import {
-  COMPARISON_OPERATORS,
-  CUSTOM_SHADERS,
-  VANILLA_SHADERS,
-} from "@/lib/balatro-utils";
-import {
-  unlockTriggerOptions,
-  vouchersUnlockOptions,
-} from "@/lib/unlock-utils";
 import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
-import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { EditVoucherDialog } from "@/components/edit-dialogs";
 
 export default function VouchersPage() {
   const { data, updateVouchers, isHydrating } = useProjectData();
@@ -64,15 +55,21 @@ export default function VouchersPage() {
   const [placeholderTargetId, setPlaceholderTargetId] = useState<string | null>(
     null,
   );
-
-  const processVoucherImage = processBalatroCardImage;
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const voucherTemplates = useMemo(
+    () => getItemTemplatesForType("voucher"),
+    [getItemTemplatesForType],
+  );
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<VoucherData>) => {
       const normalizedUpdates = {
         ...updates,
         draw_shader_sprite:
-          updates.draw_shader_sprite === "" ? false : updates.draw_shader_sprite,
+          updates.draw_shader_sprite === ""
+            ? false
+            : updates.draw_shader_sprite,
       };
       updateVouchers(
         applyItemUpdatesWithOrderSwap(data.vouchers, id, normalizedUpdates),
@@ -118,9 +115,9 @@ export default function VouchersPage() {
     setSearchParams(nextParams, { replace: true });
   }, [data.vouchers, searchParams, setSearchParams]);
 
-  const handleCreate = useCallback(async () => {
+  const createBaseVoucher = useCallback(async (): Promise<VoucherData> => {
     const placeholder = await getRandomPlaceholder("voucher");
-    const newVoucher: VoucherData = {
+    return {
       id: crypto.randomUUID(),
       objectType: "voucher",
       name: "New Voucher",
@@ -135,11 +132,35 @@ export default function VouchersPage() {
       rules: [],
       orderValue: data.vouchers.length + 1,
     };
+  }, [data.vouchers.length]);
+
+  const handleCreate = useCallback(async () => {
+    const newVoucher = await createBaseVoucher();
     updateVouchers([...data.vouchers, newVoucher]);
     if (getAutoOpenNewItemDialogEnabled()) {
       setEditingItem(newVoucher);
     }
-  }, [data.vouchers, updateVouchers]);
+  }, [createBaseVoucher, data.vouchers, updateVouchers]);
+
+  const handleCreateFromTemplate = useCallback(
+    async (template: ItemTemplateEntry) => {
+      const baseVoucher = await createBaseVoucher();
+      const templatedVoucher = instantiateItemFromTemplate(
+        baseVoucher,
+        template,
+      );
+      updateVouchers([...data.vouchers, templatedVoucher]);
+      if (getAutoOpenNewItemDialogEnabled()) {
+        setEditingItem(templatedVoucher);
+      }
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Applied",
+        message: `Created Voucher from \"${template.name}\".`,
+      });
+    },
+    [createBaseVoucher, data.vouchers, updateVouchers],
+  );
 
   const handleDelete = useCallback(
     (id: string) => updateVouchers(data.vouchers.filter((v) => v.id !== id)),
@@ -170,302 +191,6 @@ export default function VouchersPage() {
     handleOpenChange: handleDeleteDialogChange,
   } = useConfirmDelete(handleDelete);
 
-  const voucherDialogTabs: DialogTab<VoucherData>[] = useMemo(
-    () => [
-      {
-        id: "visual",
-        label: "Visual & Data",
-        icon: ImageIcon,
-        groups: [
-          {
-            id: "assets",
-            label: "Assets",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "image",
-                type: "image",
-                label: "Main Sprite",
-                description: "71x95px (auto-upscaled) or 142x190px",
-                processFile: processVoucherImage,
-              },
-              {
-                id: "overlayImage",
-                type: "image",
-                label: "Overlay Sprite",
-                description: "Optional overlay layer",
-                processFile: processVoucherImage,
-              },
-            ],
-          },
-          {
-            id: "data",
-            label: "Basic Data",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "text",
-                label: "Name",
-                placeholder: "Voucher Name",
-                className: "col-span-2",
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "objectKey",
-                type: "text",
-                label: "Object Key",
-                placeholder: "v_name",
-                className: "col-span-2",
-              },
-              {
-                id: "cost",
-                type: "number",
-                label: "Cost ($)",
-                min: 0,
-              },
-            ],
-          },
-          {
-            id: "properties",
-            label: "Properties",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "unlocked",
-                type: "switch",
-                label: "Unlocked by Default",
-              },
-              {
-                id: "discovered",
-                type: "switch",
-                label: "Discovered by Default",
-              },
-              {
-                id: "no_collection",
-                type: "switch",
-                label: "Hidden from Collection",
-              },
-              {
-                id: "requires_activetor",
-                type: "switch",
-                label: "Requires Voucher",
-              },
-              {
-                id: "can_repeat_soul",
-                type: "switch",
-                label: "Can Repeat Soul",
-              },
-            ],
-          },
-          {
-            id: "req_voucher",
-            label: "Requirement",
-            fields: [
-              {
-                id: "requires",
-                type: "text",
-                label: "Required Voucher ID",
-                placeholder: "v_overstock_norm",
-                hidden: (item) => !item.requires_activetor,
-              },
-            ],
-          },
-          {
-            id: "unlock",
-            label: "Unlock Requirements",
-            fields: [
-              {
-                id: "unlockTrigger",
-                type: "select",
-                label: "Trigger",
-                options: [
-                  { label: "None", value: "" },
-                  ...unlockTriggerOptions,
-                ],
-                hidden: (item) => item.unlocked,
-              },
-              {
-                id: "unlockOperator",
-                type: "select",
-                label: "Operator",
-                options: COMPARISON_OPERATORS.map((op) => ({
-                  value: op.value,
-                  label: op.label,
-                })),
-                hidden: (item) => item.unlocked || !item.unlockTrigger,
-              },
-              {
-                id: "unlockCount",
-                type: "number",
-                label: "Amount",
-                min: 0,
-                hidden: (item) => item.unlocked || !item.unlockTrigger,
-              },
-              {
-                id: "unlockProperties",
-                type: "custom",
-                label: "Properties",
-                hidden: (item) => item.unlocked || !item.unlockTrigger,
-                render: (value, onChange, item) => {
-                  const props = Array.isArray(value) ? value : [];
-                  const currentTrigger = item.unlockTrigger || "";
-                  const availableOptions =
-                    vouchersUnlockOptions[currentTrigger]?.categories || [];
-                  const addPropertyHidden =
-                    (currentTrigger === "career_stat" && props.length > 0) ||
-                    !currentTrigger ||
-                    currentTrigger === "chip_score";
-
-                  return (
-                    <div className="space-y-3 bg-muted/20 p-4 rounded-lg border border-border/50">
-                      {props.map((prop: any, idx: number) => {
-                        const selectedCategory = availableOptions.find(
-                          (c: any) => c.value === prop.category,
-                        );
-                        const propertyOptions = selectedCategory?.options || [];
-
-                        return (
-                          <div key={idx} className="flex gap-2 items-center">
-                            <div className="flex-1">
-                              <select
-                                value={prop.category}
-                                onChange={(e) => {
-                                  const newProps = [...props];
-                                  newProps[idx] = {
-                                    ...newProps[idx],
-                                    category: e.target.value,
-                                    property: "",
-                                  };
-                                  onChange(newProps);
-                                }}
-                                className="w-full h-9 bg-background border rounded px-2 text-sm"
-                              >
-                                <option value="">Select Category</option>
-                                {availableOptions.map((opt: any) => (
-                                  <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="flex-1">
-                              <select
-                                value={prop.property}
-                                onChange={(e) => {
-                                  const newProps = [...props];
-                                  newProps[idx] = {
-                                    ...newProps[idx],
-                                    property: e.target.value,
-                                  };
-                                  onChange(newProps);
-                                }}
-                                className="w-full h-9 bg-background border rounded px-2 text-sm"
-                              >
-                                <option value="">Select Property</option>
-                                {propertyOptions.map((opt: any) => (
-                                  <option key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                              onClick={() =>
-                                onChange(
-                                  props.filter(
-                                    (_: any, i: number) => i !== idx,
-                                  ),
-                                )
-                              }
-                            >
-                              <Trash className="h-4 w-4" weight="bold" />
-                            </Button>
-                          </div>
-                        );
-                      })}
-                      {!addPropertyHidden && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            onChange([...props, { category: "", property: "" }])
-                          }
-                          className="w-full border-dashed"
-                        >
-                          <Sparkle className="mr-2 h-4 w-4" /> Add Property
-                        </Button>
-                      )}
-                    </div>
-                  );
-                },
-              },
-              {
-                id: "unlockDescription",
-                type: "textarea",
-                label: "Unlock Text",
-                placeholder: "Describe how to unlock this voucher...",
-                hidden: (item) => item.unlocked,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "description",
-        label: "Description",
-        icon: TextT,
-        groups: [
-          {
-            id: "desc",
-            fields: [
-              {
-                id: "description",
-                type: "rich-textarea",
-                label: "Description",
-                validate: (val) => (!val ? "Description is required" : null),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "settings",
-        label: "Advanced",
-        icon: LockKey,
-        groups: [
-          {
-            id: "shader",
-            label: "Custom Shader",
-            fields: [
-              {
-                id: "draw_shader_sprite",
-                type: "select",
-                label: "Shader",
-                options: [
-                  { value: "", label: "None" },
-                  ...VANILLA_SHADERS.map((shader) => ({
-                    value: shader.key,
-                    label: shader.label,
-                  })),
-                  ...CUSTOM_SHADERS.map((shader) => ({
-                    value: shader.key,
-                    label: shader.label,
-                  })),
-                ],
-                description: "Applies shader effect to the sprite",
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [processVoucherImage],
-  );
-
   const searchProps = useMemo(
     () => ({
       searchFn: (item: VoucherData, term: string) =>
@@ -488,13 +213,6 @@ export default function VouchersPage() {
         sortFn: (a: VoucherData, b: VoucherData) => a.cost - b.cost,
       },
     ],
-    [],
-  );
-
-  const renderPreview = useCallback(
-    (item: VoucherData | null) => (
-      <BalatroCard type="voucher" data={item || {}} size="lg" />
-    ),
     [],
   );
 
@@ -613,6 +331,23 @@ export default function VouchersPage() {
             onClick: () => handleExport(item),
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "voucher",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -629,7 +364,7 @@ export default function VouchersPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport],
   );
 
   const renderCompactCard = useCallback(
@@ -683,6 +418,24 @@ export default function VouchersPage() {
             variant: "ghost",
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "voucher",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -708,7 +461,13 @@ export default function VouchersPage() {
         ]}
       />
     ),
-    [requestDelete, handleExport, data.vouchers, updateVouchers],
+    [
+      createItemTemplate,
+      requestDelete,
+      handleExport,
+      data.vouchers,
+      updateVouchers,
+    ],
   );
 
   return (
@@ -719,23 +478,32 @@ export default function VouchersPage() {
         items={data.vouchers}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={
+          voucherTemplates.length > 0
+            ? () => setIsTemplatePickerOpen(true)
+            : undefined
+        }
         addNewLabel="Create Voucher"
+        addFromTemplateLabel="Create Voucher from Template"
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
         renderCompactCard={renderCompactCard}
       />
-      <GenericItemDialog
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
-        item={editingItem}
-        title={`Edit ${editingItem?.name || "Voucher"}`}
-        description="Modify voucher properties."
-        tabs={voucherDialogTabs}
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Voucher from Template"
+        description="Select a Voucher template to start from."
+        templates={voucherTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
+      />
+      <EditVoucherDialog
+        editingItem={editingItem}
+        setEditingItem={setEditingItem}
         onSave={handleInfoSave}
-        renderPreview={renderPreview}
-        showPlaceholderPicker
-        placeholderCategory="voucher"
       />
       {ruleEditingItem && (
         <RuleBuilder

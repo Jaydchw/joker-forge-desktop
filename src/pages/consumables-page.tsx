@@ -13,8 +13,6 @@ import {
   PencilSimple,
   Sparkle,
   Trash,
-  Image as ImageIcon,
-  TextT,
   LockOpen,
   Lock,
   Copy,
@@ -22,12 +20,9 @@ import {
   EyeSlash,
   VideoCamera,
   DownloadSimple,
+  BookmarksSimple,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
-import {
-  GenericItemDialog,
-  DialogTab,
-} from "@/components/pages/generic-item-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { BalatroCard } from "@/components/balatro/balatro-card";
@@ -39,10 +34,17 @@ import {
 import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
-import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { EditConsumableDialog } from "@/components/edit-dialogs";
 
 export default function ConsumablesPage() {
   const { data, updateConsumables, isHydrating } = useProjectData();
@@ -57,8 +59,12 @@ export default function ConsumablesPage() {
   const [placeholderTargetId, setPlaceholderTargetId] = useState<string | null>(
     null,
   );
-
-  const processConsumableImage = processBalatroCardImage;
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const consumableTemplates = useMemo(
+    () => getItemTemplatesForType("consumable"),
+    [getItemTemplatesForType],
+  );
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<ConsumableData>) =>
@@ -105,29 +111,54 @@ export default function ConsumablesPage() {
     setSearchParams(nextParams, { replace: true });
   }, [data.consumables, searchParams, setSearchParams]);
 
+  const createBaseConsumable =
+    useCallback(async (): Promise<ConsumableData> => {
+      const placeholder = await getRandomPlaceholder("consumable");
+      return {
+        id: crypto.randomUUID(),
+        objectType: "consumable",
+        name: "New Tarot",
+        description: "Effect",
+        image: placeholder?.src || "",
+        placeholderCreditIndex: placeholder?.index,
+        placeholderCategory: placeholder?.category,
+        orderValue: data.consumables.length + 1,
+        set: "Tarot",
+        cost: 3,
+        unlocked: true,
+        discovered: true,
+        rules: [],
+        objectKey: "new_tarot",
+      };
+    }, [data.consumables.length]);
+
   const handleCreate = useCallback(async () => {
-    const placeholder = await getRandomPlaceholder("consumable");
-    const newConsumable: ConsumableData = {
-      id: crypto.randomUUID(),
-      objectType: "consumable",
-      name: "New Tarot",
-      description: "Effect",
-      image: placeholder?.src || "",
-      placeholderCreditIndex: placeholder?.index,
-      placeholderCategory: placeholder?.category,
-      orderValue: data.consumables.length + 1,
-      set: "Tarot",
-      cost: 3,
-      unlocked: true,
-      discovered: true,
-      rules: [],
-      objectKey: "new_tarot",
-    };
+    const newConsumable = await createBaseConsumable();
     updateConsumables([...data.consumables, newConsumable]);
     if (getAutoOpenNewItemDialogEnabled()) {
       setEditingItem(newConsumable);
     }
-  }, [data.consumables, updateConsumables]);
+  }, [createBaseConsumable, data.consumables, updateConsumables]);
+
+  const handleCreateFromTemplate = useCallback(
+    async (template: ItemTemplateEntry) => {
+      const baseConsumable = await createBaseConsumable();
+      const templatedConsumable = instantiateItemFromTemplate(
+        baseConsumable,
+        template,
+      );
+      updateConsumables([...data.consumables, templatedConsumable]);
+      if (getAutoOpenNewItemDialogEnabled()) {
+        setEditingItem(templatedConsumable);
+      }
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Applied",
+        message: `Created Consumable from \"${template.name}\".`,
+      });
+    },
+    [createBaseConsumable, data.consumables, updateConsumables],
+  );
 
   const handleDelete = useCallback(
     (id: string) =>
@@ -186,120 +217,6 @@ export default function ConsumablesPage() {
     [data.consumableSets],
   );
 
-  const consumableDialogTabs: DialogTab<ConsumableData>[] = useMemo(
-    () => [
-      {
-        id: "visual",
-        label: "Visual & Data",
-        icon: ImageIcon,
-        groups: [
-          {
-            id: "assets",
-            label: "Assets",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "image",
-                type: "image",
-                label: "Main Sprite",
-                description: "71x95px (auto-upscaled) or 142x190px",
-                processFile: processConsumableImage,
-              },
-              {
-                id: "overlayImage",
-                type: "image",
-                label: "Overlay Sprite",
-                description: "Optional overlay layer",
-                processFile: processConsumableImage,
-              },
-            ],
-          },
-          {
-            id: "data",
-            label: "Basic Data",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "text",
-                label: "Name",
-                placeholder: "Consumable Name",
-                className: "col-span-2",
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "objectKey",
-                type: "text",
-                label: "Object Key",
-                placeholder: "c_tarot_name",
-                description: "Internal ID",
-                className: "col-span-2",
-              },
-              {
-                id: "set",
-                type: "select",
-                label: "Set",
-                options: getConsumableSetDropdownOptions(data.consumableSets),
-              },
-              {
-                id: "cost",
-                type: "number",
-                label: "Cost ($)",
-                min: 0,
-              },
-            ],
-          },
-          {
-            id: "props",
-            label: "Properties",
-            fields: [
-              {
-                id: "unlocked",
-                type: "switch",
-                label: "Unlocked by Default",
-              },
-              {
-                id: "discovered",
-                type: "switch",
-                label: "Discovered by Default",
-              },
-              {
-                id: "hidden",
-                type: "switch",
-                label: "Hidden",
-              },
-              {
-                id: "can_repeat_soul",
-                type: "switch",
-                label: "Can Repeat Soul",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "description",
-        label: "Description",
-        icon: TextT,
-        groups: [
-          {
-            id: "desc",
-            fields: [
-              {
-                id: "description",
-                type: "rich-textarea",
-                label: "Effect Description",
-                placeholder: "Description...",
-                validate: (val) => (!val ? "Description is required" : null),
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [processConsumableImage, data.consumableSets],
-  );
-
   const searchProps = useMemo(
     () => ({
       searchFn: (item: ConsumableData, term: string) =>
@@ -337,21 +254,6 @@ export default function ConsumablesPage() {
       },
     ],
     [data.consumableSets],
-  );
-
-  const renderPreview = useCallback(
-    (item: ConsumableData | null) => {
-      if (!item) return null;
-      return (
-        <BalatroCard
-          type="consumable"
-          data={item}
-          setName={getCurrentSetName(item.set)}
-          setColor={getCurrentSetColor(item.set)}
-        />
-      );
-    },
-    [getCurrentSetName, getCurrentSetColor],
   );
 
   const renderCard = useCallback(
@@ -458,6 +360,23 @@ export default function ConsumablesPage() {
             onClick: () => handleExport(item),
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "consumable",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -474,7 +393,7 @@ export default function ConsumablesPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport],
   );
 
   const renderCompactCard = useCallback(
@@ -528,6 +447,24 @@ export default function ConsumablesPage() {
             variant: "ghost",
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "consumable",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -553,7 +490,13 @@ export default function ConsumablesPage() {
         ]}
       />
     ),
-    [requestDelete, handleExport, data.consumables, updateConsumables],
+    [
+      createItemTemplate,
+      requestDelete,
+      handleExport,
+      data.consumables,
+      updateConsumables,
+    ],
   );
 
   return (
@@ -564,24 +507,33 @@ export default function ConsumablesPage() {
         items={data.consumables}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={
+          consumableTemplates.length > 0
+            ? () => setIsTemplatePickerOpen(true)
+            : undefined
+        }
         addNewLabel="Create Consumable"
+        addFromTemplateLabel="Create Consumable from Template"
         searchProps={searchProps}
         sortOptions={sortOptions}
         filterOptions={filterOptions}
         renderCard={renderCard}
         renderCompactCard={renderCompactCard}
       />
-      <GenericItemDialog
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
-        item={editingItem}
-        title={`Edit ${editingItem?.name || "Consumable"}`}
-        description="Modify consumable properties."
-        tabs={consumableDialogTabs}
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Consumable from Template"
+        description="Select a Consumable template to start from."
+        templates={consumableTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
+      />
+      <EditConsumableDialog
+        editingItem={editingItem}
+        setEditingItem={setEditingItem}
         onSave={handleInfoSave}
-        renderPreview={renderPreview}
-        showPlaceholderPicker
-        placeholderCategory="consumable"
       />
       {ruleEditingItem && (
         <RuleBuilder

@@ -65,7 +65,9 @@ interface GenericItemPageProps<T> {
   defaultSort?: string;
   filterOptions?: FilterOption<T>[];
   onAddNew?: () => void;
+  onAddFromTemplate?: () => void;
   addNewLabel?: string;
+  addFromTemplateLabel?: string;
   renderCard: (item: T) => ReactNode;
   renderCompactCard?: (item: T) => ReactNode;
   headerContent?: ReactNode;
@@ -114,7 +116,9 @@ function GenericItemPageInternal<T extends { id: string }>({
   defaultSort,
   filterOptions,
   onAddNew,
+  onAddFromTemplate,
   addNewLabel = "Add New Item",
+  addFromTemplateLabel = "Create from Template",
   renderCard,
   renderCompactCard,
   headerContent,
@@ -167,19 +171,41 @@ function GenericItemPageInternal<T extends { id: string }>({
     return Math.max(1, Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1));
   });
 
-  if (title !== prevTitle) {
+  useEffect(() => {
+    if (title === prevTitle) return;
+
     setPrevTitle(title);
-    if (typeof window !== "undefined") {
-      const savedViewMode = localStorage.getItem(`${storageKeyBase}-view-mode`);
-      setViewMode(savedViewMode === "regular" || savedViewMode === "compact" ? savedViewMode : defaultViewMode);
+    if (typeof window === "undefined") return;
 
-      const savedColumnMode = localStorage.getItem(`${storageKeyBase}-column-mode`);
-      setColumnMode(savedColumnMode === "auto" || savedColumnMode === "1" || savedColumnMode === "2" || savedColumnMode === "3" ? (savedColumnMode as ColumnMode) : defaultColumnMode);
+    const savedViewMode = localStorage.getItem(`${storageKeyBase}-view-mode`);
+    setViewMode(
+      savedViewMode === "regular" || savedViewMode === "compact"
+        ? savedViewMode
+        : defaultViewMode,
+    );
 
-      const savedCompactSizeIndex = localStorage.getItem(`${storageKeyBase}-compact-size-index`);
-      setCompactCardSizeIndex(savedCompactSizeIndex ? parseInt(savedCompactSizeIndex, 10) : Math.max(1, Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1)));
-    }
-  }
+    const savedColumnMode = localStorage.getItem(`${storageKeyBase}-column-mode`);
+    setColumnMode(
+      savedColumnMode === "auto" ||
+        savedColumnMode === "1" ||
+        savedColumnMode === "2" ||
+        savedColumnMode === "3"
+        ? (savedColumnMode as ColumnMode)
+        : defaultColumnMode,
+    );
+
+    const savedCompactSizeIndex = localStorage.getItem(
+      `${storageKeyBase}-compact-size-index`,
+    );
+    setCompactCardSizeIndex(
+      savedCompactSizeIndex
+        ? parseInt(savedCompactSizeIndex, 10)
+        : Math.max(
+            1,
+            Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1),
+          ),
+    );
+  }, [defaultColumnMode, defaultCompactSize, defaultViewMode, prevTitle, storageKeyBase, title]);
 
   useEffect(() => {
     localStorage.setItem(`${storageKeyBase}-view-mode`, viewMode);
@@ -461,15 +487,29 @@ function GenericItemPageInternal<T extends { id: string }>({
           </div>
         </div>
 
-        {onAddNew && !reforged && (
-          <Button
-            onClick={onAddNew}
-            size="lg"
-            className="font-bold shadow-md cursor-pointer transition-colors"
-          >
-            <Plus className="mr-2 h-5 w-5" weight="bold" />
-            {addNewLabel}
-          </Button>
+        {!reforged && (onAddNew || onAddFromTemplate) && (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {onAddFromTemplate && (
+              <Button
+                onClick={onAddFromTemplate}
+                size="lg"
+                variant="outline"
+                className="font-bold cursor-pointer transition-colors"
+              >
+                {addFromTemplateLabel}
+              </Button>
+            )}
+            {onAddNew && (
+              <Button
+                onClick={onAddNew}
+                size="lg"
+                className="font-bold shadow-md cursor-pointer transition-colors"
+              >
+                <Plus className="mr-2 h-5 w-5" weight="bold" />
+                {addNewLabel}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 

@@ -1,14 +1,33 @@
+import { useMemo, useState } from "react";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { useProjectData, useModName } from "@/lib/storage";
 import { SoundData } from "@/lib/types";
-import { SpeakerHigh, PencilSimple, Trash } from "@phosphor-icons/react";
+import {
+  BookmarksSimple,
+  PencilSimple,
+  SpeakerHigh,
+  Trash,
+} from "@phosphor-icons/react";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 
 export default function SoundsPage() {
   const { data, updateSounds, isHydrating } = useProjectData();
   const modName = useModName();
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const soundTemplates = useMemo(
+    () => getItemTemplatesForType("sound"),
+    [getItemTemplatesForType],
+  );
 
   const handleUpdate = (id: string, updates: Partial<SoundData>) => {
     updateSounds(
@@ -16,15 +35,28 @@ export default function SoundsPage() {
     );
   };
 
+  const createBaseSound = (): SoundData => ({
+    id: crypto.randomUUID(),
+    key: "new_sound",
+    soundString: "sound_data",
+    volume: 1,
+    pitch: 1,
+  });
+
   const handleCreate = () => {
-    const newSound: SoundData = {
-      id: crypto.randomUUID(),
-      key: "new_sound",
-      soundString: "sound_data",
-      volume: 1,
-      pitch: 1,
-    };
+    const newSound = createBaseSound();
     updateSounds([...data.sounds, newSound]);
+  };
+
+  const handleCreateFromTemplate = (template: ItemTemplateEntry) => {
+    const baseSound = createBaseSound();
+    const templatedSound = instantiateItemFromTemplate(baseSound, template);
+    updateSounds([...data.sounds, templatedSound]);
+    pushGlobalAlert({
+      type: "success",
+      title: "Template Applied",
+      message: `Created Sound from "${template.name}".`,
+    });
   };
 
   const handleDelete = (id: string) =>
@@ -46,7 +78,9 @@ export default function SoundsPage() {
         items={data.sounds}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={soundTemplates.length > 0 ? () => setIsTemplatePickerOpen(true) : undefined}
         addNewLabel="Create Sound"
+        addFromTemplateLabel="Create Sound from Template"
         searchProps={{
           searchFn: (item, term) => item.key.toLowerCase().includes(term),
         }}
@@ -74,6 +108,23 @@ export default function SoundsPage() {
                 onClick: () => {},
               },
               {
+                id: "saveTemplate",
+                label: "Save as Template",
+                icon: <BookmarksSimple className="h-4 w-4" />,
+                onClick: () => {
+                  createItemTemplate({
+                    name: `${item.key} Template`,
+                    itemType: "sound",
+                    payload: item as unknown as Record<string, unknown>,
+                  });
+                  pushGlobalAlert({
+                    type: "success",
+                    title: "Template Saved",
+                    message: `Saved "${item.key}" as a template.`,
+                  });
+                },
+              },
+              {
                 id: "delete",
                 label: "Delete",
                 icon: <Trash className="h-4 w-4" />,
@@ -83,6 +134,16 @@ export default function SoundsPage() {
             ]}
           />
         )}
+      />
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Sound from Template"
+        description="Select a Sound template to start from."
+        templates={soundTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
       />
       <ConfirmDialog
         open={isDeleteDialogOpen}
@@ -104,3 +165,4 @@ export default function SoundsPage() {
     </>
   );
 }
+

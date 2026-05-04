@@ -22,12 +22,15 @@ import {
   CaretDown,
   List,
   ArrowCounterClockwise,
+  Flask,
+  PuzzlePiece,
   Trash,
   Plus,
   Copy,
   X,
   DiceFive,
   Infinity,
+  BookmarksSimple,
 } from "@phosphor-icons/react";
 import {
   JokerData,
@@ -63,6 +66,7 @@ interface RuleCardProps {
   }) => void;
   onDeleteRule: (ruleId: string) => void;
   onDuplicateRule: (ruleId: string) => void;
+  onSaveRuleTemplate: (ruleId: string) => void;
   onDeleteCondition: (ruleId: string, conditionId: string) => void;
   onDeleteConditionGroup: (ruleId: string, groupId: string) => void;
   onDeleteEffect: (ruleId: string, effectId: string) => void;
@@ -394,6 +398,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
   selectedItem,
   onSelectItem,
   onDuplicateRule,
+  onSaveRuleTemplate,
   onDeleteRule,
   onDeleteCondition,
   onDeleteConditionGroup,
@@ -975,6 +980,24 @@ const RuleCard: React.FC<RuleCardProps> = ({
               </RuleTooltipButton>
             </motion.div>
             <motion.div
+              className="w-8 h-8 bg-card rounded-xl flex items-center justify-center border border-jungle-green-400/40"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ duration: 0.05 }}
+            >
+              <RuleTooltipButton
+                tooltip="Save Rule as Template"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSaveRuleTemplate(rule.id);
+                  setSidebarOpen(false);
+                }}
+                className="w-full h-full flex items-center rounded-lg justify-center transition-colors hover:bg-jungle-green-500/15 cursor-pointer focus:outline-none"
+              >
+                <BookmarksSimple className="h-4 w-4 text-jungle-green-400" />
+              </RuleTooltipButton>
+            </motion.div>
+            <motion.div
               className="w-8 h-8 bg-card rounded-xl flex items-center justify-center border border-border"
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
@@ -1040,29 +1063,41 @@ const RuleCard: React.FC<RuleCardProps> = ({
             style={{ cursor: isDragging ? "grabbing" : "grab" }}
           >
             <div className="flex justify-between items-center">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <motion.button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSidebarOpen(!sidebarOpen);
-                    }}
-                    className="p-1 text-muted-foreground hover:bg-accent rounded-md transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    transition={{ duration: 0.05 }}
+              <div className="flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <motion.button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSidebarOpen(!sidebarOpen);
+                      }}
+                      className="p-1 text-muted-foreground hover:bg-accent rounded-md transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      transition={{ duration: 0.05 }}
+                    >
+                      <List className="h-4 w-4" />
+                    </motion.button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    sideOffset={6}
+                    className="text-xs"
                   >
-                    <List className="h-4 w-4" />
-                  </motion.button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="bottom"
-                  sideOffset={6}
-                  className="text-xs"
+                    {sidebarOpen ? "Close Rule Menu" : "Open Rule Menu"}
+                  </TooltipContent>
+                </Tooltip>
+                <RuleTooltipButton
+                  tooltip="Save Rule as Template"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSaveRuleTemplate(rule.id);
+                  }}
+                  className="p-1 text-jungle-green-400 hover:bg-jungle-green-500/15 rounded-md transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-jungle-green-400/40"
                 >
-                  {sidebarOpen ? "Close Rule Menu" : "Open Rule Menu"}
-                </TooltipContent>
-              </Tooltip>
+                  <BookmarksSimple className="h-4 w-4" />
+                </RuleTooltipButton>
+              </div>
               <motion.div
                 className="flex items-center gap-3"
                 variants={quickFade}
@@ -1071,13 +1106,15 @@ const RuleCard: React.FC<RuleCardProps> = ({
                 transition={{ duration: 0.12, delay: 0.08 }}
               >
                 {totalConditions > 0 && (
-                  <span className="text-muted-foreground text-xs">
-                    {totalConditions} Condition{totalConditions !== 1 && "s"}
+                  <span className="text-muted-foreground text-xs inline-flex items-center gap-1">
+                    <Flask className="h-3 w-3 text-balatro-blue" />
+                    {totalConditions}
                   </span>
                 )}
                 {totalEffects > 0 && (
-                  <span className="text-muted-foreground text-xs">
-                    {totalEffects} Effect{totalEffects !== 1 && "s"}
+                  <span className="text-muted-foreground text-xs inline-flex items-center gap-1">
+                    <PuzzlePiece className="h-3 w-3 text-balatro-green" />
+                    {totalEffects}
                   </span>
                 )}
                 <div className="flex items-center gap-2">

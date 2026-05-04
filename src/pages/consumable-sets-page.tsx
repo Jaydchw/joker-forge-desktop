@@ -2,17 +2,25 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCardMini } from "@/components/pages/generic-item-card-mini";
-import { DialogTab } from "@/components/pages/generic-item-dialog";
-import { GenericItemDialogMini } from "@/components/pages/generic-item-dialog-mini";
-import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
-import { BadgePreview } from "@/components/balatro/badge-preview";
-import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useModName, useProjectData } from "@/lib/storage";
 import { slugify } from "@/lib/balatro-utils";
 import { ConsumableSetData } from "@/lib/types";
-import { Copy, Palette, PencilSimple, Trash } from "@phosphor-icons/react";
+import {
+  BookmarksSimple,
+  Copy,
+  PencilSimple,
+  Trash,
+} from "@phosphor-icons/react";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { EditConsumableSetDialog } from "@/components/edit-dialogs";
 
 const DEFAULT_SET_COLOR = "666666";
 
@@ -33,6 +41,12 @@ export default function ConsumableSetsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<ConsumableSetData | null>(
     null,
+  );
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const consumableSetTemplates = useMemo(
+    () => getItemTemplatesForType("consumableSet"),
+    [getItemTemplatesForType],
   );
 
   const handleUpdate = useCallback(
@@ -78,7 +92,9 @@ export default function ConsumableSetsPage() {
     const activityEditor = searchParams.get("activityEditor");
     if (!activityItemId || activityEditor !== "info") return;
 
-    const target = data.consumableSets.find((item) => item.id === activityItemId);
+    const target = data.consumableSets.find(
+      (item) => item.id === activityItemId,
+    );
     if (!target) return;
 
     setEditingItem(target);
@@ -89,8 +105,8 @@ export default function ConsumableSetsPage() {
     setSearchParams(nextParams, { replace: true });
   }, [data.consumableSets, searchParams, setSearchParams]);
 
-  const handleCreate = useCallback(() => {
-    const newSet: ConsumableSetData = {
+  const createBaseConsumableSet = useCallback((): ConsumableSetData => {
+    return {
       id: crypto.randomUUID(),
       key: "new_set",
       name: "New Set",
@@ -100,9 +116,28 @@ export default function ConsumableSetsPage() {
       collection_rows: [4, 5],
       collection_name: "New Set Cards",
     };
+  }, []);
+
+  const handleCreate = useCallback(() => {
+    const newSet = createBaseConsumableSet();
     updateConsumableSets([...data.consumableSets, newSet]);
     setEditingItem(newSet);
-  }, [data.consumableSets, updateConsumableSets]);
+  }, [createBaseConsumableSet, data.consumableSets, updateConsumableSets]);
+
+  const handleCreateFromTemplate = useCallback(
+    (template: ItemTemplateEntry) => {
+      const baseSet = createBaseConsumableSet();
+      const templatedSet = instantiateItemFromTemplate(baseSet, template);
+      updateConsumableSets([...data.consumableSets, templatedSet]);
+      setEditingItem(templatedSet);
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Applied",
+        message: `Created Consumable Set from \"${template.name}\".`,
+      });
+    },
+    [createBaseConsumableSet, data.consumableSets, updateConsumableSets],
+  );
 
   const handleDelete = useCallback(
     (id: string) =>
@@ -130,148 +165,6 @@ export default function ConsumableSetsPage() {
       updateConsumableSets([...data.consumableSets, duplicated]);
     },
     [data.consumableSets, updateConsumableSets],
-  );
-
-  const setDialogTabs: DialogTab<ConsumableSetData>[] = useMemo(
-    () => [
-      {
-        id: "details",
-        label: "Details",
-        icon: Palette,
-        groups: [
-          {
-            id: "basics",
-            label: "Basics",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "custom",
-                label: "Name",
-                render: (value, onChange, _item, setField) => (
-                  <Input
-                    value={String(value || "")}
-                    placeholder="Mystical"
-                    onChange={(event) => {
-                      const nextName = event.target.value;
-                      onChange(nextName);
-                      setField("key", buildSetKey(nextName));
-                    }}
-                  />
-                ),
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "key",
-                type: "text",
-                label: "Key",
-                placeholder: "mystical",
-                description: "Used as the set identifier",
-              },
-              {
-                id: "collection_name",
-                type: "text",
-                label: "Collection Name",
-                placeholder: "Mystical Cards",
-              },
-            ],
-          },
-          {
-            id: "shop",
-            label: "Shop",
-            fields: [
-              {
-                id: "shop_rate",
-                type: "slider",
-                label: "Shop Rate",
-                min: 0,
-                step: 0.1,
-              },
-              {
-                id: "collection_rows",
-                type: "custom",
-                label: "Collection Rows",
-                render: (value, onChange) => {
-                  const rows = Array.isArray(value) ? value : [4, 5];
-                  const [row1, row2] = rows;
-                  return (
-                    <div className="grid grid-cols-2 gap-3">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={10}
-                        value={row1 ?? 4}
-                        onChange={(event) =>
-                          onChange([Number(event.target.value) || 1, row2 ?? 5])
-                        }
-                        className="h-9"
-                      />
-                      <Input
-                        type="number"
-                        min={1}
-                        max={10}
-                        value={row2 ?? 5}
-                        onChange={(event) =>
-                          onChange([row1 ?? 4, Number(event.target.value) || 1])
-                        }
-                        className="h-9"
-                      />
-                    </div>
-                  );
-                },
-              },
-            ],
-          },
-          {
-            id: "colors",
-            label: "Colors",
-            fields: [
-              {
-                id: "primary_colour",
-                type: "custom",
-                label: "Primary Color",
-                render: (value, onChange) => (
-                  <GenericDialogColorPicker
-                    value={value}
-                    onChange={onChange}
-                    defaultColor={`#${DEFAULT_SET_COLOR}`}
-                    valueMode="without-hash"
-                    placeholder={`#${DEFAULT_SET_COLOR}`}
-                  />
-                ),
-              },
-              {
-                id: "secondary_colour",
-                type: "custom",
-                label: "Secondary Color",
-                render: (value, onChange) => (
-                  <GenericDialogColorPicker
-                    value={value}
-                    onChange={onChange}
-                    defaultColor={`#${DEFAULT_SET_COLOR}`}
-                    valueMode="without-hash"
-                    placeholder={`#${DEFAULT_SET_COLOR}`}
-                  />
-                ),
-              },
-              {
-                id: "set_badge",
-                type: "custom",
-                render: (_value, _onChange, item) => {
-                  const color = normalizeHex(item.primary_colour);
-                  return (
-                    <div className="flex items-center justify-center py-4">
-                      <BadgePreview label={item.name || "Set"} color={color} />
-                    </div>
-                  );
-                },
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [],
   );
 
   const sortOptions = useMemo(
@@ -359,6 +252,24 @@ export default function ConsumableSetsPage() {
             variant: "outline",
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple className="h-4 w-4" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "consumableSet",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+            variant: "outline",
+          },
+          {
             id: "delete",
             label: "Delete",
             icon: <Trash className="h-4 w-4" />,
@@ -368,7 +279,13 @@ export default function ConsumableSetsPage() {
         ]}
       />
     ),
-    [handleDelete, handleDuplicate, handleUpdate, requestDelete],
+    [
+      createItemTemplate,
+      handleDelete,
+      handleDuplicate,
+      handleUpdate,
+      requestDelete,
+    ],
   );
 
   return (
@@ -379,18 +296,30 @@ export default function ConsumableSetsPage() {
         items={data.consumableSets}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={
+          consumableSetTemplates.length > 0
+            ? () => setIsTemplatePickerOpen(true)
+            : undefined
+        }
         addNewLabel="Create Set"
+        addFromTemplateLabel="Create Set from Template"
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
       />
-      <GenericItemDialogMini
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
-        item={editingItem}
-        title={`Edit ${editingItem?.name || "Set"}`}
-        description="Edit consumable set details."
-        tabs={setDialogTabs}
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Consumable Set from Template"
+        description="Select a Consumable Set template to start from."
+        templates={consumableSetTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
+      />
+      <EditConsumableSetDialog
+        editingItem={editingItem}
+        setEditingItem={setEditingItem}
         onSave={handleInfoSave}
       />
       <ConfirmDialog

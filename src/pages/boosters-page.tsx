@@ -3,11 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
-import {
-  GenericItemDialog,
-  DialogTab,
-} from "@/components/pages/generic-item-dialog";
-import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import {
@@ -23,18 +18,23 @@ import {
   EyeSlash,
   Hand,
   Play,
-  Image as ImageIcon,
-  TextT,
-  Gear,
   Copy,
   VideoCamera,
+  BookmarksSimple,
 } from "@phosphor-icons/react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
-import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { EditBoosterDialog } from "@/components/edit-dialogs";
 
 export default function BoostersPage() {
   const { data, updateBoosters, isHydrating } = useProjectData();
@@ -46,8 +46,12 @@ export default function BoostersPage() {
   const [placeholderTargetId, setPlaceholderTargetId] = useState<string | null>(
     null,
   );
-
-  const processBoosterImage = processBalatroCardImage;
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const boosterTemplates = useMemo(
+    () => getItemTemplatesForType("booster"),
+    [getItemTemplatesForType],
+  );
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<BoosterData>) =>
@@ -78,9 +82,9 @@ export default function BoostersPage() {
     setSearchParams(nextParams, { replace: true });
   }, [data.boosters, searchParams, setSearchParams]);
 
-  const handleCreate = useCallback(async () => {
+  const createBaseBooster = useCallback(async (): Promise<BoosterData> => {
     const placeholder = await getRandomPlaceholder("booster");
-    const newBooster: BoosterData = {
+    return {
       id: crypto.randomUUID(),
       objectType: "booster",
       name: "Standard Pack",
@@ -100,11 +104,35 @@ export default function BoostersPage() {
       unlocked: true,
       objectKey: "new_pack",
     };
+  }, [data.boosters.length]);
+
+  const handleCreate = useCallback(async () => {
+    const newBooster = await createBaseBooster();
     updateBoosters([...data.boosters, newBooster]);
     if (getAutoOpenNewItemDialogEnabled()) {
       setEditingItem(newBooster);
     }
-  }, [data.boosters, updateBoosters]);
+  }, [createBaseBooster, data.boosters, updateBoosters]);
+
+  const handleCreateFromTemplate = useCallback(
+    async (template: ItemTemplateEntry) => {
+      const baseBooster = await createBaseBooster();
+      const templatedBooster = instantiateItemFromTemplate(
+        baseBooster,
+        template,
+      );
+      updateBoosters([...data.boosters, templatedBooster]);
+      if (getAutoOpenNewItemDialogEnabled()) {
+        setEditingItem(templatedBooster);
+      }
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Applied",
+        message: `Created Booster from \"${template.name}\".`,
+      });
+    },
+    [createBaseBooster, data.boosters, updateBoosters],
+  );
 
   const handleDelete = useCallback(
     (id: string) => updateBoosters(data.boosters.filter((b) => b.id !== id)),
@@ -118,208 +146,6 @@ export default function BoostersPage() {
     confirmDelete,
     handleOpenChange: handleDeleteDialogChange,
   } = useConfirmDelete(handleDelete);
-
-  const boosterDialogTabs: DialogTab<BoosterData>[] = useMemo(
-    () => [
-      {
-        id: "visual",
-        label: "Visual & Data",
-        icon: ImageIcon,
-        groups: [
-          {
-            id: "assets",
-            label: "Assets",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "image",
-                type: "image",
-                label: "Main Sprite",
-                description: "71x95px (auto-upscaled) or 142x190px",
-                processFile: processBoosterImage,
-              },
-            ],
-          },
-          {
-            id: "data",
-            label: "Basic Data",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "text",
-                label: "Name",
-                placeholder: "Booster Name",
-                className: "col-span-2",
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "objectKey",
-                type: "text",
-                label: "Object Key",
-                placeholder: "p_pack",
-                className: "col-span-2",
-              },
-              {
-                id: "booster_type",
-                type: "select",
-                label: "Booster Type",
-                options: [
-                  { value: "joker", label: "Joker Pack" },
-                  { value: "consumable", label: "Consumable Pack" },
-                  { value: "playing_card", label: "Playing Card Pack" },
-                  { value: "voucher", label: "Voucher Pack" },
-                ],
-              },
-              {
-                id: "cost",
-                type: "number",
-                label: "Cost ($)",
-                min: 0,
-              },
-            ],
-          },
-          {
-            id: "config",
-            label: "Pack Settings",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "weight",
-                type: "number",
-                label: "Weight",
-                min: 0,
-                step: 0.05,
-              },
-              {
-                id: "config.extra",
-                type: "number",
-                label: "Cards in Pack",
-                min: 0,
-              },
-              {
-                id: "config.choose",
-                type: "number",
-                label: "Cards to Choose",
-                min: 0,
-              },
-            ],
-          },
-          {
-            id: "props",
-            label: "Properties",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "unlocked",
-                type: "switch",
-                label: "Unlocked by Default",
-              },
-              {
-                id: "discovered",
-                type: "switch",
-                label: "Discovered by Default",
-              },
-              {
-                id: "draw_hand",
-                type: "switch",
-                label: "Draw to Hand",
-              },
-              {
-                id: "instant_use",
-                type: "switch",
-                label: "Instant Use",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "description",
-        label: "Description",
-        icon: TextT,
-        groups: [
-          {
-            id: "desc",
-            fields: [
-              {
-                id: "description",
-                type: "rich-textarea",
-                label: "Description",
-                validate: (val) => (!val ? "Description is required" : null),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "advanced",
-        label: "Advanced",
-        icon: Gear,
-        groups: [
-          {
-            id: "advanced_fields",
-            label: "Advanced Settings",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "kind",
-                type: "text",
-                label: "Kind",
-                placeholder: "e.g. Ephemeral",
-              },
-              {
-                id: "group_key",
-                type: "text",
-                label: "Group Key",
-                placeholder: "k_booster_group_mystical",
-              },
-              {
-                id: "hidden",
-                type: "switch",
-                label: "Hidden from Collection",
-              },
-            ],
-          },
-          {
-            id: "colors",
-            label: "Pack Colors",
-            fields: [
-              {
-                id: "background_colour",
-                type: "custom",
-                label: "Background Color",
-                render: (value, onChange) => (
-                  <GenericDialogColorPicker
-                    value={value}
-                    onChange={onChange}
-                    defaultColor="#666666"
-                    valueMode="without-hash"
-                    placeholder="#666666"
-                  />
-                ),
-              },
-              {
-                id: "special_colour",
-                type: "custom",
-                label: "Special Color",
-                render: (value, onChange) => (
-                  <GenericDialogColorPicker
-                    value={value}
-                    onChange={onChange}
-                    defaultColor="#666666"
-                    valueMode="without-hash"
-                    placeholder="#666666"
-                  />
-                ),
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [processBoosterImage],
-  );
 
   const searchProps = useMemo(
     () => ({
@@ -430,6 +256,23 @@ export default function BoostersPage() {
             onClick: () => setShowcaseItem(item),
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "booster",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -446,7 +289,7 @@ export default function BoostersPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete],
+    [createItemTemplate, handleUpdate, requestDelete],
   );
 
   const renderCompactCard = useCallback(
@@ -482,6 +325,24 @@ export default function BoostersPage() {
             variant: "ghost",
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "booster",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -507,7 +368,7 @@ export default function BoostersPage() {
         ]}
       />
     ),
-    [requestDelete, data.boosters, updateBoosters],
+    [createItemTemplate, requestDelete, data.boosters, updateBoosters],
   );
 
   return (
@@ -518,25 +379,32 @@ export default function BoostersPage() {
         items={data.boosters}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={
+          boosterTemplates.length > 0
+            ? () => setIsTemplatePickerOpen(true)
+            : undefined
+        }
         addNewLabel="Create Pack"
+        addFromTemplateLabel="Create Pack from Template"
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
         renderCompactCard={renderCompactCard}
       />
-      <GenericItemDialog
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
-        item={editingItem}
-        title={`Edit ${editingItem?.name || "Booster"}`}
-        description="Modify booster properties."
-        tabs={boosterDialogTabs}
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Booster from Template"
+        description="Select a Booster template to start from."
+        templates={boosterTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
+      />
+      <EditBoosterDialog
+        editingItem={editingItem}
+        setEditingItem={setEditingItem}
         onSave={handleInfoSave}
-        showPlaceholderPicker
-        placeholderCategory="booster"
-        renderPreview={(item) => (
-          <BalatroCard type="booster" data={item || {}} size="lg" />
-        )}
       />
       <PlaceholderPickerDialog
         open={isPlaceholderPickerOpen}

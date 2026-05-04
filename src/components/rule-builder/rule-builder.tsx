@@ -63,6 +63,7 @@ import {
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
   Plus,
+  BookmarksSimple,
   SquaresFour,
   Terminal,
   Trash,
@@ -95,6 +96,14 @@ import {
   setRuleBuilderSettings,
   type RuleBuilderSettings,
 } from "@/lib/storage";
+import {
+  instantiateRuleFromTemplate,
+  useTemplateStore,
+  type RuleTemplateEntry,
+  type RuleTemplateItemType,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 
 export type ItemData = any;
 type ItemType = "joker" | "consumable" | "card" | "voucher" | "deck";
@@ -196,8 +205,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 }) => {
   const isReadOnly = reforged;
   const { userConfig } = useContext(UserConfigContext);
+  const { createRuleTemplate, getRuleTemplatesForType } = useTemplateStore();
   const [ruleBuilderSettings, setRuleBuilderSettingsState] =
     useState<RuleBuilderSettings>(() => getRuleBuilderSettings());
+  const [isRuleTemplatePickerOpen, setIsRuleTemplatePickerOpen] =
+    useState(false);
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -322,6 +334,19 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
     return itemType;
   }, [itemType, itemWithoutCustomCode]);
+
+  const ruleTemplateItemType = useMemo<RuleTemplateItemType>(() => {
+    if (itemType === "joker") return "joker";
+    if (itemType === "consumable") return "consumable";
+    if (itemType === "voucher") return "voucher";
+    if (itemType === "deck") return "deck";
+    return "card";
+  }, [itemType]);
+
+  const availableRuleTemplates = useMemo(
+    () => getRuleTemplatesForType(ruleTemplateItemType),
+    [getRuleTemplatesForType, ruleTemplateItemType],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -1433,6 +1458,40 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       };
       setSelectedItem({ type: "trigger", ruleId: newRuleId });
       return [...prevRules, newRule];
+    });
+  };
+
+  const handleSaveRuleAsTemplate = useCallback(
+    (ruleId: string) => {
+      const targetRule = rules.find((rule) => rule.id === ruleId);
+      if (!targetRule) return;
+
+      const templateName = `Rule ${rules.findIndex((rule) => rule.id === ruleId) + 1} Template`;
+      createRuleTemplate({
+        name: templateName,
+        itemType: ruleTemplateItemType,
+        rule: targetRule,
+      });
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Saved",
+        message: `Saved \"${templateName}\".`,
+      });
+    },
+    [createRuleTemplate, ruleTemplateItemType, rules],
+  );
+
+  const handleUseRuleTemplate = (
+    template: (typeof availableRuleTemplates)[number],
+  ) => {
+    const centerPos = getCenterPosition();
+    const newRule = instantiateRuleFromTemplate(template, centerPos);
+    setRules((prev) => [...prev, newRule]);
+    setSelectedItem({ type: "trigger", ruleId: newRule.id });
+    pushGlobalAlert({
+      type: "success",
+      title: "Rule Added",
+      message: `Created a new rule from \"${template.name}\".`,
     });
   };
 
@@ -3687,12 +3746,13 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   if (!isOpen) return null;
   return (
+    <>
     <CustomContextMenu
       groups={contextMenuGroups}
       className="w-62 shadow-[0_24px_45px_-20px_rgba(0,0,0,0.78)]"
     >
       <div
-        className="fixed inset-x-0 bottom-0 top-9 flex bg-background items-center justify-center z-120"
+        className="fixed inset-x-0 bottom-0 top-9 flex bg-background items-center justify-center z-[45]"
         onContextMenuCapture={handleRuleBuilderContextMenuCapture}
       >
         <div
@@ -3776,6 +3836,17 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   {Math.round(panState.scale * 100)}%
                 </span>
                 <div className="w-px h-5 bg-border" />
+                {availableRuleTemplates.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsRuleTemplatePickerOpen(true)}
+                    icon={<BookmarksSimple className="h-4 w-4" />}
+                    className="text-xs cursor-pointer"
+                  >
+                    New Rule from Template
+                  </Button>
+                )}
                 <Button
                   variant={isReadOnly ? "outline" : "default"}
                   size="sm"
@@ -3956,6 +4027,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                                   onSelectItem={handleSelectItem}
                                   onSelectRuleCard={handleSelectRuleCard}
                                   onDuplicateRule={duplicateRule}
+                                  onSaveRuleTemplate={handleSaveRuleAsTemplate}
                                   onDeleteRule={deleteRule}
                                   onDeleteCondition={deleteCondition}
                                   onDeleteConditionGroup={
@@ -4142,6 +4214,17 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         </div>
       </div>
     </CustomContextMenu>
+    <TemplatePickerDialog
+      open={isRuleTemplatePickerOpen}
+      onOpenChange={setIsRuleTemplatePickerOpen}
+      title="Create Rule from Template"
+      description={`Templates for ${ruleTemplateItemType} rules.`}
+      templates={availableRuleTemplates}
+      onUseTemplate={(template) =>
+        handleUseRuleTemplate(template as RuleTemplateEntry)
+      }
+    />
+    </>
   );
 };
 

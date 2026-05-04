@@ -13,9 +13,6 @@ import {
   PencilSimple,
   Sparkle,
   Trash,
-  Image as ImageIcon,
-  TextT,
-  Gear,
   LockOpen,
   Lock,
   Eye,
@@ -28,22 +25,25 @@ import {
   Shuffle,
   VideoCamera,
   DownloadSimple,
+  BookmarksSimple,
 } from "@phosphor-icons/react";
-import {
-  GenericItemDialog,
-  DialogTab,
-} from "@/components/pages/generic-item-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { BalatroCard } from "@/components/balatro/balatro-card";
-import { Input } from "@/components/ui/input";
 import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
-import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { EditDeckDialog } from "@/components/edit-dialogs";
 
 export default function DecksPage() {
   const { data, updateDecks, isHydrating } = useProjectData();
@@ -56,8 +56,12 @@ export default function DecksPage() {
   const [placeholderTargetId, setPlaceholderTargetId] = useState<string | null>(
     null,
   );
-
-  const processDeckImage = processBalatroCardImage;
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const deckTemplates = useMemo(
+    () => getItemTemplatesForType("deck"),
+    [getItemTemplatesForType],
+  );
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<DeckData>) =>
@@ -102,9 +106,9 @@ export default function DecksPage() {
     setSearchParams(nextParams, { replace: true });
   }, [data.decks, searchParams, setSearchParams]);
 
-  const handleCreate = useCallback(async () => {
+  const createBaseDeck = useCallback(async (): Promise<DeckData> => {
     const placeholder = await getRandomPlaceholder("deck");
-    const newDeck: DeckData = {
+    return {
       id: crypto.randomUUID(),
       objectType: "deck",
       name: "New Deck",
@@ -118,11 +122,32 @@ export default function DecksPage() {
       rules: [],
       orderValue: data.decks.length + 1,
     };
+  }, [data.decks.length]);
+
+  const handleCreate = useCallback(async () => {
+    const newDeck = await createBaseDeck();
     updateDecks([...data.decks, newDeck]);
     if (getAutoOpenNewItemDialogEnabled()) {
       setEditingItem(newDeck);
     }
-  }, [data.decks, updateDecks]);
+  }, [createBaseDeck, data.decks, updateDecks]);
+
+  const handleCreateFromTemplate = useCallback(
+    async (template: ItemTemplateEntry) => {
+      const baseDeck = await createBaseDeck();
+      const templatedDeck = instantiateItemFromTemplate(baseDeck, template);
+      updateDecks([...data.decks, templatedDeck]);
+      if (getAutoOpenNewItemDialogEnabled()) {
+        setEditingItem(templatedDeck);
+      }
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Applied",
+        message: `Created Deck from \"${template.name}\".`,
+      });
+    },
+    [createBaseDeck, data.decks, updateDecks],
+  );
 
   const handleDelete = useCallback(
     (id: string) => updateDecks(data.decks.filter((d) => d.id !== id)),
@@ -149,165 +174,6 @@ export default function DecksPage() {
     handleOpenChange: handleDeleteDialogChange,
   } = useConfirmDelete(handleDelete);
 
-  const deckDialogTabs: DialogTab<DeckData>[] = useMemo(
-    () => [
-      {
-        id: "visual",
-        label: "Visual & Data",
-        icon: ImageIcon,
-        groups: [
-          {
-            id: "assets",
-            label: "Assets",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "image",
-                type: "image",
-                label: "Main Sprite",
-                description: "71x95px (auto-upscaled) or 142x190px",
-                processFile: processDeckImage,
-              },
-            ],
-          },
-          {
-            id: "data",
-            label: "Basic Data",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "text",
-                label: "Name",
-                placeholder: "Deck Name",
-                className: "col-span-2",
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "objectKey",
-                type: "text",
-                label: "Object Key",
-                placeholder: "b_deck",
-                className: "col-span-2",
-              },
-            ],
-          },
-          {
-            id: "properties",
-            label: "Properties",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "unlocked",
-                type: "switch",
-                label: "Unlocked by Default",
-              },
-              {
-                id: "discovered",
-                type: "switch",
-                label: "Discovered by Default",
-              },
-              {
-                id: "no_collection",
-                type: "switch",
-                label: "Hidden from Collection",
-              },
-              {
-                id: "no_interest",
-                type: "switch",
-                label: "No Interest",
-              },
-              {
-                id: "no_faces",
-                type: "switch",
-                label: "No Face Cards",
-              },
-              {
-                id: "erratic_deck",
-                type: "switch",
-                label: "Erratic Deck",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "description",
-        label: "Description",
-        icon: TextT,
-        groups: [
-          {
-            id: "desc",
-            fields: [
-              {
-                id: "description",
-                type: "rich-textarea",
-                label: "Description",
-                validate: (val) => (!val ? "Description is required" : null),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "advanced",
-        label: "Advanced",
-        icon: Gear,
-        groups: [
-          {
-            id: "starting",
-            label: "Starting Items",
-            fields: [
-              {
-                id: "Config_vouchers",
-                type: "custom",
-                label: "Starting Vouchers",
-                render: (value, onChange) => (
-                  <div className="space-y-2">
-                    <Input
-                      value={Array.isArray(value) ? value.join(", ") : ""}
-                      onChange={(e) =>
-                        onChange(
-                          e.target.value
-                            .split(",")
-                            .map((s: string) => s.trim())
-                            .filter(Boolean),
-                        )
-                      }
-                      placeholder="v_overstock_norm, v_paint_brush..."
-                    />
-                  </div>
-                ),
-              },
-              {
-                id: "Config_consumables",
-                type: "custom",
-                label: "Starting Consumables",
-                render: (value, onChange) => (
-                  <div className="space-y-2">
-                    <Input
-                      value={Array.isArray(value) ? value.join(", ") : ""}
-                      onChange={(e) =>
-                        onChange(
-                          e.target.value
-                            .split(",")
-                            .map((s: string) => s.trim())
-                            .filter(Boolean),
-                        )
-                      }
-                      placeholder="c_fool, c_death..."
-                    />
-                  </div>
-                ),
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [processDeckImage],
-  );
-
   const searchProps = useMemo(
     () => ({
       searchFn: (item: DeckData, term: string) =>
@@ -329,13 +195,6 @@ export default function DecksPage() {
         sortFn: (a: DeckData, b: DeckData) => a.name.localeCompare(b.name),
       },
     ],
-    [],
-  );
-
-  const renderPreview = useCallback(
-    (item: DeckData | null) => (
-      <BalatroCard type="deck" data={item || {}} size="lg" />
-    ),
     [],
   );
 
@@ -470,6 +329,23 @@ export default function DecksPage() {
             onClick: () => handleExport(deck),
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${deck.name} Template`,
+                itemType: "deck",
+                payload: deck as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${deck.name}\" as a template.`,
+              });
+            },
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -486,7 +362,7 @@ export default function DecksPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport],
   );
 
   const renderCompactCard = useCallback(
@@ -540,6 +416,24 @@ export default function DecksPage() {
             variant: "ghost",
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${deck.name} Template`,
+                itemType: "deck",
+                payload: deck as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${deck.name}\" as a template.`,
+              });
+            },
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -565,7 +459,7 @@ export default function DecksPage() {
         ]}
       />
     ),
-    [requestDelete, handleExport, data.decks, updateDecks],
+    [createItemTemplate, requestDelete, handleExport, data.decks, updateDecks],
   );
 
   return (
@@ -576,23 +470,32 @@ export default function DecksPage() {
         items={data.decks}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={
+          deckTemplates.length > 0
+            ? () => setIsTemplatePickerOpen(true)
+            : undefined
+        }
         addNewLabel="Create Deck"
+        addFromTemplateLabel="Create Deck from Template"
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
         renderCompactCard={renderCompactCard}
       />
-      <GenericItemDialog
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
-        item={editingItem}
-        title={`Edit ${editingItem?.name || "Deck"}`}
-        description="Modify deck properties."
-        tabs={deckDialogTabs}
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Deck from Template"
+        description="Select a Deck template to start from."
+        templates={deckTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
+      />
+      <EditDeckDialog
+        editingItem={editingItem}
+        setEditingItem={setEditingItem}
         onSave={handleInfoSave}
-        renderPreview={renderPreview}
-        showPlaceholderPicker
-        placeholderCategory="deck"
       />
       {ruleEditingItem && (
         <RuleBuilder

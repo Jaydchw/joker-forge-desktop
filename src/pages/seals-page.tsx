@@ -13,9 +13,6 @@ import {
   PencilSimple,
   Sparkle,
   Trash,
-  Image as ImageIcon,
-  TextT,
-  Palette,
   LockOpen,
   Lock,
   Eye,
@@ -24,23 +21,25 @@ import {
   Prohibit,
   VideoCamera,
   DownloadSimple,
+  BookmarksSimple,
 } from "@phosphor-icons/react";
-import {
-  GenericItemDialog,
-  DialogTab,
-} from "@/components/pages/generic-item-dialog";
-import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { BalatroCard } from "@/components/balatro/balatro-card";
-import { SOUNDS } from "@/lib/balatro-utils";
 import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
-import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { EditSealDialog } from "@/components/edit-dialogs";
 
 export default function SealsPage() {
   const { data, updateSeals, isHydrating } = useProjectData();
@@ -53,8 +52,12 @@ export default function SealsPage() {
   const [placeholderTargetId, setPlaceholderTargetId] = useState<string | null>(
     null,
   );
-
-  const processSealImage = processBalatroCardImage;
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const sealTemplates = useMemo(
+    () => getItemTemplatesForType("seal"),
+    [getItemTemplatesForType],
+  );
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<SealData>) =>
@@ -99,9 +102,9 @@ export default function SealsPage() {
     setSearchParams(nextParams, { replace: true });
   }, [data.seals, searchParams, setSearchParams]);
 
-  const handleCreate = useCallback(async () => {
+  const createBaseSeal = useCallback(async (): Promise<SealData> => {
     const placeholder = await getRandomPlaceholder("seal");
-    const newSeal: SealData = {
+    return {
       id: crypto.randomUUID(),
       objectType: "seal",
       name: "New Seal",
@@ -116,11 +119,32 @@ export default function SealsPage() {
       rules: [],
       orderValue: data.seals.length + 1,
     };
+  }, [data.seals.length]);
+
+  const handleCreate = useCallback(async () => {
+    const newSeal = await createBaseSeal();
     updateSeals([...data.seals, newSeal]);
     if (getAutoOpenNewItemDialogEnabled()) {
       setEditingItem(newSeal);
     }
-  }, [data.seals, updateSeals]);
+  }, [createBaseSeal, data.seals, updateSeals]);
+
+  const handleCreateFromTemplate = useCallback(
+    async (template: ItemTemplateEntry) => {
+      const baseSeal = await createBaseSeal();
+      const templatedSeal = instantiateItemFromTemplate(baseSeal, template);
+      updateSeals([...data.seals, templatedSeal]);
+      if (getAutoOpenNewItemDialogEnabled()) {
+        setEditingItem(templatedSeal);
+      }
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Applied",
+        message: `Created Seal from \"${template.name}\".`,
+      });
+    },
+    [createBaseSeal, data.seals, updateSeals],
+  );
 
   const handleDelete = useCallback(
     (id: string) => updateSeals(data.seals.filter((s) => s.id !== id)),
@@ -147,151 +171,6 @@ export default function SealsPage() {
     handleOpenChange: handleDeleteDialogChange,
   } = useConfirmDelete(handleDelete);
 
-  const sealDialogTabs: DialogTab<SealData>[] = useMemo(
-    () => [
-      {
-        id: "visual",
-        label: "Visual & Data",
-        icon: ImageIcon,
-        groups: [
-          {
-            id: "assets",
-            label: "Assets",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "image",
-                type: "image",
-                label: "Main Sprite",
-                description: "71x95px (auto-upscaled) or 142x190px",
-                processFile: processSealImage,
-              },
-            ],
-          },
-          {
-            id: "data",
-            label: "Basic Data",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "text",
-                label: "Name",
-                placeholder: "Seal Name",
-                className: "col-span-2",
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "objectKey",
-                type: "text",
-                label: "Object Key",
-                placeholder: "seal_name",
-                className: "col-span-2",
-              },
-            ],
-          },
-          {
-            id: "properties",
-            label: "Properties",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "unlocked",
-                type: "switch",
-                label: "Unlocked by Default",
-              },
-              {
-                id: "discovered",
-                type: "switch",
-                label: "Discovered by Default",
-              },
-              {
-                id: "no_collection",
-                type: "switch",
-                label: "Hidden from Collection",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "description",
-        label: "Description",
-        icon: TextT,
-        groups: [
-          {
-            id: "desc",
-            fields: [
-              {
-                id: "description",
-                type: "rich-textarea",
-                label: "Description",
-                validate: (val) => (!val ? "Description is required" : null),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "badge",
-        label: "Badge",
-        icon: Palette,
-        groups: [
-          {
-            id: "colors",
-            label: "Badge Color",
-            fields: [
-              {
-                id: "badge_colour",
-                type: "custom",
-                render: (value, onChange) => (
-                  <GenericDialogColorPicker
-                    value={value}
-                    onChange={onChange}
-                    defaultColor="#000000"
-                    valueMode="with-hash"
-                    placeholder="#000000"
-                  />
-                ),
-              },
-            ],
-          },
-          {
-            id: "audio",
-            label: "Sound",
-            className: "grid grid-cols-2 gap-4",
-            fields: [
-              {
-                id: "sound",
-                type: "select",
-                label: "Sound Effect",
-                options: SOUNDS().map((sound) => ({
-                  value: sound.key,
-                  label: sound.label,
-                })),
-              },
-              {
-                id: "pitch",
-                type: "number",
-                label: "Pitch",
-                placeholder: "1.0",
-                step: 0.1,
-              },
-              {
-                id: "volume",
-                type: "number",
-                label: "Volume",
-                placeholder: "1.0",
-                step: 0.1,
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [processSealImage],
-  );
-
   const searchProps = useMemo(
     () => ({
       searchFn: (item: SealData, term: string) =>
@@ -308,19 +187,6 @@ export default function SealsPage() {
         sortFn: (a: SealData, b: SealData) => a.name.localeCompare(b.name),
       },
     ],
-    [],
-  );
-
-  const renderPreview = useCallback(
-    (item: SealData | null) => (
-      <BalatroCard
-        type="card"
-        data={item || {}}
-        isSeal={true}
-        sealBadgeColor={item?.badge_colour}
-        size="lg"
-      />
-    ),
     [],
   );
 
@@ -426,6 +292,23 @@ export default function SealsPage() {
             onClick: () => handleExport(item),
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "seal",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -442,7 +325,7 @@ export default function SealsPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport],
   );
 
   const renderCompactCard = useCallback(
@@ -496,6 +379,24 @@ export default function SealsPage() {
             variant: "ghost",
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "seal",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -521,7 +422,7 @@ export default function SealsPage() {
         ]}
       />
     ),
-    [requestDelete, handleExport, data.seals, updateSeals],
+    [createItemTemplate, requestDelete, handleExport, data.seals, updateSeals],
   );
 
   return (
@@ -532,23 +433,32 @@ export default function SealsPage() {
         items={data.seals}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={
+          sealTemplates.length > 0
+            ? () => setIsTemplatePickerOpen(true)
+            : undefined
+        }
         addNewLabel="Create Seal"
+        addFromTemplateLabel="Create Seal from Template"
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
         renderCompactCard={renderCompactCard}
       />
-      <GenericItemDialog
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
-        item={editingItem}
-        title={`Edit ${editingItem?.name || "Seal"}`}
-        description="Modify seal properties."
-        tabs={sealDialogTabs}
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Seal from Template"
+        description="Select a Seal template to start from."
+        templates={sealTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
+      />
+      <EditSealDialog
+        editingItem={editingItem}
+        setEditingItem={setEditingItem}
         onSave={handleInfoSave}
-        renderPreview={renderPreview}
-        showPlaceholderPicker
-        placeholderCategory="seal"
       />
       {ruleEditingItem && (
         <RuleBuilder

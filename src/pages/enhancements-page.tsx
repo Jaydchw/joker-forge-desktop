@@ -3,10 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
-import {
-  GenericItemDialog,
-  DialogTab,
-} from "@/components/pages/generic-item-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import {
@@ -17,8 +13,6 @@ import {
 import { EnhancementData, Rule } from "@/lib/types";
 import {
   Star,
-  Image as ImageIcon,
-  TextT,
   PencilSimple,
   Sparkle,
   Trash,
@@ -34,15 +28,23 @@ import {
   X,
   VideoCamera,
   DownloadSimple,
+  BookmarksSimple,
 } from "@phosphor-icons/react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
-import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { EditEnhancementDialog } from "@/components/edit-dialogs";
 
 export default function EnhancementsPage() {
   const { data, updateEnhancements, isHydrating } = useProjectData();
@@ -58,8 +60,12 @@ export default function EnhancementsPage() {
   const [placeholderTargetId, setPlaceholderTargetId] = useState<string | null>(
     null,
   );
-
-  const processEnhancementImage = processBalatroCardImage;
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const enhancementTemplates = useMemo(
+    () => getItemTemplatesForType("enhancement"),
+    [getItemTemplatesForType],
+  );
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<EnhancementData>) =>
@@ -106,28 +112,53 @@ export default function EnhancementsPage() {
     setSearchParams(nextParams, { replace: true });
   }, [data.enhancements, searchParams, setSearchParams]);
 
+  const createBaseEnhancement =
+    useCallback(async (): Promise<EnhancementData> => {
+      const placeholder = await getRandomPlaceholder("enhancement");
+      return {
+        id: crypto.randomUUID(),
+        objectType: "enhancement",
+        name: "New Enhancement",
+        description: "Effect",
+        image: placeholder?.src || "",
+        placeholderCreditIndex: placeholder?.index,
+        placeholderCategory: placeholder?.category,
+        objectKey: "new_enhancement",
+        unlocked: true,
+        discovered: true,
+        rules: [],
+        weight: 5,
+        orderValue: data.enhancements.length + 1,
+      };
+    }, [data.enhancements.length]);
+
   const handleCreate = useCallback(async () => {
-    const placeholder = await getRandomPlaceholder("enhancement");
-    const newEnhancement: EnhancementData = {
-      id: crypto.randomUUID(),
-      objectType: "enhancement",
-      name: "New Enhancement",
-      description: "Effect",
-      image: placeholder?.src || "",
-      placeholderCreditIndex: placeholder?.index,
-      placeholderCategory: placeholder?.category,
-      objectKey: "new_enhancement",
-      unlocked: true,
-      discovered: true,
-      rules: [],
-      weight: 5,
-      orderValue: data.enhancements.length + 1,
-    };
+    const newEnhancement = await createBaseEnhancement();
     updateEnhancements([...data.enhancements, newEnhancement]);
     if (getAutoOpenNewItemDialogEnabled()) {
       setEditingItem(newEnhancement);
     }
-  }, [data.enhancements, updateEnhancements]);
+  }, [createBaseEnhancement, data.enhancements, updateEnhancements]);
+
+  const handleCreateFromTemplate = useCallback(
+    async (template: ItemTemplateEntry) => {
+      const baseEnhancement = await createBaseEnhancement();
+      const templatedEnhancement = instantiateItemFromTemplate(
+        baseEnhancement,
+        template,
+      );
+      updateEnhancements([...data.enhancements, templatedEnhancement]);
+      if (getAutoOpenNewItemDialogEnabled()) {
+        setEditingItem(templatedEnhancement);
+      }
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Applied",
+        message: `Created Enhancement from \"${template.name}\".`,
+      });
+    },
+    [createBaseEnhancement, data.enhancements, updateEnhancements],
+  );
 
   const handleDelete = useCallback(
     (id: string) =>
@@ -158,159 +189,6 @@ export default function EnhancementsPage() {
     confirmDelete,
     handleOpenChange: handleDeleteDialogChange,
   } = useConfirmDelete(handleDelete);
-
-  const enhancementDialogTabs: DialogTab<EnhancementData>[] = useMemo(
-    () => [
-      {
-        id: "visual",
-        label: "Visual & Data",
-        icon: ImageIcon,
-        groups: [
-          {
-            id: "assets",
-            label: "Assets",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "image",
-                type: "image",
-                label: "Main Sprite",
-                description: "71x95px (auto-upscaled) or 142x190px",
-                processFile: processEnhancementImage,
-              },
-            ],
-          },
-          {
-            id: "data",
-            label: "Basic Data",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "text",
-                label: "Name",
-                placeholder: "Enhancement Name",
-                className: "col-span-2",
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "objectKey",
-                type: "text",
-                label: "Object Key",
-                placeholder: "m_enhancement",
-                className: "col-span-2",
-              },
-            ],
-          },
-          {
-            id: "weight",
-            label: "Appearance Weight",
-            fields: [
-              {
-                id: "weight",
-                type: "custom",
-                render: (value, onChange) => (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min={0}
-                        max={20}
-                        step={0.25}
-                        value={typeof value === "number" ? value : 0}
-                        onChange={(e) => onChange(parseFloat(e.target.value))}
-                        className="flex-1 h-2 bg-muted rounded appearance-none cursor-pointer"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={20}
-                        step={0.25}
-                        value={typeof value === "number" ? value : 0}
-                        onChange={(e) =>
-                          onChange(parseFloat(e.target.value) || 0)
-                        }
-                        className="w-20 h-9 px-2 rounded border bg-background text-sm"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Higher values appear more frequently.
-                    </p>
-                  </div>
-                ),
-              },
-            ],
-          },
-          {
-            id: "properties",
-            label: "Properties",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "unlocked",
-                type: "switch",
-                label: "Unlocked by Default",
-              },
-              {
-                id: "discovered",
-                type: "switch",
-                label: "Discovered by Default",
-              },
-              {
-                id: "no_collection",
-                type: "switch",
-                label: "Hidden from Collection",
-              },
-              {
-                id: "any_suit",
-                type: "switch",
-                label: "Works with Any Suit",
-              },
-              {
-                id: "replace_base_card",
-                type: "switch",
-                label: "Replaces Base Card",
-              },
-              {
-                id: "always_scores",
-                type: "switch",
-                label: "Always Scores",
-              },
-              {
-                id: "no_rank",
-                type: "switch",
-                label: "Remove Rank",
-              },
-              {
-                id: "no_suit",
-                type: "switch",
-                label: "Remove Suit",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "description",
-        label: "Description",
-        icon: TextT,
-        groups: [
-          {
-            id: "desc",
-            fields: [
-              {
-                id: "description",
-                type: "rich-textarea",
-                label: "Effect Description",
-                validate: (val) => (!val ? "Description is required" : null),
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [processEnhancementImage],
-  );
 
   const searchProps = useMemo(
     () => ({
@@ -478,6 +356,23 @@ export default function EnhancementsPage() {
             onClick: () => handleExport(item),
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "enhancement",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -494,7 +389,7 @@ export default function EnhancementsPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport],
   );
 
   const renderCompactCard = useCallback(
@@ -548,6 +443,24 @@ export default function EnhancementsPage() {
             variant: "ghost",
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "enhancement",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -573,7 +486,13 @@ export default function EnhancementsPage() {
         ]}
       />
     ),
-    [requestDelete, handleExport, data.enhancements, updateEnhancements],
+    [
+      createItemTemplate,
+      requestDelete,
+      handleExport,
+      data.enhancements,
+      updateEnhancements,
+    ],
   );
 
   return (
@@ -584,30 +503,32 @@ export default function EnhancementsPage() {
         items={data.enhancements}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={
+          enhancementTemplates.length > 0
+            ? () => setIsTemplatePickerOpen(true)
+            : undefined
+        }
         addNewLabel="Create Enhancement"
+        addFromTemplateLabel="Create Enhancement from Template"
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
         renderCompactCard={renderCompactCard}
       />
-      <GenericItemDialog
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
-        item={editingItem}
-        title={`Edit ${editingItem?.name || "Enhancement"}`}
-        description="Modify enhancement properties."
-        tabs={enhancementDialogTabs}
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Enhancement from Template"
+        description="Select an Enhancement template to start from."
+        templates={enhancementTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
+      />
+      <EditEnhancementDialog
+        editingItem={editingItem}
+        setEditingItem={setEditingItem}
         onSave={handleInfoSave}
-        showPlaceholderPicker
-        placeholderCategory="enhancement"
-        renderPreview={(item) => (
-          <BalatroCard
-            type="card"
-            data={item || {}}
-            enhancementReplaceBase={item?.replace_base_card === true}
-            size="lg"
-          />
-        )}
       />
       {ruleEditingItem && (
         <RuleBuilder

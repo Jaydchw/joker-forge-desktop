@@ -3,11 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { GenericItemCardCompact } from "@/components/pages/generic-item-card-compact";
-import {
-  GenericItemDialog,
-  DialogTab,
-} from "@/components/pages/generic-item-dialog";
-import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import {
@@ -18,9 +13,6 @@ import {
 import { EditionData, Rule } from "@/lib/types";
 import {
   Palette,
-  Image as ImageIcon,
-  TextT,
-  Gear,
   PencilSimple,
   Sparkle,
   Trash,
@@ -33,13 +25,21 @@ import {
   ShoppingBag,
   VideoCamera,
   DownloadSimple,
+  BookmarksSimple,
 } from "@phosphor-icons/react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
-import { CUSTOM_SHADERS, SOUNDS, VANILLA_SHADERS } from "@/lib/balatro-utils";
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
+import {
+  instantiateItemFromTemplate,
+  useTemplateStore,
+  type ItemTemplateEntry,
+} from "@/lib/templates";
+import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
+import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { EditEditionDialog } from "@/components/edit-dialogs";
 
 export default function EditionsPage() {
   const { data, updateEditions, isHydrating } = useProjectData();
@@ -50,6 +50,12 @@ export default function EditionsPage() {
     null,
   );
   const [showcaseItem, setShowcaseItem] = useState<EditionData | null>(null);
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const { createItemTemplate, getItemTemplatesForType } = useTemplateStore();
+  const editionTemplates = useMemo(
+    () => getItemTemplatesForType("edition"),
+    [getItemTemplatesForType],
+  );
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<EditionData>) => {
@@ -101,8 +107,8 @@ export default function EditionsPage() {
     setSearchParams(nextParams, { replace: true });
   }, [data.editions, searchParams, setSearchParams]);
 
-  const handleCreate = useCallback(() => {
-    const newEdition: EditionData = {
+  const createBaseEdition = useCallback((): EditionData => {
+    return {
       id: crypto.randomUUID(),
       objectType: "edition",
       name: "New Edition",
@@ -116,11 +122,35 @@ export default function EditionsPage() {
       orderValue: data.editions.length + 1,
       image: "",
     };
+  }, [data.editions.length]);
+
+  const handleCreate = useCallback(() => {
+    const newEdition = createBaseEdition();
     updateEditions([...data.editions, newEdition]);
     if (getAutoOpenNewItemDialogEnabled()) {
       setEditingItem(newEdition);
     }
-  }, [data.editions, updateEditions]);
+  }, [createBaseEdition, data.editions, updateEditions]);
+
+  const handleCreateFromTemplate = useCallback(
+    (template: ItemTemplateEntry) => {
+      const baseEdition = createBaseEdition();
+      const templatedEdition = instantiateItemFromTemplate(
+        baseEdition,
+        template,
+      );
+      updateEditions([...data.editions, templatedEdition]);
+      if (getAutoOpenNewItemDialogEnabled()) {
+        setEditingItem(templatedEdition);
+      }
+      pushGlobalAlert({
+        type: "success",
+        title: "Template Applied",
+        message: `Created Edition from \"${template.name}\".`,
+      });
+    },
+    [createBaseEdition, data.editions, updateEditions],
+  );
 
   const handleDelete = useCallback(
     (id: string) => updateEditions(data.editions.filter((e) => e.id !== id)),
@@ -150,223 +180,6 @@ export default function EditionsPage() {
     confirmDelete,
     handleOpenChange: handleDeleteDialogChange,
   } = useConfirmDelete(handleDelete);
-
-  const editionDialogTabs: DialogTab<EditionData>[] = useMemo(
-    () => [
-      {
-        id: "properties",
-        label: "Properties",
-        icon: ImageIcon,
-        groups: [
-          {
-            id: "basic",
-            label: "Basic Data",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "name",
-                type: "text",
-                label: "Name",
-                placeholder: "Edition Name",
-                className: "col-span-2",
-                validate: (val) => (!val ? "Name is required" : null),
-              },
-              {
-                id: "objectKey",
-                type: "text",
-                label: "Object Key",
-                placeholder: "e_edition",
-                className: "col-span-2",
-              },
-              {
-                id: "shader",
-                type: "select",
-                label: "Shader",
-                options: [
-                  { value: "", label: "None" },
-                  ...VANILLA_SHADERS.map((shader) => ({
-                    value: shader.key,
-                    label: shader.label,
-                  })),
-                  ...CUSTOM_SHADERS.map((shader) => ({
-                    value: shader.key,
-                    label: shader.label,
-                  })),
-                ],
-              },
-              {
-                id: "extra_cost",
-                type: "number",
-                label: "Extra Cost",
-                min: 0,
-              },
-            ],
-          },
-          {
-            id: "weight",
-            label: "Appearance Weight",
-            fields: [
-              {
-                id: "weight",
-                type: "custom",
-                render: (value, onChange) => (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min={0}
-                        max={20}
-                        step={0.25}
-                        value={typeof value === "number" ? value : 0}
-                        onChange={(e) => onChange(parseFloat(e.target.value))}
-                        className="flex-1 h-2 bg-muted rounded appearance-none cursor-pointer"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={20}
-                        step={0.25}
-                        value={typeof value === "number" ? value : 0}
-                        onChange={(e) =>
-                          onChange(parseFloat(e.target.value) || 0)
-                        }
-                        className="w-20 h-9 px-2 rounded border bg-background text-sm"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Higher values appear more frequently.
-                    </p>
-                  </div>
-                ),
-              },
-            ],
-          },
-          {
-            id: "flags",
-            label: "State",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "unlocked",
-                type: "switch",
-                label: "Unlocked by Default",
-              },
-              {
-                id: "discovered",
-                type: "switch",
-                label: "Discovered by Default",
-              },
-              {
-                id: "no_collection",
-                type: "switch",
-                label: "Hidden from Collection",
-              },
-              {
-                id: "in_shop",
-                type: "switch",
-                label: "Appears in Shop",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "description",
-        label: "Description",
-        icon: TextT,
-        groups: [
-          {
-            id: "desc",
-            fields: [
-              {
-                id: "description",
-                type: "rich-textarea",
-                label: "Description",
-                validate: (val) => (!val ? "Description is required" : null),
-              },
-            ],
-          },
-        ],
-      },
-      {
-        id: "advanced",
-        label: "Advanced",
-        icon: Gear,
-        groups: [
-          {
-            id: "shader_flags",
-            label: "Shader Options",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "apply_to_float",
-                type: "switch",
-                label: "Apply to Floating Sprites",
-              },
-              {
-                id: "disable_shadow",
-                type: "switch",
-                label: "Disable Shadow",
-              },
-              {
-                id: "disable_base_shader",
-                type: "switch",
-                label: "Disable Base Shader",
-              },
-            ],
-          },
-          {
-            id: "badge",
-            label: "Badge Color",
-            fields: [
-              {
-                id: "badge_colour",
-                type: "custom",
-                render: (value, onChange) => (
-                  <GenericDialogColorPicker
-                    value={value}
-                    onChange={onChange}
-                    defaultColor="#FFAA00"
-                    valueMode="with-hash"
-                    placeholder="#FFAA00"
-                  />
-                ),
-              },
-            ],
-          },
-          {
-            id: "sound",
-            label: "Sound",
-            className: "grid grid-cols-2 gap-6",
-            fields: [
-              {
-                id: "sound",
-                type: "select",
-                label: "Sound Effect",
-                options: SOUNDS().map((sound) => ({
-                  value: sound.key,
-                  label: sound.label,
-                })),
-              },
-              {
-                id: "pitch",
-                type: "number",
-                label: "Pitch",
-                step: 0.1,
-              },
-              {
-                id: "volume",
-                type: "number",
-                label: "Volume",
-                step: 0.1,
-              },
-            ],
-          },
-        ],
-      },
-    ],
-    [],
-  );
 
   const searchProps = useMemo(
     () => ({
@@ -490,6 +303,23 @@ export default function EditionsPage() {
             onClick: () => handleExport(item),
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple className="h-4 w-4" weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "edition",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy className="h-5 w-5" weight="regular" />,
@@ -506,7 +336,7 @@ export default function EditionsPage() {
         ]}
       />
     ),
-    [handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport],
   );
 
   const renderCompactCard = useCallback(
@@ -560,6 +390,24 @@ export default function EditionsPage() {
             variant: "ghost",
           },
           {
+            id: "saveTemplate",
+            label: "Save as Template",
+            icon: <BookmarksSimple weight="regular" />,
+            onClick: () => {
+              createItemTemplate({
+                name: `${item.name} Template`,
+                itemType: "edition",
+                payload: item as unknown as Record<string, unknown>,
+              });
+              pushGlobalAlert({
+                type: "success",
+                title: "Template Saved",
+                message: `Saved \"${item.name}\" as a template.`,
+              });
+            },
+            variant: "ghost",
+          },
+          {
             id: "duplicate",
             label: "Duplicate",
             icon: <Copy weight="regular" />,
@@ -585,7 +433,13 @@ export default function EditionsPage() {
         ]}
       />
     ),
-    [requestDelete, handleExport, data.editions, updateEditions],
+    [
+      createItemTemplate,
+      requestDelete,
+      handleExport,
+      data.editions,
+      updateEditions,
+    ],
   );
 
   return (
@@ -596,31 +450,32 @@ export default function EditionsPage() {
         items={data.editions}
         isLoading={isHydrating}
         onAddNew={handleCreate}
+        onAddFromTemplate={
+          editionTemplates.length > 0
+            ? () => setIsTemplatePickerOpen(true)
+            : undefined
+        }
         addNewLabel="Create Edition"
+        addFromTemplateLabel="Create Edition from Template"
         searchProps={searchProps}
         sortOptions={sortOptions}
         renderCard={renderCard}
         renderCompactCard={renderCompactCard}
       />
-      <GenericItemDialog
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
-        item={editingItem}
-        title={`Edit ${editingItem?.name || "Edition"}`}
-        description="Modify edition properties."
-        tabs={editionDialogTabs}
+      <TemplatePickerDialog
+        open={isTemplatePickerOpen}
+        onOpenChange={setIsTemplatePickerOpen}
+        title="Create Edition from Template"
+        description="Select an Edition template to start from."
+        templates={editionTemplates}
+        onUseTemplate={(template) =>
+          handleCreateFromTemplate(template as ItemTemplateEntry)
+        }
+      />
+      <EditEditionDialog
+        editingItem={editingItem}
+        setEditingItem={setEditingItem}
         onSave={handleInfoSave}
-        renderPreview={(item) => (
-          <BalatroCard
-            type="edition"
-            data={{
-              ...item,
-              shader: item?.shader === "" ? undefined : item?.shader,
-            }}
-            editionBadgeColor={item?.badge_colour}
-            size="lg"
-          />
-        )}
       />
       {ruleEditingItem && (
         <RuleBuilder

@@ -22,11 +22,11 @@ import {
 } from "@/components/ui/tooltip";
 import { PixelArtEditorDialog } from "@/components/pages/pixel-art-editor-dialog";
 import { cn } from "@/lib/utils";
-import { slugify } from "@/lib/balatro-utils";
 import { RaritySelect } from "@/components/balatro/rarity-select";
 import { ConsumableSetSelect } from "@/components/balatro/consumable-set-select";
 import { formatBalatroText } from "@/lib/balatro-text-formatter";
 import { sanitizeDescription } from "@/lib/description-sanitizer";
+import { sanitizeKeyLikeValue } from "@/lib/item-field-validation";
 import type { PixelLayerData } from "@/lib/types";
 
 export interface CardProperty {
@@ -140,6 +140,7 @@ export const GenericItemCard = memo(function GenericItemCard({
   const [tempValue, setTempValue] = useState("");
   const [isThin, setIsThin] = useState(false);
   const [useTextActionButtons, setUseTextActionButtons] = useState(true);
+  const [useCompactIconActions, setUseCompactIconActions] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
@@ -166,10 +167,14 @@ export const GenericItemCard = memo(function GenericItemCard({
       const nextWidth = entries[0]?.contentRect.width ?? 0;
       const nextIsThin = nextWidth > 0 && nextWidth < 560;
       const nextUseTextActionButtons = nextWidth >= 940;
+      const nextUseCompactIconActions = nextWidth > 0 && nextWidth < 760;
 
       setIsThin((prev) => (prev === nextIsThin ? prev : nextIsThin));
       setUseTextActionButtons((prev) =>
         prev === nextUseTextActionButtons ? prev : nextUseTextActionButtons,
+      );
+      setUseCompactIconActions((prev) =>
+        prev === nextUseCompactIconActions ? prev : nextUseCompactIconActions,
       );
     });
 
@@ -198,9 +203,10 @@ export const GenericItemCard = memo(function GenericItemCard({
     }
     if (editingField === "name") {
       if (tempValue.trim()) {
+        const cleanedName = tempValue.trim();
         onUpdate({
-          name: tempValue,
-          objectKey: slugify(tempValue),
+          name: cleanedName,
+          objectKey: sanitizeKeyLikeValue(cleanedName),
         });
       }
     } else if (editingField === "desc") {
@@ -474,7 +480,7 @@ export const GenericItemCard = memo(function GenericItemCard({
             </div>
           )}
 
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 overflow-hidden">
             {editingField === "name" ? (
               <input
                 ref={inputRef as React.RefObject<HTMLInputElement>}
@@ -600,7 +606,11 @@ export const GenericItemCard = memo(function GenericItemCard({
                     onPointerDown={(e) => e.preventDefault()}
                     className={cn(
                       "transition-all hover:scale-110 rounded-lg cursor-pointer",
-                      isThin ? "h-8 w-8" : "h-9 w-9",
+                      useCompactIconActions
+                        ? "h-7 w-7"
+                        : isThin
+                          ? "h-8 w-8"
+                          : "h-9 w-9",
                     )}
                   >
                     {duplicateAction.icon}
@@ -633,7 +643,11 @@ export const GenericItemCard = memo(function GenericItemCard({
                         onPointerDown={(e) => e.preventDefault()}
                         className={cn(
                           "transition-all hover:scale-110 rounded-lg cursor-pointer",
-                          isThin ? "h-8 w-8" : "h-9 w-9",
+                          useCompactIconActions
+                            ? "h-7 w-7"
+                            : isThin
+                              ? "h-8 w-8"
+                              : "h-9 w-9",
                         )}
                       >
                         <Image className="h-4 w-4" />
@@ -656,11 +670,15 @@ export const GenericItemCard = memo(function GenericItemCard({
                         setIsPixelEditorOpen(true);
                       }}
                       onPointerDown={(e) => e.preventDefault()}
-                      className={cn(
-                        "transition-all hover:scale-110 rounded-lg cursor-pointer",
-                        isThin ? "h-8 w-8" : "h-9 w-9",
-                      )}
-                    >
+                        className={cn(
+                          "transition-all hover:scale-110 rounded-lg cursor-pointer",
+                          useCompactIconActions
+                            ? "h-7 w-7"
+                            : isThin
+                              ? "h-8 w-8"
+                              : "h-9 w-9",
+                        )}
+                      >
                       <PaintBrush className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
@@ -683,7 +701,11 @@ export const GenericItemCard = memo(function GenericItemCard({
                       onPointerDown={(e) => e.preventDefault()}
                       className={cn(
                         "transition-all hover:scale-110 rounded-lg cursor-pointer",
-                        isThin ? "h-8 w-8" : "h-9 w-9",
+                        useCompactIconActions
+                          ? "h-7 w-7"
+                          : isThin
+                            ? "h-8 w-8"
+                            : "h-9 w-9",
                       )}
                     >
                       {action.icon}
