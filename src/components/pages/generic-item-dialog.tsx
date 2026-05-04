@@ -44,6 +44,7 @@ import {
   Image as ImageIcon,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
+  ArrowCounterClockwise,
 } from "@phosphor-icons/react";
 import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
 import { slugify } from "@/lib/balatro-utils";
@@ -59,6 +60,11 @@ import {
 } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
+import {
+  sanitizeFieldValue,
+  sanitizeKeyLikeValue,
+  validateFieldValueBasic,
+} from "@/lib/item-field-validation";
 
 export type FieldType =
   | "text"
@@ -951,25 +957,51 @@ const PreviewPanel = memo(
     isCollapsed: boolean;
   }) => {
     const [scale, setScale] = useState([1.0]);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isPanning, setIsPanning] = useState(false);
     const previewContainerRef = useRef<HTMLDivElement>(null);
+    const panLastRef = useRef<{ x: number; y: number } | null>(null);
 
-    useEffect(() => {
-      const container = previewContainerRef.current;
-      if (!container) return;
+    const handleWheelZoom = useCallback(
+      (e: React.WheelEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const delta = -e.deltaY * 0.0015;
+        setScale((prev) => {
+          const newScale = Math.max(0.5, Math.min(1.5, prev[0] + delta));
+          return [newScale];
+        });
+      },
+      [],
+    );
 
-      const handleWheel = (e: WheelEvent) => {
-        if (e.ctrlKey || e.metaKey) {
-          e.preventDefault();
-          const delta = -e.deltaY * 0.001;
-          setScale((prev) => {
-            const newScale = Math.max(0.5, Math.min(1.5, prev[0] + delta));
-            return [newScale];
-          });
-        }
-      };
+    const handlePanStart = useCallback(
+      (e: React.PointerEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return;
+        setIsPanning(true);
+        panLastRef.current = { x: e.clientX, y: e.clientY };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      },
+      [],
+    );
 
-      container.addEventListener("wheel", handleWheel, { passive: false });
-      return () => container.removeEventListener("wheel", handleWheel);
+    const handlePanMove = useCallback(
+      (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!isPanning || !panLastRef.current) return;
+        const dx = e.clientX - panLastRef.current.x;
+        const dy = e.clientY - panLastRef.current.y;
+        panLastRef.current = { x: e.clientX, y: e.clientY };
+        setPan((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
+      },
+      [isPanning],
+    );
+
+    const handlePanEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+      setIsPanning(false);
+      panLastRef.current = null;
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
     }, []);
 
     if (!item) return null;
@@ -999,26 +1031,43 @@ const PreviewPanel = memo(
               <span className="text-xs font-mono w-8 text-right">
                 {(scale[0] * 100).toFixed(0)}%
               </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => setPan({ x: 0, y: 0 })}
+              >
+                <ArrowCounterClockwise className="h-3.5 w-3.5 mr-1" />
+                Reset Position
+              </Button>
             </div>
           )}
 
           <div
             ref={previewContainerRef}
+            onWheel={handleWheelZoom}
+            onPointerDown={handlePanStart}
+            onPointerMove={handlePanMove}
+            onPointerUp={handlePanEnd}
+            onPointerCancel={handlePanEnd}
             className={cn(
-              "flex-1 flex items-center justify-center p-8 overflow-auto bg-size-[16px_16px] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] transition-opacity duration-200",
+              "flex-1 flex items-center justify-center p-8 overflow-hidden bg-size-[16px_16px] bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#1f2937_1px,transparent_1px)] transition-opacity duration-200 touch-none select-none",
+              isPanning ? "cursor-grabbing" : "cursor-grab",
               isCollapsed && "opacity-0",
             )}
           >
             <div
               className="transform transition-transform duration-200 ease-out"
-              style={{ transform: `scale(${scale[0]})` }}
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale[0]})`,
+              }}
             >
               {renderPreview(item)}
             </div>
           </div>
           {!isCollapsed && (
             <div className="p-3 border-t border-border/40 bg-background/50 text-center text-xs text-muted-foreground font-mono">
-              Live Preview (Ctrl/Cmd + Scroll to zoom)
+              Live Preview (drag to pan, scroll to zoom)
             </div>
           )}
         </div>
@@ -1082,6 +1131,15 @@ function GenericItemDialogInternal<T extends { id: string }>({
     () => resolvedTabs.find((tab) => tab.id === resolvedActiveTab),
     [resolvedTabs, resolvedActiveTab],
   );
+  const fieldConfigById = useMemo(() => {
+    const groupsToScan = hasTabs
+      ? resolvedTabs.flatMap((tab) => tab.groups)
+      : resolvedGroups;
+    const entries = groupsToScan.flatMap((group) =>
+      group.fields.map((field) => [field.id, field] as const),
+    );
+    return new Map(entries);
+  }, [hasTabs, resolvedTabs, resolvedGroups]);
 
   useEffect(() => {
     if (open && item) {
@@ -1128,11 +1186,16 @@ function GenericItemDialogInternal<T extends { id: string }>({
   }, [open, placeholderCategory, showPlaceholderPicker]);
 
   const handleChange = useCallback((path: string, value: any) => {
+    const fieldConfig = fieldConfigById.get(path);
+    const nextValue = fieldConfig
+      ? sanitizeFieldValue(fieldConfig.type, path, value)
+      : value;
+
     setFormData((prev: any) => {
       if (!prev) return null;
-      let newData = setNestedValue(prev, path, value);
+      let newData = setNestedValue(prev, path, nextValue);
 
-      if (path === "name" && typeof value === "string") {
+      if (path === "name" && typeof nextValue === "string") {
         const currentName = prev.name || "";
         const currentKey = prev.objectKey || "";
         const oldSlug = slugify(currentName);
@@ -1143,7 +1206,11 @@ function GenericItemDialogInternal<T extends { id: string }>({
           currentKey.startsWith("new_") ||
           currentKey === "unnamed_item"
         ) {
-          newData = setNestedValue(newData, "objectKey", slugify(value));
+          newData = setNestedValue(
+            newData,
+            "objectKey",
+            sanitizeKeyLikeValue(nextValue),
+          );
         }
       }
       return newData;
@@ -1157,11 +1224,12 @@ function GenericItemDialogInternal<T extends { id: string }>({
       }
       return prev;
     });
-  }, []);
+  }, [fieldConfigById]);
 
   const handleSave = useCallback(() => {
     if (!formData || !formData.id) return;
 
+    let nextFormData = formData;
     const newErrors: Record<string, string> = {};
     let hasError = false;
 
@@ -1171,10 +1239,34 @@ function GenericItemDialogInternal<T extends { id: string }>({
 
     validationGroups.forEach((group) => {
       group.fields.forEach((field) => {
+        const currentValue = getNestedValue(nextFormData, field.id);
+        const basicValidation = validateFieldValueBasic(
+          field.type,
+          field.id,
+          currentValue,
+          field.options,
+          field.min,
+          field.max,
+        );
+
+        if (basicValidation.sanitizedValue !== currentValue) {
+          nextFormData = setNestedValue(
+            nextFormData,
+            field.id,
+            basicValidation.sanitizedValue,
+          );
+        }
+
+        if (basicValidation.error) {
+          newErrors[field.id] = basicValidation.error;
+          hasError = true;
+          return;
+        }
+
         if (field.validate) {
           const error = field.validate(
-            getNestedValue(formData, field.id),
-            formData,
+            getNestedValue(nextFormData, field.id),
+            nextFormData,
           );
           if (error) {
             newErrors[field.id] = error;
@@ -1185,9 +1277,10 @@ function GenericItemDialogInternal<T extends { id: string }>({
     });
 
     setErrors(newErrors);
+    setFormData(nextFormData);
 
     if (!hasError) {
-      onSave(formData.id, formData);
+      onSave(nextFormData.id, nextFormData);
       onOpenChange(false);
     } else if (hasTabs) {
       const firstErrorField = Object.keys(newErrors)[0];
@@ -1389,8 +1482,8 @@ function GenericItemDialogInternal<T extends { id: string }>({
                     </ScrollArea>
                   </div>
 
-                  <div className="flex-1 bg-background flex flex-col min-w-0">
-                    <ScrollArea className="flex-1">
+                  <div className="flex-1 bg-background flex flex-col min-w-0 min-h-0">
+                    <div className="flex-1 min-h-0 overflow-y-auto">
                       {activeTabConfig && (
                         <TabsContent
                           value={activeTabConfig.id}
@@ -1399,7 +1492,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
                           {renderGroups(activeTabConfig.groups)}
                         </TabsContent>
                       )}
-                    </ScrollArea>
+                    </div>
                   </div>
                 </div>
               </Panel>
@@ -1421,10 +1514,10 @@ function GenericItemDialogInternal<T extends { id: string }>({
           </Tabs>
         ) : (
           <div className="flex-1 flex min-h-0">
-            <div className="flex-1 bg-background flex flex-col min-w-0">
-              <ScrollArea className="flex-1">
+            <div className="flex-1 bg-background flex flex-col min-w-0 min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 {renderGroups(resolvedGroups)}
-              </ScrollArea>
+              </div>
             </div>
           </div>
         )}
