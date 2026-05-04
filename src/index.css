@@ -223,8 +223,8 @@
   textarea {
     font-family: inherit;
   }
-  input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
+  input[type="number"][data-show-steppers="true"]::-webkit-inner-spin-button,
+  input[type="number"][data-show-steppers="true"]::-webkit-outer-spin-button {
     appearance: none;
     width: 2.2rem;
     background:
@@ -278,8 +278,8 @@
     padding-right: 0.4rem !important;
   }
 
-  input.number-input-compact::-webkit-inner-spin-button,
-  input.number-input-compact::-webkit-outer-spin-button {
+  input.number-input-compact[data-show-steppers="true"]::-webkit-inner-spin-button,
+  input.number-input-compact[data-show-steppers="true"]::-webkit-outer-spin-button {
     margin-left: 0.35rem;
   }
 }

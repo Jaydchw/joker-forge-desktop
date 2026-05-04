@@ -766,11 +766,11 @@ const sanitizeThemeUi = (candidate: unknown): ThemeUiSettings => {
 
   const safe = candidate as Partial<ThemeUiSettings>;
   const fontScale = clamp(
-    Number(safe.fontScale || DEFAULT_UI.fontScale),
+    Number(safe.fontScale ?? DEFAULT_UI.fontScale),
     0.8,
     1.6,
   );
-  const radiusPx = clamp(Number(safe.radiusPx || DEFAULT_UI.radiusPx), 0, 24);
+  const radiusPx = clamp(Number(safe.radiusPx ?? DEFAULT_UI.radiusPx), 0, 24);
   const fontFamily = THEME_FONT_OPTIONS.some(
     (item) => item.key === safe.fontFamily,
   )

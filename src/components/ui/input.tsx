@@ -9,6 +9,7 @@ type InputProps = Omit<React.ComponentProps<"input">, "size"> & {
   labelPosition?: "left" | "center" | "right";
   size?: InputSize | number;
   error?: string;
+  showNumberSteppers?: boolean;
 };
 
 function Input({
@@ -18,8 +19,14 @@ function Input({
   labelPosition = "left",
   size,
   error,
+  showNumberSteppers = false,
   ...props
 }: InputProps) {
+  const numberInputClasses =
+    type === "number"
+      ? "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      : "";
+
   const sizeClasses =
     size === "sm"
       ? "h-8 px-2 text-sm"
@@ -38,9 +45,11 @@ function Input({
         "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
         "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
         sizeClasses,
+        numberInputClasses,
         error && "border-balatro-red focus:ring-balatro-red/40",
         className,
       )}
+      data-show-steppers={showNumberSteppers ? "true" : "false"}
       {...props}
     />
   );
