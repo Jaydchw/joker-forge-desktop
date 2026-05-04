@@ -532,7 +532,7 @@ export function Header({ title }: HeaderProps) {
           <button
             type="button"
             onClick={() => setIsProjectMenuOpen((value) => !value)}
-            className="flex h-9 items-center gap-2 rounded-xl border border-border/60 bg-background/70 px-4 text-sm font-semibold text-foreground/80 transition hover:text-foreground hover:border-primary/40 cursor-pointer"
+            className="flex h-9 items-center gap-2 rounded-md border border-border/60 bg-background/70 px-4 text-sm font-semibold text-foreground/80 transition hover:text-foreground hover:border-primary/40 cursor-pointer"
           >
             <Package className="h-4 w-4 text-primary" weight="fill" />
             <span className="max-w-[200px] truncate">

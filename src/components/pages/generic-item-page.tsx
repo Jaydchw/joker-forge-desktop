@@ -548,7 +548,7 @@ function GenericItemPageInternal<T extends { id: string }>({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
-                className="gap-3 h-9 px-3 text-sm bg-card border-border hover:bg-accent hover:border-primary/50 text-foreground font-medium shadow-sm transition-all rounded-xl justify-between cursor-pointer group"
+                className="gap-3 h-9 px-3 text-sm bg-card border-border hover:bg-accent hover:border-primary/50 text-foreground font-medium shadow-sm transition-all rounded-md justify-between cursor-pointer group"
               >
                 <span className="flex items-center gap-2">
                   <ArrowsDownUp
@@ -603,7 +603,7 @@ function GenericItemPageInternal<T extends { id: string }>({
                 <Button
                   variant={activeFilterCount > 0 ? "secondary" : "outline"}
                   className={cn(
-                    "gap-2 h-9 px-3 text-sm bg-card border-border hover:bg-accent hover:border-primary/50 font-medium shadow-sm transition-all rounded-xl cursor-pointer group",
+                    "gap-2 h-9 px-3 text-sm bg-card border-border hover:bg-accent hover:border-primary/50 font-medium shadow-sm transition-all rounded-md cursor-pointer group",
                     activeFilterCount > 0 &&
                       "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20",
                   )}

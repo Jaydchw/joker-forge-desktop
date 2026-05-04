@@ -39,7 +39,7 @@ const IconButton: React.FC<IconButtonProps> = ({
           size="icon"
           variant="outline"
           className={cn(
-            "relative group h-9 w-9 rounded-xl border-2 transition-all duration-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/50",
+            "relative group h-9 w-9 rounded-md border-2 transition-all duration-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/50",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             isActive
               ? "bg-primary/10 border-primary/45 text-primary shadow-sm"

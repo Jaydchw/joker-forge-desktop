@@ -20,7 +20,7 @@ export function StatButton({
   return (
     <Button
       variant="outline"
-      className={`h-24 flex flex-col items-start justify-center gap-2 border-dashed border-2 border-border hover:border-primary hover:bg-primary/5 dark:hover:border-primary dark:hover:bg-primary/10 w-full relative group overflow-hidden cursor-pointer transition-all duration-200 rounded-xl bg-linear-to-br from-primary/5 via-card to-card ${
+      className={`h-24 flex flex-col items-start justify-center gap-2 border-dashed border-2 border-border hover:border-primary hover:bg-primary/5 dark:hover:border-primary dark:hover:bg-primary/10 w-full relative group overflow-hidden cursor-pointer transition-all duration-200 rounded-md bg-linear-to-br from-primary/5 via-card to-card ${
         reforged ? "border-primary/40" : ""
       }`}
       onClick={() => (window.location.href = href)}

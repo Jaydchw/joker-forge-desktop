@@ -306,7 +306,7 @@ export function OverviewPage() {
           <div className="relative">
             <button
               onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
-              className="w-full flex items-center justify-between p-4 rounded-xl border-2 border-border bg-card hover:border-primary/50 hover:bg-accent/30 transition-all cursor-pointer text-left"
+              className="w-full flex items-center justify-between p-4 rounded-md border-2 border-border bg-card hover:border-primary/50 hover:bg-accent/30 transition-all cursor-pointer text-left"
             >
               <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
