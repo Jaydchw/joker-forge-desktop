@@ -373,12 +373,16 @@ export const BalatroCard = memo(
         <div className="flex flex-col items-center">
           {showCost && cost !== undefined && (
             <div
+              data-showcase-cost-badge="true"
               className={cn(
                 "bg-balatro-cost-bg border-4 border-balatro-cost-border rounded-t-2xl px-4 py-1 -mb-1 relative shadow-sm",
                 hasOverlay ? "z-0" : "z-10",
               )}
             >
-              <span className="text-balatro-cost-text font-bold text-shadow-cost text-2xl tracking-wider">
+              <span
+                data-showcase-cost-text="true"
+                className="text-balatro-cost-text font-bold text-shadow-cost text-2xl tracking-wider"
+              >
                 ${cost}
               </span>
             </div>

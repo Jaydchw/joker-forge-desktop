@@ -325,6 +325,7 @@ export const GenericItemCard = memo(function GenericItemCard({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
+                  data-showcase-cost-badge="true"
                   onClick={() => {
                     if (isReadOnly) return;
                     if (editingField !== "cost") startEdit("cost", cost);
@@ -334,6 +335,7 @@ export const GenericItemCard = memo(function GenericItemCard({
                   <CurrencyDollar className="h-5 w-5" weight="fill" />
                   {editingField === "cost" ? (
                     <input
+                      data-showcase-cost-input="true"
                       ref={inputRef as React.RefObject<HTMLInputElement>}
                       type="text"
                       value={tempValue}

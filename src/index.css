@@ -312,6 +312,23 @@
     text-shadow: 0 1px 2px var(--color-cost-shadow);
   }
 
+  .showcase-cost-theme [data-showcase-cost-badge="true"] {
+    border-color: var(--color-cost-border) !important;
+    background-color: var(--color-cost-bg) !important;
+    color: var(--color-balatro-money) !important;
+    text-shadow: 0 2px 0 var(--color-balatro-shadowbrown);
+  }
+
+  .showcase-cost-theme [data-showcase-cost-badge="true"] [data-showcase-cost-input="true"] {
+    color: var(--color-balatro-money) !important;
+    text-shadow: 0 2px 0 var(--color-balatro-shadowbrown);
+  }
+
+  .showcase-cost-theme [data-showcase-cost-badge="true"] [data-showcase-cost-text="true"] {
+    color: var(--color-balatro-money) !important;
+    text-shadow: 0 2px 0 var(--color-balatro-shadowbrown) !important;
+  }
+
   .pixelated {
     image-rendering: pixelated;
   }

@@ -241,7 +241,7 @@ export function ItemShowcaseDialog({
             </p>
 
             <div
-              className={`relative z-10 flex items-center justify-center touch-none select-none ${
+              className={`showcase-cost-theme relative z-10 flex items-center justify-center touch-none select-none ${
                 isDragging
                   ? "cursor-grabbing"
                   : "cursor-grab transition-transform duration-150"
