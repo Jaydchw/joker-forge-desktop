@@ -760,8 +760,18 @@ fn install_update_and_restart_impl(installer_path: String) -> Result<(), String>
         "@echo off\r\n\
          ping 127.0.0.1 -n 3 > nul\r\n\
          start /wait \"\" \"{}\" /S\r\n\
+         set \"INSTALLER={}\" \r\n\
+         if exist \"%INSTALLER%\" (\r\n\
+           for /l %%i in (1,1,10) do (\r\n\
+             del /f /q \"%INSTALLER%\" > nul 2>&1\r\n\
+             if not exist \"%INSTALLER%\" goto :installer_deleted\r\n\
+             ping 127.0.0.1 -n 2 > nul\r\n\
+           )\r\n\
+         )\r\n\
+         :installer_deleted\r\n\
          start \"\" \"{}\"\r\n\
          del \"%~f0\"\r\n",
+        installer_path,
         installer_path,
         exe_path.to_string_lossy()
     );
