@@ -44,9 +44,40 @@ export function UpdateDialog() {
     });
   }, []);
 
+  useEffect(() => {
+    const handleShowDialog = (event: Event) => {
+      const customEvent = event as CustomEvent<UpdateInfo | undefined>;
+      const detail = customEvent.detail;
+      setUpdateInfo(
+        detail ?? {
+          currentVersion: "2.0.0-beta",
+          latestVersion: "2.1.0",
+          channel: "stable",
+          asset: {
+            name: "joker-forge-update-dev.exe",
+            browser_download_url: "",
+          },
+        },
+      );
+    };
+
+    window.addEventListener("show-update-dialog", handleShowDialog);
+    return () => {
+      window.removeEventListener("show-update-dialog", handleShowDialog);
+    };
+  }, []);
+
   if (!updateInfo) return null;
 
   const handleUpdate = async () => {
+    if (!updateInfo.asset.browser_download_url) {
+      window.alert(
+        "This is a developer preview of the update dialog. No installer URL is attached.",
+      );
+      setUpdateInfo(null);
+      return;
+    }
+
     setIsUpdating(true);
     try {
       await performUpdate(updateInfo.asset);
@@ -100,7 +131,7 @@ export function UpdateDialog() {
         <div className="relative p-6 pb-2">
           <DialogHeader className="text-left space-y-2">
             <div className="flex items-center gap-2">
-              <DownloadSimple className="h-5 w-5 text-muted-foreground" weight="duotone" />
+              <DownloadSimple className="h-5 w-5 shrink-0 text-muted-foreground" weight="regular" />
               <DialogTitle className="text-xl font-semibold tracking-tight">
                 Update Available
               </DialogTitle>
@@ -112,13 +143,13 @@ export function UpdateDialog() {
         </div>
 
         <div className="px-6 py-4">
-          <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-muted/30 p-3">
+          <div className="flex flex-col gap-1.5 rounded-lg p-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Version Details
             </div>
-            <div className="flex items-center gap-2 font-mono text-sm">
+            <div className="flex flex-wrap items-start gap-2 font-mono text-sm">
               <span
-                className="truncate text-muted-foreground"
+                className="break-all text-muted-foreground"
                 title={updateInfo.currentVersion}
               >
                 {updateInfo.currentVersion}
@@ -128,7 +159,7 @@ export function UpdateDialog() {
                 weight="bold"
               />
               <span
-                className="truncate font-medium text-foreground"
+                className="break-all font-medium text-foreground"
                 title={updateInfo.latestVersion}
               >
                 {updateInfo.latestVersion}
