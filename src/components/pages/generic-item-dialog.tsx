@@ -47,7 +47,6 @@ import {
   ArrowCounterClockwise,
 } from "@phosphor-icons/react";
 import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
-import { slugify } from "@/lib/balatro-utils";
 import type { UserVariable } from "@/lib/types";
 import type { Rule } from "@/components/rule-builder/types";
 import { RaritySelect } from "@/components/balatro/rarity-select";
@@ -1198,7 +1197,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
       if (path === "name" && typeof nextValue === "string") {
         const currentName = prev.name || "";
         const currentKey = prev.objectKey || "";
-        const oldSlug = slugify(currentName);
+        const oldSlug = sanitizeKeyLikeValue(currentName);
 
         if (
           !currentKey ||
@@ -1302,8 +1301,17 @@ function GenericItemDialogInternal<T extends { id: string }>({
   useEffect(() => {
     if (!open) return;
 
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: PointerEvent) => {
       if (isPlaceholderDialogOpen) return;
+      // Keep the editor open while any Radix select menu is active.
+      // Use capture-phase pointerdown so this runs before Radix closes the menu.
+      if (
+        document.querySelector(
+          "[data-slot='select-trigger'][data-state='open'], [data-slot='select-content'][data-state='open']",
+        )
+      ) {
+        return;
+      }
 
       const target = event.target as Element | null;
       if (target?.closest("[data-tauri-drag-region]")) {
@@ -1327,9 +1335,9 @@ function GenericItemDialogInternal<T extends { id: string }>({
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("pointerdown", handleClickOutside, true);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("pointerdown", handleClickOutside, true);
     };
   }, [open, isPlaceholderDialogOpen]);
 
