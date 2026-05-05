@@ -23,6 +23,8 @@ import {
   PencilSimple,
   GlobeHemisphereWest,
   Database,
+  ClockCounterClockwise,
+  DotOutline,
 } from "@phosphor-icons/react";
 import { Input as InputField } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 type ItemData = any;
 
 interface VariablesProps {
@@ -109,7 +116,16 @@ const Variables: React.FC<VariablesProps> = ({
   onClose,
   addVariableRequest,
 }) => {
-  const { data } = useProjectData();
+  const {
+    data,
+    updateJokers,
+    updateConsumables,
+    updateVouchers,
+    updateDecks,
+    updateEnhancements,
+    updateSeals,
+    updateEditions,
+  } = useProjectData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingVariable, setEditingVariable] = useState<string | null>(null);
   const [newVariableType, setNewVariableType] = useState<
@@ -198,6 +214,74 @@ const Variables: React.FC<VariablesProps> = ({
       }),
     [item, userVariables],
   );
+  const globalVariableOwnersByName = useMemo(
+    () =>
+      new Map(
+        collectGlobalVariables(data, { excludeItemId: item?.id }).map((entry) => [
+          entry.variable.name.trim().toLowerCase(),
+          entry,
+        ]),
+      ),
+    [data, item?.id],
+  );
+
+  const sanitizeVariableNameInput = (value: string) =>
+    value.replace(/\s+/g, "_");
+  const sanitizeUnderscoreInput = (value: string) => value.replace(/\s+/g, "_");
+
+  const updateOwnerItemVariables = (
+    ownerItemId: string,
+    ownerItemType: string,
+    updater: (variables: UserVariable[]) => UserVariable[],
+  ) => {
+    const apply = <
+      T extends {
+        id: string;
+        userVariables?: UserVariable[];
+      },
+    >(
+      items: T[],
+      updateItems: (next: T[]) => void,
+    ) => {
+      const nextItems = items.map((entry) => {
+        if (entry.id !== ownerItemId) return entry;
+        const currentVariables = Array.isArray(entry.userVariables)
+          ? entry.userVariables
+          : [];
+        return {
+          ...entry,
+          userVariables: updater(currentVariables),
+        };
+      });
+      updateItems(nextItems);
+    };
+
+    switch (ownerItemType) {
+      case "joker":
+        apply(data.jokers, updateJokers);
+        return;
+      case "consumable":
+        apply(data.consumables, updateConsumables);
+        return;
+      case "voucher":
+        apply(data.vouchers, updateVouchers);
+        return;
+      case "deck":
+        apply(data.decks, updateDecks);
+        return;
+      case "enhancement":
+        apply(data.enhancements, updateEnhancements);
+        return;
+      case "seal":
+        apply(data.seals, updateSeals);
+        return;
+      case "edition":
+        apply(data.editions, updateEditions);
+        return;
+      default:
+        return;
+    }
+  };
 
   const getUsageInfo = (variableName: string) => {
     const usages = usageDetails.filter(
@@ -297,6 +381,20 @@ const Variables: React.FC<VariablesProps> = ({
   };
 
   const handleDeleteVariable = (variableId: string) => {
+    const sharedVariable = userVariables.find((v) => v.id === variableId);
+    if (!sharedVariable) return;
+    const ownerEntry = globalVariableOwnersByName.get(
+      sharedVariable.name.trim().toLowerCase(),
+    );
+    if (ownerEntry && !localVariableIds.has(variableId)) {
+      updateOwnerItemVariables(
+        ownerEntry.ownerItemId,
+        ownerEntry.ownerItemType,
+        (variables) => variables.filter((v) => v.id !== variableId),
+      );
+      return;
+    }
+
     const updatedVariables = localUserVariables.filter(
       (v: UserVariable) => v.id !== variableId,
     );
@@ -318,14 +416,15 @@ const Variables: React.FC<VariablesProps> = ({
     setEditValidationError("");
   };
 
-  const handleSaveEdit = (variableId: string) => {
-    if (!validateEditVariableName(editingName, variableId)) {
+  const handleSaveEdit = (variable: UserVariable) => {
+    const sanitizedName = sanitizeVariableNameInput(editingName);
+    if (!validateEditVariableName(sanitizedName, variable.id)) {
       return;
     }
 
     const updatedVariable: UserVariable = {
-      id: variableId,
-      name: editingName,
+      id: variable.id,
+      name: sanitizedName,
       type: editingType,
       isGlobal: editingIsGlobal,
       isPersistent: editingIsGlobal ? editingIsPersistent : false,
@@ -345,10 +444,23 @@ const Variables: React.FC<VariablesProps> = ({
       updatedVariable.initialText = editingText;
     }
 
-    const updatedVariables = localUserVariables.map((v: UserVariable) =>
-      v.id === variableId ? updatedVariable : v,
+    const ownerEntry = globalVariableOwnersByName.get(
+      variable.name.trim().toLowerCase(),
     );
-    onUpdateItem({ userVariables: updatedVariables });
+
+    if (ownerEntry && !localVariableIds.has(variable.id)) {
+      updateOwnerItemVariables(
+        ownerEntry.ownerItemId,
+        ownerEntry.ownerItemType,
+        (variables) =>
+          variables.map((v) => (v.id === variable.id ? updatedVariable : v)),
+      );
+    } else {
+      const updatedVariables = localUserVariables.map((v: UserVariable) =>
+        v.id === variable.id ? updatedVariable : v,
+      );
+      onUpdateItem({ userVariables: updatedVariables });
+    }
     setEditingVariable(null);
     setEditValidationError("");
   };
@@ -482,7 +594,7 @@ const Variables: React.FC<VariablesProps> = ({
               return (
                 <div
                   key={variable.id}
-                  className="bg-background/60 rounded-xl p-3"
+                  className="bg-background/60 rounded-xl p-2.5"
                 >
                   {isEditing ? (
                     <div className="space-y-3">
@@ -490,12 +602,12 @@ const Variables: React.FC<VariablesProps> = ({
                         <InputField
                           value={editingName}
                           onChange={(e) => {
-                            setEditingName(e.target.value);
+                            const sanitized = sanitizeVariableNameInput(
+                              e.target.value,
+                            );
+                            setEditingName(sanitized);
                             if (editValidationError) {
-                              validateEditVariableName(
-                                e.target.value,
-                                variable.id,
-                              );
+                              validateEditVariableName(sanitized, variable.id);
                             }
                           }}
                           label="Name"
@@ -580,7 +692,9 @@ const Variables: React.FC<VariablesProps> = ({
                         <InputField
                           value={editingJoker.toString()}
                           onChange={(e) => {
-                            const value = e.target.value || "j_joker";
+                            const value =
+                              sanitizeUnderscoreInput(e.target.value) ||
+                              "j_joker";
                             setEditingJoker(value as string);
                           }}
                           type="string"
@@ -631,7 +745,7 @@ const Variables: React.FC<VariablesProps> = ({
                         <Button
                           variant="default"
                           size="sm"
-                          onClick={() => handleSaveEdit(variable.id)}
+                          onClick={() => handleSaveEdit(variable)}
                           disabled={!!editValidationError}
                           className="cursor-pointer flex-1"
                         >
@@ -649,69 +763,88 @@ const Variables: React.FC<VariablesProps> = ({
                     </div>
                   ) : (
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <VariableIcon className={`h-4 w-4 ${colorClass}`} />
-                          <span
-                            className={`text-sm font-mono font-medium ${colorClass}`}
-                          >
-                            ${variable.name}
-                          </span>
-                        </div>
-
-                        {isLocalVariable ? (
-                          <div className="flex items-center gap-1">
-                            <IconButton
-                              icon={PencilSimple}
-                              tooltip="Edit Variable"
-                              onClick={() => handleStartEdit(variable)}
-                              className="h-7 w-7"
-                              iconClassName="h-3.5 w-3.5"
-                            />
-                            <IconButton
-                              icon={Trash}
-                              tooltip="Delete Variable"
-                              onClick={() => handleDeleteVariable(variable.id)}
-                              className="h-7 w-7 border-destructive/40 text-destructive hover:border-destructive/60 hover:text-destructive"
-                              iconClassName="h-3.5 w-3.5"
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                            Shared
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          {variable.type === "number" ? "Initial:" : "Value:"}{" "}
-                          {getVariableDisplayValue(variable)}
-                        </span>
-                        {variable.isGlobal ? (
-                          <span className="text-[10px] uppercase tracking-wide text-jungle-green-400">
-                            {variable.isPersistent
-                              ? "Global - Persistent"
-                              : "Global - Run"}
-                          </span>
-                        ) : null}
-                        {usageInfo.count > 0 && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-muted-foreground text-xs">
-                              Used in:
-                            </span>
-                            {usageInfo.rules.map((ruleNum) => (
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2 min-w-0 mb-1.5">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <VariableIcon
+                                className={`h-4 w-4 shrink-0 ${colorClass}`}
+                              />
                               <span
-                                key={ruleNum}
-                                className={
-                                  "bg-muted/40 text-xs px-1.5 py-0.5 rounded text-white"
-                                }
+                                className={`text-xs font-mono font-medium ${colorClass} truncate`}
+                                title={`$${variable.name}`}
                               >
-                                {ruleNum + 1}
+                                ${variable.name}
                               </span>
-                            ))}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
+                              {isLocalVariable ? (
+                                <DotOutline className="h-3.5 w-3.5" />
+                              ) : (
+                                <GlobeHemisphereWest className="h-3.5 w-3.5" />
+                              )}
+                              {variable.isGlobal ? (
+                                <GlobeHemisphereWest className="h-3.5 w-3.5 text-jungle-green-400" />
+                              ) : null}
+                              {variable.isPersistent ? (
+                                <Database className="h-3.5 w-3.5 text-jungle-green-400" />
+                              ) : null}
+                            </div>
                           </div>
-                        )}
+                          <div className="flex items-center justify-between text-xs gap-2">
+                            <span
+                              className="text-muted-foreground inline-flex items-center gap-1.5 min-w-0"
+                              title={String(getVariableDisplayValue(variable))}
+                            >
+                              <ClockCounterClockwise className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">
+                                {getVariableDisplayValue(variable)}
+                              </span>
+                            </span>
+                            {usageInfo.count > 0 && (
+                              <div className="flex items-center gap-1">
+                                {usageInfo.rules.map((ruleNum) => (
+                                  <span
+                                    key={ruleNum}
+                                    className={
+                                      "bg-muted/40 text-[10px] px-1.5 py-0.5 rounded text-white"
+                                    }
+                                  >
+                                    {ruleNum + 1}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleStartEdit(variable)}
+                                className="cursor-pointer h-6 w-6 p-0"
+                              >
+                                <PencilSimple className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit variable</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteVariable(variable.id)}
+                                className="cursor-pointer h-6 w-6 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete variable</TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -720,175 +853,179 @@ const Variables: React.FC<VariablesProps> = ({
             })
           )}
 
-          {showAddForm && (
-            <div className="bg-background/70 rounded-xl p-3">
-              <div className="space-y-3">
-                <div>
-                  <InputField
-                    value={newVariableName}
-                    onChange={(e) => {
-                      setNewVariableName(e.target.value);
-                      validateNewVariableName(e.target.value);
-                    }}
-                    placeholder="myVariable"
-                    label="Name"
-                    size="sm"
-                  />
-                  {nameValidationError && (
-                    <div className="flex items-center gap-2 mt-1 text-balatro-red text-sm">
-                      <Warning className="h-4 w-4" />
-                      <span>{nameValidationError}</span>
-                    </div>
+        </div>
+
+        {showAddForm && (
+          <div className="bg-background/70 rounded-xl p-3 mb-4">
+            <div className="space-y-3">
+              <div>
+                <InputField
+                  value={newVariableName}
+                  onChange={(e) => {
+                    const sanitized = sanitizeVariableNameInput(e.target.value);
+                    setNewVariableName(sanitized);
+                    validateNewVariableName(sanitized);
+                  }}
+                  placeholder="myVariable"
+                  label="Name"
+                  size="sm"
+                />
+                {nameValidationError && (
+                  <div className="flex items-center gap-2 mt-1 text-balatro-red text-sm">
+                    <Warning className="h-4 w-4" />
+                    <span>{nameValidationError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-end gap-2">
+                <div className="grow">
+                  {renderSelectField(
+                    "Type",
+                    newVariableType,
+                    (value) =>
+                      setNewVariableType(
+                        value as
+                          | "number"
+                          | "suit"
+                          | "rank"
+                          | "pokerhand"
+                          | "key"
+                          | "text",
+                      ),
+                    VARIABLE_TYPE_OPTIONS,
                   )}
                 </div>
-
-                <div className="flex items-end gap-2">
-                  <div className="grow">
-                    {renderSelectField(
-                      "Type",
-                      newVariableType,
-                      (value) =>
-                        setNewVariableType(
-                          value as
-                            | "number"
-                            | "suit"
-                            | "rank"
-                            | "pokerhand"
-                            | "key"
-                            | "text",
-                        ),
-                      VARIABLE_TYPE_OPTIONS,
-                    )}
-                  </div>
+                <IconButton
+                  icon={GlobeHemisphereWest}
+                  tooltip={
+                    newVariableIsGlobal
+                      ? "Global variable enabled"
+                      : "Make variable global"
+                  }
+                  onClick={() =>
+                    setNewVariableIsGlobal((prev) => {
+                      const next = !prev;
+                      if (!next) {
+                        setNewVariableIsPersistent(false);
+                      }
+                      return next;
+                    })
+                  }
+                  isActive={newVariableIsGlobal}
+                  className="h-8 w-8"
+                />
+                {newVariableIsGlobal ? (
                   <IconButton
-                    icon={GlobeHemisphereWest}
+                    icon={Database}
                     tooltip={
-                      newVariableIsGlobal
-                        ? "Global variable enabled"
-                        : "Make variable global"
+                      newVariableIsPersistent
+                        ? "Persistent between runs"
+                        : "Local to current run"
                     }
                     onClick={() =>
-                      setNewVariableIsGlobal((prev) => {
-                        const next = !prev;
-                        if (!next) {
-                          setNewVariableIsPersistent(false);
-                        }
-                        return next;
-                      })
+                      setNewVariableIsPersistent((prev) => !prev)
                     }
-                    isActive={newVariableIsGlobal}
+                    isActive={newVariableIsPersistent}
                     className="h-8 w-8"
                   />
-                  {newVariableIsGlobal ? (
-                    <IconButton
-                      icon={Database}
-                      tooltip={
-                        newVariableIsPersistent
-                          ? "Persistent between runs"
-                          : "Local to current run"
-                      }
-                      onClick={() =>
-                        setNewVariableIsPersistent((prev) => !prev)
-                      }
-                      isActive={newVariableIsPersistent}
-                      className="h-8 w-8"
-                    />
-                  ) : null}
-                </div>
+                ) : null}
+              </div>
 
-                {newVariableType === "number" && (
-                  <InputField
-                    value={newVariableValue}
-                    onChange={(e) => setNewVariableValue(e.target.value)}
-                    placeholder="0"
-                    label="Initial Value"
-                    type="number"
-                    size="sm"
-                  />
+              {newVariableType === "number" && (
+                <InputField
+                  value={newVariableValue}
+                  onChange={(e) => setNewVariableValue(e.target.value)}
+                  placeholder="0"
+                  label="Initial Value"
+                  type="number"
+                  size="sm"
+                />
+              )}
+
+              {newVariableType === "key" && (
+                <InputField
+                  value={newVariableKey}
+                  onChange={(e) =>
+                    setNewVariableKey(sanitizeUnderscoreInput(e.target.value))
+                  }
+                  placeholder="none"
+                  label="Initial Key"
+                  type="string"
+                  size="sm"
+                />
+              )}
+
+              {newVariableType === "text" && (
+                <InputField
+                  value={newVariableText}
+                  onChange={(e) => setNewVariableText(e.target.value)}
+                  placeholder="Hello"
+                  label="Initial Text"
+                  type="string"
+                  size="sm"
+                />
+              )}
+
+              {newVariableType === "suit" &&
+                renderSelectField(
+                  "Initial Suit",
+                  newVariableSuit,
+                  (value) => setNewVariableSuit(value as SuitValue),
+                  SUIT_OPTIONS,
                 )}
 
-                {newVariableType === "key" && (
-                  <InputField
-                    value={newVariableKey}
-                    onChange={(e) => setNewVariableKey(e.target.value)}
-                    placeholder="none"
-                    label="Initial Key"
-                    type="string"
-                    size="sm"
-                  />
+              {newVariableType === "rank" &&
+                renderSelectField(
+                  "Initial Rank",
+                  newVariableRank,
+                  (value) => setNewVariableRank(value as RankLabel),
+                  RANK_OPTIONS,
                 )}
 
-                {newVariableType === "text" && (
-                  <InputField
-                    value={newVariableText}
-                    onChange={(e) => setNewVariableText(e.target.value)}
-                    placeholder="Hello"
-                    label="Initial Text"
-                    type="string"
-                    size="sm"
-                  />
+              {newVariableType === "pokerhand" &&
+                renderSelectField(
+                  "Initial Poker Hand",
+                  newVariablePokerHand,
+                  (value) => setNewVariablePokerHand(value as PokerHandValue),
+                  POKER_HAND_OPTIONS,
                 )}
 
-                {newVariableType === "suit" &&
-                  renderSelectField(
-                    "Initial Suit",
-                    newVariableSuit,
-                    (value) => setNewVariableSuit(value as SuitValue),
-                    SUIT_OPTIONS,
-                  )}
-
-                {newVariableType === "rank" &&
-                  renderSelectField(
-                    "Initial Rank",
-                    newVariableRank,
-                    (value) => setNewVariableRank(value as RankLabel),
-                    RANK_OPTIONS,
-                  )}
-
-                {newVariableType === "pokerhand" &&
-                  renderSelectField(
-                    "Initial Poker Hand",
-                    newVariablePokerHand,
-                    (value) => setNewVariablePokerHand(value as PokerHandValue),
-                    POKER_HAND_OPTIONS,
-                  )}
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleAddVariable}
-                    disabled={!newVariableName.trim() || !!nameValidationError}
-                    className="cursor-pointer flex-1"
-                  >
-                    Create
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setNewVariableName("");
-                      setNewVariableValue("0");
-                      setNewVariableSuit(SUIT_VALUES[0]);
-                      setNewVariableRank("Ace");
-                      setNewVariableText("Hello");
-                      setNewVariableKey("none");
-                      setNewVariablePokerHand(POKER_HAND_VALUES[0]);
-                      setNewVariableIsGlobal(false);
-                      setNewVariableIsPersistent(false);
-                      setNewVariableType("number");
-                      setNameValidationError("");
-                    }}
-                    className="cursor-pointer"
-                  >
-                    Cancel
-                  </Button>
-                </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleAddVariable}
+                  disabled={!newVariableName.trim() || !!nameValidationError}
+                  className="cursor-pointer w-full"
+                >
+                  Create
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewVariableName("");
+                    setNewVariableValue("0");
+                    setNewVariableSuit(SUIT_VALUES[0]);
+                    setNewVariableRank("Ace");
+                    setNewVariableText("Hello");
+                    setNewVariableKey("none");
+                    setNewVariablePokerHand(POKER_HAND_VALUES[0]);
+                    setNewVariableIsGlobal(false);
+                    setNewVariableIsPersistent(false);
+                    setNewVariableType("number");
+                    setNameValidationError("");
+                  }}
+                  className="cursor-pointer w-full"
+                >
+                  Cancel
+                </Button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {!showAddForm && (
           <Button
