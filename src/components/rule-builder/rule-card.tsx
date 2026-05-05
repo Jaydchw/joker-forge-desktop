@@ -97,7 +97,6 @@ interface RuleCardProps {
   itemType: "joker" | "consumable" | "card" | "voucher" | "deck";
   generateConditionTitle: (condition: RuleCondition) => string;
   generateEffectTitle: (effect: RuleEffect) => string;
-  formatTriggerLabel?: (label: string) => string;
   getParameterCount: (
     params: Record<string, { value: unknown; valueType?: string }>,
   ) => number;
@@ -417,7 +416,6 @@ const RuleCard: React.FC<RuleCardProps> = ({
   selectedRuleCount,
   generateConditionTitle,
   generateEffectTitle,
-  formatTriggerLabel,
   getParameterCount,
   onUpdateConditionOperator,
   itemType,
@@ -526,9 +524,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   const trigger = getTriggerById(rule.trigger);
-  const triggerLabel = formatTriggerLabel
-    ? formatTriggerLabel(trigger?.label[itemType] || "Unknown Trigger")
-    : trigger?.label[itemType] || "Unknown Trigger";
+  const triggerLabel = trigger?.label[itemType] || "Unknown Trigger";
   const allConditions = rule.conditionGroups.flatMap(
     (group) => group.conditions,
   );

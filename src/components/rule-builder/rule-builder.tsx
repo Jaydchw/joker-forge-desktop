@@ -2547,13 +2547,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     [generateAutoTitle, getEffectType],
   );
 
-  const formatTriggerLabelForCard = useCallback((label: string) => {
-    if (label.toLowerCase() === "when a hand is played") {
-      return "After Cards Scored";
-    }
-    return label;
-  }, []);
-
   const handleRuleCardDoubleClick = useCallback(() => {
     setInspectorIsOpen(true);
   }, []);
@@ -4178,9 +4171,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                                   itemType={itemType}
                                   generateConditionTitle={
                                     generateConditionTitleForCard
-                                  }
-                                  formatTriggerLabel={
-                                    formatTriggerLabelForCard
                                   }
                                   generateEffectTitle={
                                     generateEffectTitleForCard
