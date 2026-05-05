@@ -52,51 +52,42 @@ pub fn modify_internal_variable(
     let variable_path = ctx.user_var_path(&variable_name);
 
     let operation_code = match operation.as_str() {
-        "set" => format!("{path} = {val}", path = variable_path, val = resolved.lua_str),
+        "set" => format!(
+            "{path} = {val}",
+            path = variable_path,
+            val = resolved.lua_str
+        ),
         "increment" => format!(
             "{path} = ({path}) + {val}",
-            path = variable_path, val = resolved.lua_str
+            path = variable_path,
+            val = resolved.lua_str
         ),
         "decrement" => format!(
             "{path} = math.max(0, ({path}) - {val})",
-            path = variable_path, val = resolved.lua_str
+            path = variable_path,
+            val = resolved.lua_str
         ),
         "multiply" => format!(
             "{path} = ({path}) * {val}",
-            path = variable_path, val = resolved.lua_str
+            path = variable_path,
+            val = resolved.lua_str
         ),
         "divide" => format!(
             "{path} = ({path}) / {val}",
-            path = variable_path, val = resolved.lua_str
+            path = variable_path,
+            val = resolved.lua_str
         ),
         "power" => format!(
             "{path} = ({path}) ^ {val}",
-            path = variable_path, val = resolved.lua_str
+            path = variable_path,
+            val = resolved.lua_str
         ),
-        "absolute" => format!(
-            "{path} = math.abs({path})",
-            path = variable_path
-        ),
-        "natural_log" => format!(
-            "{path} = math.log({path})",
-            path = variable_path
-        ),
-        "log10" => format!(
-            "{path} = math.log10({path})",
-            path = variable_path
-        ),
-        "square_root" => format!(
-            "{path} = math.sqrt({path})",
-            path = variable_path
-        ),
-        "ceil" => format!(
-            "{path} = math.ceil({path})",
-            path = variable_path
-        ),
-        "floor" => format!(
-            "{path} = math.floor({path})",
-            path = variable_path
-        ),
+        "absolute" => format!("{path} = math.abs({path})", path = variable_path),
+        "natural_log" => format!("{path} = math.log({path})", path = variable_path),
+        "log10" => format!("{path} = math.log10({path})", path = variable_path),
+        "square_root" => format!("{path} = math.sqrt({path})", path = variable_path),
+        "ceil" => format!("{path} = math.ceil({path})", path = variable_path),
+        "floor" => format!("{path} = math.floor({path})", path = variable_path),
         "index" => match index_method.as_str() {
             "self" => format!(
                 "for i = 1, #G.jokers.cards do\n\
@@ -112,10 +103,7 @@ pub fn modify_internal_variable(
                 path = variable_path
             ),
             "first" => format!("{path} = 1", path = variable_path),
-            "last" => format!(
-                "{path} = #G.jokers.cards",
-                path = variable_path
-            ),
+            "last" => format!("{path} = #G.jokers.cards", path = variable_path),
             "left" => format!(
                 "local my_pos = nil\n\
                 for i = 1, #G.jokers.cards do\n\
@@ -150,7 +138,8 @@ pub fn modify_internal_variable(
                         break\n\
                     end\n\
                 end",
-                path = variable_path, key = search_key
+                path = variable_path,
+                key = search_key
             ),
             "variable" => format!(
                 "local search_key = {search_var_path}\n\
@@ -184,12 +173,14 @@ pub fn modify_internal_variable(
             ),
             _ => format!(
                 "{path} = ({path}) + {val}",
-                path = variable_path, val = resolved.lua_str
+                path = variable_path,
+                val = resolved.lua_str
             ),
         },
         _ => format!(
             "{path} = ({path}) + {val}",
-            path = variable_path, val = resolved.lua_str
+            path = variable_path,
+            val = resolved.lua_str
         ),
     };
 
@@ -212,10 +203,7 @@ pub fn modify_internal_variable(
             colour: Some(lua_raw_expr(message_colour)),
         }
     } else {
-        let func_body = vec![lua_raw_stmt(format!(
-            "{}\nreturn true",
-            operation_code
-        ))];
+        let func_body = vec![lua_raw_stmt(format!("{}\nreturn true", operation_code))];
         EffectOutput {
             return_fields: vec![(
                 "func".to_string(),
@@ -370,11 +358,7 @@ pub fn change_text_variable(effect: &EffectDef, ctx: &mut CompileContext) -> Eff
             var_path = variable_path,
             kv_path = key_var_path
         ),
-        _ => format!(
-            "{path} = '{t}'",
-            path = variable_path,
-            t = custom_text
-        ),
+        _ => format!("{path} = '{t}'", path = variable_path, t = custom_text),
     };
 
     let message = custom_message.map(lua_str);
@@ -584,4 +568,3 @@ fn rank_to_id(rank: &str) -> &'static str {
         _ => "14",
     }
 }
-

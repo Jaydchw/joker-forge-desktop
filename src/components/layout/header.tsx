@@ -24,6 +24,7 @@ import {
   getBypassUnsupportedRulesDialogEnabled,
   getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
+  getSingleManagedModExportEnabled,
   getSplitLocalizationExportEnabled,
   getThemePreference,
   setBalatroAppdataPath,
@@ -295,6 +296,12 @@ export function Header({ title }: HeaderProps) {
           destinationMode,
           balatroModsPath,
           overwriteExistingModFolder: true,
+          removeOtherManagedModsFromBalatroFolder:
+            destinationMode === "balatro-mods" &&
+            getSingleManagedModExportEnabled(),
+          managedModFolderNames: projects
+            .map((project) => project.id?.trim())
+            .filter((id): id is string => Boolean(id)),
         },
       );
 

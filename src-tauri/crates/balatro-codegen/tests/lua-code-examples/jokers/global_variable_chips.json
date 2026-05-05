@@ -1,0 +1,50 @@
+{
+  "object_type": "joker",
+  "mod_prefix": "modprefix",
+  "include_loc_txt": true,
+  "definition": {
+    "key": "j_global_variable_chips",
+    "name": "Global Variable Chips",
+    "description": [
+      "Adds chips from a global variable."
+    ],
+    "cost": 4,
+    "rarity": "common",
+    "blueprint_compat": true,
+    "eternal_compat": true,
+    "perishable_compat": true,
+    "unlocked": true,
+    "discovered": true,
+    "atlas": "Joker",
+    "pos": {
+      "x": 0,
+      "y": 0
+    },
+    "rules": [
+      {
+        "id": "rule_global_chips",
+        "trigger": "hand_played",
+        "effects": [
+          {
+            "effect_type": "add_chips",
+            "params": {
+              "value": {
+                "value": "globalvariabletest",
+                "valueType": "user_var"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "user_variables": [
+      {
+        "name": "globalvariabletest",
+        "var_type": "number",
+        "initial_value": 1,
+        "is_global": true,
+        "is_persistent": false
+      }
+    ]
+  }
+}

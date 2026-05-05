@@ -1,7 +1,7 @@
+use super::context::CompileContext;
+use super::{build_shared_calculate_function, build_shared_loc_vars, compile_rules, RuleOutput};
 use crate::lua_ast::*;
 use crate::types::*;
-use super::context::CompileContext;
-use super::{compile_rules, build_shared_calculate_function, build_shared_loc_vars, RuleOutput};
 
 /// Compile a voucher definition into a Lua chunk.
 pub fn compile_voucher(voucher: &VoucherDef, mod_prefix: &str) -> Chunk {
@@ -157,7 +157,7 @@ fn build_voucher_table(
 
 /// Build the `redeem` function for vouchers.
 /// Vouchers use redeem(self: card) instead of use().
-fn build_redeem_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Option<Expr> {
+fn build_redeem_function(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -> Option<Expr> {
     let redeem_rules: Vec<&RuleOutput> = rule_outputs
         .iter()
         .filter(|r| r.trigger == "card_used" && !r.effect_stmts.is_empty())
@@ -168,9 +168,6 @@ fn build_redeem_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> O
     }
 
     let mut body: Vec<Stmt> = Vec::new();
-    if let Some(init_block) = ctx.run_scoped_global_init_block() {
-        body.push(lua_raw_stmt(init_block));
-    }
     super::append_rule_chain_with_fallback(&mut body, &redeem_rules, |ro| ro.effect_stmts.clone());
 
     Some(Expr::Function {
@@ -199,4 +196,3 @@ fn build_draw_function(shader: &str) -> Option<Expr> {
 fn kv(key: &str, val: Expr) -> TableEntry {
     TableEntry::KeyValue(key.to_string(), val)
 }
-

@@ -12,7 +12,11 @@ fn get_str_default(effect: &EffectDef, key: &str, default: &str) -> String {
     match effect.params.get(key) {
         Some(v) => {
             let s = v.to_string_lossy();
-            if s.is_empty() { default.to_string() } else { s }
+            if s.is_empty() {
+                default.to_string()
+            } else {
+                s
+            }
         }
         None => default.to_string(),
     }
@@ -99,7 +103,10 @@ pub fn edit_joker_slots(effect: &EffectDef, ctx: &mut CompileContext) -> EffectO
 
     let (slots_code, colour_str, _default_msg) = match operation.as_str() {
         "subtract" => (
-            format!("G.jokers.config.card_limit = math.max(1, G.jokers.config.card_limit - {})", value_str),
+            format!(
+                "G.jokers.config.card_limit = math.max(1, G.jokers.config.card_limit - {})",
+                value_str
+            ),
             "G.C.RED",
             format!("\"-\"..tostring({})..\"+\" Joker Slot\"\"", value_str),
         ),
@@ -109,7 +116,10 @@ pub fn edit_joker_slots(effect: &EffectDef, ctx: &mut CompileContext) -> EffectO
             format!("\"Joker Slots set to \"..tostring({})", value_str),
         ),
         _ => (
-            format!("G.jokers.config.card_limit = G.jokers.config.card_limit + {}", value_str),
+            format!(
+                "G.jokers.config.card_limit = G.jokers.config.card_limit + {}",
+                value_str
+            ),
             "G.C.DARK_EDITION",
             format!("\"+\"..tostring({})..\"+\" Joker Slot\"\"", value_str),
         ),
@@ -148,7 +158,10 @@ pub fn edit_joker_slots(effect: &EffectDef, ctx: &mut CompileContext) -> EffectO
 }
 
 /// Edit Joker Slots passive: changes card_limit when joker is added/removed from deck.
-pub fn edit_joker_slots_passive(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
+pub fn edit_joker_slots_passive(
+    effect: &EffectDef,
+    ctx: &mut CompileContext,
+) -> PassiveEffectOutput {
     let operation = get_str_default(effect, "operation", "add");
     // We use the same value resolution but need raw strings for add/remove
     let count = ctx.next_effect_count("joker_slots");
@@ -168,8 +181,14 @@ pub fn edit_joker_slots_passive(effect: &EffectDef, ctx: &mut CompileContext) ->
 
     let (add_to_deck, remove_from_deck) = match operation.as_str() {
         "subtract" => (
-            format!("G.jokers.config.card_limit = math.max(1, G.jokers.config.card_limit - {})", value_str),
-            format!("G.jokers.config.card_limit = G.jokers.config.card_limit + {}", value_str),
+            format!(
+                "G.jokers.config.card_limit = math.max(1, G.jokers.config.card_limit - {})",
+                value_str
+            ),
+            format!(
+                "G.jokers.config.card_limit = G.jokers.config.card_limit + {}",
+                value_str
+            ),
         ),
         "set" => (
             format!(
@@ -180,11 +199,17 @@ pub fn edit_joker_slots_passive(effect: &EffectDef, ctx: &mut CompileContext) ->
             "if card.ability.extra.original_joker_slots then\n\
                 G.jokers.config.card_limit = card.ability.extra.original_joker_slots\n\
             end"
-                .to_string(),
+            .to_string(),
         ),
         _ => (
-            format!("G.jokers.config.card_limit = G.jokers.config.card_limit + {}", value_str),
-            format!("G.jokers.config.card_limit = G.jokers.config.card_limit - {}", value_str),
+            format!(
+                "G.jokers.config.card_limit = G.jokers.config.card_limit + {}",
+                value_str
+            ),
+            format!(
+                "G.jokers.config.card_limit = G.jokers.config.card_limit - {}",
+                value_str
+            ),
         ),
     };
 
@@ -253,7 +278,10 @@ pub fn edit_joker_size(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
 }
 
 /// Edit Joker Size passive: changes highlighted_limit when joker is added/removed.
-pub fn edit_joker_size_passive(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
+pub fn edit_joker_size_passive(
+    effect: &EffectDef,
+    ctx: &mut CompileContext,
+) -> PassiveEffectOutput {
     let operation = get_str_default(effect, "operation", "add");
     let count = ctx.next_effect_count("joker_size");
     let var_name = ctx.unique_var_name("joker_size", count);
@@ -504,7 +532,11 @@ pub fn edit_item_size(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOut
 
 /// Explicit-type variant: size type is provided directly (e.g. derived from the
 /// effect ID `edit_hand_size` → `"hand_size"`) rather than read from params.
-pub fn edit_item_size_typed(effect: &EffectDef, ctx: &mut CompileContext, size_type: &str) -> EffectOutput {
+pub fn edit_item_size_typed(
+    effect: &EffectDef,
+    ctx: &mut CompileContext,
+    size_type: &str,
+) -> EffectOutput {
     let operation = get_str_default(effect, "operation", "add");
     let custom_message = get_str(effect, "customMessage");
     let data = item_size_data(size_type);
@@ -529,7 +561,10 @@ pub fn edit_item_size_typed(effect: &EffectDef, ctx: &mut CompileContext, size_t
     let msg_lua = custom_message
         .map(|m| format!("\"{}\"", m))
         .unwrap_or_else(|| match operation.as_str() {
-            "set" => format!("\"{}  set to \"..tostring({})", data.custom_message, value_str),
+            "set" => format!(
+                "\"{}  set to \"..tostring({})",
+                data.custom_message, value_str
+            ),
             "add" => format!("\"+\"..tostring({})..' {}'", value_str, data.custom_message),
             "subtract" => format!("\"-\"..tostring({})..' {}'", value_str, data.custom_message),
             _ => format!("\"+\"..tostring({})..' {}'", value_str, data.custom_message),
@@ -628,4 +663,3 @@ pub fn edit_item_size_passive_typed(
         ..Default::default()
     }
 }
-

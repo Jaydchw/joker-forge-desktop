@@ -1,11 +1,10 @@
+use super::colors::normalize_hex_colour;
 use crate::lua_ast::*;
 use crate::types::*;
-use super::colors::normalize_hex_colour;
 
 /// Compile a rarity definition into a Lua chunk.
 pub fn compile_rarity(rarity: &RarityDef, _mod_prefix: &str) -> Chunk {
-    let hex = normalize_hex_colour(&rarity.badge_colour)
-        .unwrap_or_else(|| "6A7A8B".to_string());
+    let hex = normalize_hex_colour(&rarity.badge_colour).unwrap_or_else(|| "6A7A8B".to_string());
 
     let mut entries: Vec<TableEntry> = Vec::new();
     entries.push(kv("key", lua_str(&rarity.key)));
@@ -15,16 +14,10 @@ pub fn compile_rarity(rarity: &RarityDef, _mod_prefix: &str) -> Chunk {
     let loc_txt = lua_table(vec![("name", lua_str(&rarity.name))]);
     entries.push(TableEntry::KeyValue("loc_txt".to_string(), loc_txt));
 
-    let smods_call = Stmt::ExprStmt(lua_table_call(
-        lua_path(&["SMODS", "Rarity"]),
-        entries,
-    ));
+    let smods_call = Stmt::ExprStmt(lua_table_call(lua_path(&["SMODS", "Rarity"]), entries));
 
     Chunk {
-        stmts: vec![
-            lua_comment(format!(" Rarity: {}", rarity.name)),
-            smods_call,
-        ],
+        stmts: vec![lua_comment(format!(" Rarity: {}", rarity.name)), smods_call],
     }
 }
 

@@ -16,15 +16,13 @@ pub fn destroy_card(effect: &EffectDef, _ctx: &mut CompileContext, trigger: &str
         .unwrap_or("Destroyed!");
 
     match trigger {
-        "card_discarded" => {
-            EffectOutput {
-                return_fields: vec![("remove".to_string(), lua_bool(true))],
-                pre_return: vec![],
-                config_vars: vec![],
-                message: Some(lua_str(message)),
-                colour: Some(lua_raw_expr("G.C.RED")),
-            }
-        }
+        "card_discarded" => EffectOutput {
+            return_fields: vec![("remove".to_string(), lua_bool(true))],
+            pre_return: vec![],
+            config_vars: vec![],
+            message: Some(lua_str(message)),
+            colour: Some(lua_raw_expr("G.C.RED")),
+        },
         _ => {
             let mut pre = vec![];
             // check whether glass trigger flag is needed
@@ -70,26 +68,23 @@ pub fn destroy_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOut
         _ => lua_ident("card"),
     };
 
-    let destroy_call = lua_expr_stmt(lua_method(
-        destroy_target,
-        "start_dissolve",
-        vec![],
-    ));
+    let destroy_call = lua_expr_stmt(lua_method(destroy_target, "start_dissolve", vec![]));
 
-    let event_body = vec![
-        destroy_call,
-        lua_return(lua_bool(true)),
-    ];
+    let event_body = vec![destroy_call, lua_return(lua_bool(true))];
 
     let event = lua_expr_stmt(lua_method(
         lua_path(&["G", "E_MANAGER"]),
         "add_event",
-        vec![lua_call("Event", vec![lua_table_raw(vec![
-            TableEntry::KeyValue("func".to_string(), Expr::Function {
-                params: vec![],
-                body: event_body,
-            }),
-        ])])],
+        vec![lua_call(
+            "Event",
+            vec![lua_table_raw(vec![TableEntry::KeyValue(
+                "func".to_string(),
+                Expr::Function {
+                    params: vec![],
+                    body: event_body,
+                },
+            )])],
+        )],
     ));
 
     EffectOutput {
@@ -125,10 +120,15 @@ pub fn destroy_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutp
         .unwrap_or("random");
 
     let stmt = if method == "selected" {
-        lua_raw_stmt("if G.hand and G.hand.highlighted then SMODS.destroy_cards(G.hand.highlighted) end")
+        lua_raw_stmt(
+            "if G.hand and G.hand.highlighted then SMODS.destroy_cards(G.hand.highlighted) end",
+        )
     } else {
         let resolved = crate::compiler::values::resolve_config_value(
-            &effect.params, "count", ctx, "destroy_count",
+            &effect.params,
+            "count",
+            ctx,
+            "destroy_count",
         );
         lua_raw_stmt(format!(
             "local destroyed_cards = {{}}; local temp_hand = {{}}; for _, c in ipairs(G.hand.cards or {{}}) do temp_hand[#temp_hand + 1] = c end; pseudoshuffle(temp_hand, 12345); for i = 1, {} do if temp_hand[i] then destroyed_cards[#destroyed_cards + 1] = temp_hand[i] end end; if #destroyed_cards > 0 then SMODS.destroy_cards(destroyed_cards) end",
@@ -144,4 +144,3 @@ pub fn destroy_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutp
         colour: Some(lua_raw_expr("G.C.RED")),
     }
 }
-

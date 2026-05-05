@@ -107,9 +107,7 @@ pub fn compile_effect(
         "set_sell_value" => misc::set_sell_value(effect, ctx),
 
         // --------------- Retrigger ---------------
-        "retrigger" | "retrigger_playing_card" | "retrigger_cards" => {
-            misc::retrigger(effect, ctx)
-        }
+        "retrigger" | "retrigger_playing_card" | "retrigger_cards" => misc::retrigger(effect, ctx),
 
         // --------------- Display ---------------
         "show_message" => misc::show_message(effect, ctx),

@@ -1,0 +1,38 @@
+{
+  "object_type": "seal",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "s_card_scored_bonus",
+    "name": "Card Scored Bonus Seal",
+    "description": [
+      "Adds chips on card scored."
+    ],
+    "atlas": "centers",
+    "pos": {
+      "x": 0,
+      "y": 0
+    },
+    "rules": [
+      {
+        "id": "rule_score",
+        "trigger": "card_scored",
+        "effects": [
+          {
+            "effect_type": "add_chips",
+            "params": {
+              "value": 5
+            }
+          }
+        ]
+      }
+    ],
+    "user_variables": [],
+    "badge_colour": "FF0000",
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "sound": "gold_seal",
+    "pitch": null,
+    "volume": null
+  }
+}

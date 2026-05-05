@@ -681,4 +681,3 @@ pub fn convert_left_to_right(effect: &EffectDef, _ctx: &mut CompileContext) -> E
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
     }
 }
-

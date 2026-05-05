@@ -130,7 +130,10 @@ pub fn boss_blind_type(condition: &ConditionDef) -> Option<Expr> {
 }
 
 /// Check Blind Requirements: checks whether blind requirements percentage is met.
-pub fn check_blind_requirements(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<Expr> {
+pub fn check_blind_requirements(
+    condition: &ConditionDef,
+    ctx: &mut CompileContext,
+) -> Option<Expr> {
     let operator = condition
         .params
         .get("operator")
@@ -140,7 +143,8 @@ pub fn check_blind_requirements(condition: &ConditionDef, ctx: &mut CompileConte
         .unwrap_or_else(|| lua_int(25));
 
     // Compare (G.GAME.chips / G.GAME.blind.chips * 100) against percentage
-    let ratio_expr = lua_raw_expr("((G.GAME.chips or 0) / (G.GAME.blind.chips or 1) * 100)".to_string());
+    let ratio_expr =
+        lua_raw_expr("((G.GAME.chips or 0) / (G.GAME.blind.chips or 1) * 100)".to_string());
 
     Some(comparison_op(operator, ratio_expr, value_expr))
 }
@@ -171,7 +175,11 @@ pub fn deck_count(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
 
     let check = match property_type {
         "rank" => {
-            let rank = condition.params.get("rank").and_then(|v| v.as_str()).unwrap_or("any");
+            let rank = condition
+                .params
+                .get("rank")
+                .and_then(|v| v.as_str())
+                .unwrap_or("any");
             if rank == "any" {
                 "true".to_string()
             } else {
@@ -180,7 +188,11 @@ pub fn deck_count(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
             }
         }
         "suit" => {
-            let suit = condition.params.get("suit").and_then(|v| v.as_str()).unwrap_or("any");
+            let suit = condition
+                .params
+                .get("suit")
+                .and_then(|v| v.as_str())
+                .unwrap_or("any");
             if suit == "any" {
                 "true".to_string()
             } else {
@@ -188,7 +200,11 @@ pub fn deck_count(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
             }
         }
         "enhancement" => {
-            let enh = condition.params.get("enhancement").and_then(|v| v.as_str()).unwrap_or("any");
+            let enh = condition
+                .params
+                .get("enhancement")
+                .and_then(|v| v.as_str())
+                .unwrap_or("any");
             if enh == "any" {
                 "v.config.center.key ~= 'c_base'".to_string()
             } else if enh == "none" {
@@ -198,7 +214,11 @@ pub fn deck_count(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
             }
         }
         "seal" => {
-            let seal = condition.params.get("seal").and_then(|v| v.as_str()).unwrap_or("any");
+            let seal = condition
+                .params
+                .get("seal")
+                .and_then(|v| v.as_str())
+                .unwrap_or("any");
             if seal == "any" {
                 "v.seal ~= nil".to_string()
             } else if seal == "none" {
@@ -208,7 +228,11 @@ pub fn deck_count(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
             }
         }
         "edition" => {
-            let edition = condition.params.get("edition").and_then(|v| v.as_str()).unwrap_or("any");
+            let edition = condition
+                .params
+                .get("edition")
+                .and_then(|v| v.as_str())
+                .unwrap_or("any");
             if edition == "any" {
                 "v.edition and next(v.edition)".to_string()
             } else if edition == "none" {
@@ -394,7 +418,10 @@ pub fn probability_identifier(condition: &ConditionDef) -> Option<Expr> {
 }
 
 /// Probability Part Compare: compare probability parts.
-pub fn probability_part_compare(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<Expr> {
+pub fn probability_part_compare(
+    condition: &ConditionDef,
+    ctx: &mut CompileContext,
+) -> Option<Expr> {
     let part = condition
         .params
         .get("part")
@@ -438,7 +465,12 @@ pub fn booster_type(condition: &ConditionDef) -> Option<Expr> {
 
 /// Helper for conditions that compare a game state expression against a value.
 /// Registers the numeric value in `config.extra` using the condition type as slug.
-fn simple_compare(condition: &ConditionDef, game_expr: Expr, ctx: &mut CompileContext, condition_type: &str) -> Option<Expr> {
+fn simple_compare(
+    condition: &ConditionDef,
+    game_expr: Expr,
+    ctx: &mut CompileContext,
+    condition_type: &str,
+) -> Option<Expr> {
     let operator = condition
         .params
         .get("operator")
@@ -448,4 +480,3 @@ fn simple_compare(condition: &ConditionDef, game_expr: Expr, ctx: &mut CompileCo
 
     Some(comparison_op(operator, game_expr, value_expr))
 }
-

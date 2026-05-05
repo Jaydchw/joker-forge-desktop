@@ -3,7 +3,10 @@ use crate::compiler::values::{comparison_op, resolve_condition_value};
 use crate::lua_ast::*;
 use crate::types::ConditionDef;
 
-fn get_param<'a>(condition: &'a ConditionDef, keys: &[&str]) -> Option<&'a crate::types::ParamValue> {
+fn get_param<'a>(
+    condition: &'a ConditionDef,
+    keys: &[&str],
+) -> Option<&'a crate::types::ParamValue> {
     for key in keys {
         if let Some(value) = condition.params.get(*key) {
             return Some(value);
@@ -46,7 +49,10 @@ pub fn joker_rarity_count(condition: &ConditionDef, ctx: &mut CompileContext) ->
     let check = if rarity == "any" {
         "true".to_string()
     } else {
-        format!("v.config and v.config.center and tostring(v.config.center.rarity) == '{}'", rarity)
+        format!(
+            "v.config and v.config.center and tostring(v.config.center.rarity) == '{}'",
+            rarity
+        )
     };
 
     let count_expr = lua_raw_expr(format!(
@@ -69,9 +75,17 @@ pub fn joker_position(condition: &ConditionDef, ctx: &mut CompileContext) -> Opt
             lua_raw_expr("G.jokers.cards[#G.jokers.cards]"),
         )),
         _ => {
-            let idx_expr = resolve_condition_value(&condition.params, "specific_index", ctx, "joker_position")
-                .or_else(|| resolve_condition_value(&condition.params, "index_number", ctx, "joker_position"))
-                .unwrap_or_else(|| lua_int(1));
+            let idx_expr =
+                resolve_condition_value(&condition.params, "specific_index", ctx, "joker_position")
+                    .or_else(|| {
+                        resolve_condition_value(
+                            &condition.params,
+                            "index_number",
+                            ctx,
+                            "joker_position",
+                        )
+                    })
+                    .unwrap_or_else(|| lua_int(1));
             Some(lua_eq(
                 lua_ident("card"),
                 lua_index(lua_path(&["G", "jokers", "cards"]), idx_expr),
@@ -111,12 +125,18 @@ pub fn joker_sticker(condition: &ConditionDef) -> Option<Expr> {
     let sticker = get_param(condition, &["sticker"])
         .and_then(|v| v.as_str())
         .unwrap_or("eternal");
-    Some(lua_raw_expr(format!("(card.ability and card.ability.{})", sticker)))
+    Some(lua_raw_expr(format!(
+        "(card.ability and card.ability.{})",
+        sticker
+    )))
 }
 
 pub fn joker_edition(condition: &ConditionDef) -> Option<Expr> {
     let edition = get_param(condition, &["edition"])
         .and_then(|v| v.as_str())
         .unwrap_or("foil");
-    Some(lua_raw_expr(format!("(card.edition and card.edition.{})", edition)))
+    Some(lua_raw_expr(format!(
+        "(card.edition and card.edition.{})",
+        edition
+    )))
 }

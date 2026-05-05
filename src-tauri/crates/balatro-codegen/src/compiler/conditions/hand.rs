@@ -161,7 +161,8 @@ pub fn discarded_card_count(condition: &ConditionDef, ctx: &mut CompileContext) 
         .get("operator")
         .and_then(|v| v.as_str())
         .unwrap_or("equals");
-    let value_expr = resolve_condition_value(&condition.params, "value", ctx, "discarded_card_count")?;
+    let value_expr =
+        resolve_condition_value(&condition.params, "value", ctx, "discarded_card_count")?;
 
     Some(comparison_op(
         operator,
@@ -182,8 +183,9 @@ pub fn discarded_suit_count(condition: &ConditionDef, ctx: &mut CompileContext) 
         .get("quantifier")
         .and_then(|v| v.as_str())
         .unwrap_or("at_least");
-    let value_expr = resolve_condition_value(&condition.params, "count", ctx, "discarded_suit_count")
-        .unwrap_or_else(|| lua_int(1));
+    let value_expr =
+        resolve_condition_value(&condition.params, "count", ctx, "discarded_suit_count")
+            .unwrap_or_else(|| lua_int(1));
 
     let count_expr = lua_raw_expr(format!(
         "(function() local c = 0; for _, v in ipairs(context.full_hand or {{}}) do \
@@ -207,8 +209,9 @@ pub fn discarded_rank_count(condition: &ConditionDef, ctx: &mut CompileContext) 
         .get("quantifier")
         .and_then(|v| v.as_str())
         .unwrap_or("at_least");
-    let value_expr = resolve_condition_value(&condition.params, "count", ctx, "discarded_rank_count")
-        .unwrap_or_else(|| lua_int(1));
+    let value_expr =
+        resolve_condition_value(&condition.params, "count", ctx, "discarded_rank_count")
+            .unwrap_or_else(|| lua_int(1));
 
     let rank_id = rank_to_id(rank);
     let count_expr = lua_raw_expr(format!(
@@ -357,7 +360,11 @@ pub fn first_last_scored(condition: &ConditionDef) -> Option<Expr> {
             lua_raw_expr(format!("context.scoring_hand[{}]", index_expr)),
         )),
         "rank" => {
-            let rank = condition.params.get("specific_rank").and_then(|v| v.as_str()).unwrap_or("Ace");
+            let rank = condition
+                .params
+                .get("specific_rank")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Ace");
             let rank_id = rank_to_id(rank);
             Some(lua_and(
                 lua_eq(
@@ -371,13 +378,21 @@ pub fn first_last_scored(condition: &ConditionDef) -> Option<Expr> {
             ))
         }
         "suit" => {
-            let suit = condition.params.get("specific_suit").and_then(|v| v.as_str()).unwrap_or("Hearts");
+            let suit = condition
+                .params
+                .get("specific_suit")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Hearts");
             Some(lua_and(
                 lua_eq(
                     lua_path(&["context", "other_card"]),
                     lua_raw_expr(format!("context.scoring_hand[{}]", index_expr)),
                 ),
-                lua_method(lua_path(&["context", "other_card"]), "is_suit", vec![lua_str(suit)]),
+                lua_method(
+                    lua_path(&["context", "other_card"]),
+                    "is_suit",
+                    vec![lua_str(suit)],
+                ),
             ))
         }
         _ => Some(lua_eq(
@@ -443,4 +458,3 @@ fn quantifier_to_op(quantifier: &str) -> &str {
         _ => "greater_equals",
     }
 }
-

@@ -695,7 +695,10 @@ impl Emitter {
                     return;
                 }
                 // Single simple entry → inline (skip comments for inline check)
-                let non_comment: Vec<&TableEntry> = entries.iter().filter(|e| !matches!(e, TableEntry::Comment(_))).collect();
+                let non_comment: Vec<&TableEntry> = entries
+                    .iter()
+                    .filter(|e| !matches!(e, TableEntry::Comment(_)))
+                    .collect();
                 if non_comment.len() == 1 && is_simple_entry(non_comment[0]) && entries.len() == 1 {
                     self.buf.push_str("{ ");
                     self.emit_table_entry(&entries[0]);
@@ -711,7 +714,9 @@ impl Emitter {
                     // No comma after comment entries
                     if !matches!(entry, TableEntry::Comment(_)) {
                         // Add comma if the next non-comment entry exists
-                        let has_next_value = entries[i + 1..].iter().any(|e| !matches!(e, TableEntry::Comment(_)));
+                        let has_next_value = entries[i + 1..]
+                            .iter()
+                            .any(|e| !matches!(e, TableEntry::Comment(_)));
                         if has_next_value {
                             self.buf.push(',');
                         }
@@ -747,7 +752,9 @@ impl Emitter {
                     self.write_indent();
                     self.emit_table_entry(entry);
                     if !matches!(entry, TableEntry::Comment(_)) {
-                        let has_next_value = entries[i + 1..].iter().any(|e| !matches!(e, TableEntry::Comment(_)));
+                        let has_next_value = entries[i + 1..]
+                            .iter()
+                            .any(|e| !matches!(e, TableEntry::Comment(_)));
                         if has_next_value {
                             self.buf.push(',');
                         }
@@ -1052,4 +1059,3 @@ mod tests {
         assert_eq!(out, "(a or b) and c");
     }
 }
-

@@ -1,7 +1,7 @@
+use super::GameObject;
 use crate::compiler;
 use crate::lua_ast::Chunk;
 use crate::types::{JokerDef, ObjectType};
-use super::GameObject;
 
 impl GameObject for JokerDef {
     fn object_type(&self) -> ObjectType {

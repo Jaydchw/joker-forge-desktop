@@ -1,0 +1,48 @@
+{
+  "object_type": "consumable",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "c_calculate_and_use",
+    "name": "Calculate And Use",
+    "description": [
+      "Has both calculate and use hooks."
+    ],
+    "set": "Tarot",
+    "cost": 3,
+    "unlocked": true,
+    "discovered": true,
+    "hidden": false,
+    "can_repeat_soul": false,
+    "atlas": "Consumables",
+    "pos": {
+      "x": 0,
+      "y": 0
+    },
+    "rules": [
+      {
+        "id": "rule_calculate",
+        "trigger": "hand_played",
+        "effects": [
+          {
+            "effect_type": "add_chips",
+            "params": {
+              "value": 2
+            }
+          }
+        ]
+      },
+      {
+        "id": "rule_use",
+        "trigger": "card_used",
+        "effects": [
+          {
+            "effect_type": "add_mult",
+            "params": {
+              "value": 3
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

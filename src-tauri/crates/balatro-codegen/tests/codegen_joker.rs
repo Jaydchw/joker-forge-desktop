@@ -1,7 +1,7 @@
 mod common;
 
-use balatro_codegen::{compile_joker, Emitter};
 use balatro_codegen::types::ParamValue;
+use balatro_codegen::{compile_joker, Emitter};
 
 use common::{and_group, base_joker, condition, effect, rule_with_conditions, rule_with_effects};
 
@@ -38,7 +38,10 @@ fn joker_string_numeric_param_is_config_backed() {
     joker.rules = vec![rule_with_effects(
         "rule1",
         "hand_played",
-        vec![effect("add_chips", &[("value", ParamValue::Str("10".to_string()))])],
+        vec![effect(
+            "add_chips",
+            &[("value", ParamValue::Str("10".to_string()))],
+        )],
     )];
 
     let chunk = compile_joker(&joker, "modprefix");

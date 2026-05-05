@@ -1,0 +1,37 @@
+{
+  "object_type": "voucher",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "v_redeem_on_card_used",
+    "name": "Redeem On Card Used",
+    "description": [
+      "Gives chips when redeemed."
+    ],
+    "unlock_description": [],
+    "cost": 10,
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "can_repeat_soul": false,
+    "atlas": "Voucher",
+    "pos": {
+      "x": 0,
+      "y": 0
+    },
+    "rules": [
+      {
+        "id": "redeem_rule",
+        "trigger": "card_used",
+        "effects": [
+          {
+            "effect_type": "add_chips",
+            "params": {
+              "value": 5
+            }
+          }
+        ]
+      }
+    ],
+    "user_variables": []
+  }
+}

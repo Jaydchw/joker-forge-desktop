@@ -1156,9 +1156,13 @@ fn param_value_to_lua_literal(value: &ParamValue) -> String {
 fn register_globals_from_input(
     vars: &[UserVariableInput],
     out: &mut BTreeMap<String, UserVariableDef>,
+    persistent_only: bool,
 ) {
     for var in vars {
-        if !var.is_global || !var.is_persistent || var.name.trim().is_empty() {
+        if !var.is_global || var.name.trim().is_empty() {
+            continue;
+        }
+        if persistent_only && !var.is_persistent {
             continue;
         }
         let normalized = var.name.trim().to_ascii_lowercase();
@@ -1179,25 +1183,109 @@ pub fn collect_global_user_variables(
     let mut by_name: BTreeMap<String, UserVariableDef> = BTreeMap::new();
 
     for entry in jokers {
-        register_globals_from_input(&entry.joker_data.user_variables, &mut by_name);
+        register_globals_from_input(&entry.joker_data.user_variables, &mut by_name, false);
     }
     for entry in consumables {
-        register_globals_from_input(&entry.consumable_data.user_variables, &mut by_name);
+        register_globals_from_input(&entry.consumable_data.user_variables, &mut by_name, false);
     }
     for entry in vouchers {
-        register_globals_from_input(&entry.voucher_data.user_variables, &mut by_name);
+        register_globals_from_input(&entry.voucher_data.user_variables, &mut by_name, false);
     }
     for entry in decks {
-        register_globals_from_input(&entry.deck_data.user_variables, &mut by_name);
+        register_globals_from_input(&entry.deck_data.user_variables, &mut by_name, false);
     }
     for entry in enhancements {
-        register_globals_from_input(&entry.enhancement_data.user_variables, &mut by_name);
+        register_globals_from_input(&entry.enhancement_data.user_variables, &mut by_name, false);
     }
     for entry in seals {
-        register_globals_from_input(&entry.seal_data.user_variables, &mut by_name);
+        register_globals_from_input(&entry.seal_data.user_variables, &mut by_name, false);
     }
     for entry in editions {
-        register_globals_from_input(&entry.edition_data.user_variables, &mut by_name);
+        register_globals_from_input(&entry.edition_data.user_variables, &mut by_name, false);
+    }
+
+    by_name.into_values().collect()
+}
+
+pub fn collect_persistent_global_user_variables(
+    jokers: &[BatchJokerEntry],
+    consumables: &[BatchConsumableEntry],
+    vouchers: &[BatchVoucherEntry],
+    decks: &[BatchDeckEntry],
+    enhancements: &[BatchEnhancementEntry],
+    seals: &[BatchSealEntry],
+    editions: &[BatchEditionEntry],
+) -> Vec<UserVariableDef> {
+    let mut by_name: BTreeMap<String, UserVariableDef> = BTreeMap::new();
+
+    for entry in jokers {
+        register_globals_from_input(&entry.joker_data.user_variables, &mut by_name, true);
+    }
+    for entry in consumables {
+        register_globals_from_input(&entry.consumable_data.user_variables, &mut by_name, true);
+    }
+    for entry in vouchers {
+        register_globals_from_input(&entry.voucher_data.user_variables, &mut by_name, true);
+    }
+    for entry in decks {
+        register_globals_from_input(&entry.deck_data.user_variables, &mut by_name, true);
+    }
+    for entry in enhancements {
+        register_globals_from_input(&entry.enhancement_data.user_variables, &mut by_name, true);
+    }
+    for entry in seals {
+        register_globals_from_input(&entry.seal_data.user_variables, &mut by_name, true);
+    }
+    for entry in editions {
+        register_globals_from_input(&entry.edition_data.user_variables, &mut by_name, true);
+    }
+
+    by_name.into_values().collect()
+}
+
+pub fn collect_run_scoped_global_user_variables(
+    jokers: &[BatchJokerEntry],
+    consumables: &[BatchConsumableEntry],
+    vouchers: &[BatchVoucherEntry],
+    decks: &[BatchDeckEntry],
+    enhancements: &[BatchEnhancementEntry],
+    seals: &[BatchSealEntry],
+    editions: &[BatchEditionEntry],
+) -> Vec<UserVariableDef> {
+    let mut by_name: BTreeMap<String, UserVariableDef> = BTreeMap::new();
+
+    let mut register_run_scoped = |vars: &[UserVariableInput]| {
+        for var in vars {
+            if !var.is_global || var.is_persistent || var.name.trim().is_empty() {
+                continue;
+            }
+            let normalized = var.name.trim().to_ascii_lowercase();
+            by_name
+                .entry(normalized)
+                .or_insert_with(|| map_user_variable(var));
+        }
+    };
+
+    for entry in jokers {
+        register_run_scoped(&entry.joker_data.user_variables);
+    }
+    for entry in consumables {
+        register_run_scoped(&entry.consumable_data.user_variables);
+    }
+    for entry in vouchers {
+        register_run_scoped(&entry.voucher_data.user_variables);
+    }
+    for entry in decks {
+        register_run_scoped(&entry.deck_data.user_variables);
+    }
+    for entry in enhancements {
+        register_run_scoped(&entry.enhancement_data.user_variables);
+    }
+    for entry in seals {
+        register_run_scoped(&entry.seal_data.user_variables);
+    }
+    for entry in editions {
+        register_run_scoped(&entry.edition_data.user_variables);
     }
 
     by_name.into_values().collect()
@@ -1231,6 +1319,7 @@ pub fn build_main_lua(
     load_rarities: bool,
     load_consumable_sets: bool,
     load_globals: bool,
+    run_scoped_globals: &[UserVariableDef],
 ) -> String {
     let mut sorted_jokers: Vec<&BatchJokerEntry> = jokers.iter().collect();
     sorted_jokers.sort_by(|a, b| a.joker_data.object_key.cmp(&b.joker_data.object_key));
@@ -1332,14 +1421,67 @@ pub fn build_main_lua(
     }
 
     let globals_load = if load_globals {
-        "JF_GLOBALS = assert(SMODS.load_file(\"globals.lua\"))()\n"
+        "local jf_global_defaults = assert(SMODS.load_file(\"globals.lua\"))()\n\
+local jf_profile = (G.PROFILES and G.SETTINGS and G.SETTINGS.profile and G.PROFILES[G.SETTINGS.profile]) or nil\n\
+if jf_profile then\n\
+    jf_profile.jf_global_vars = jf_profile.jf_global_vars or {}\n\
+    local jf_profile_globals = jf_profile.jf_global_vars\n\
+    local jf_defaults_applied = false\n\
+    for k, v in pairs(jf_global_defaults or {}) do\n\
+        if jf_profile_globals[k] == nil then\n\
+            jf_profile_globals[k] = v\n\
+            jf_defaults_applied = true\n\
+        end\n\
+    end\n\
+    if jf_defaults_applied and G and G.save_progress then\n\
+        G:save_progress()\n\
+    end\n\
+    JF_GLOBALS = setmetatable({}, {\n\
+        __index = jf_profile_globals,\n\
+        __newindex = function(_, key, value)\n\
+            jf_profile_globals[key] = value\n\
+            if G and G.save_progress then\n\
+                G:save_progress()\n\
+            end\n\
+        end,\n\
+    })\n\
+else\n\
+    JF_GLOBALS = JF_GLOBALS or {}\n\
+    for k, v in pairs(jf_global_defaults or {}) do\n\
+        if JF_GLOBALS[k] == nil then\n\
+            JF_GLOBALS[k] = v\n\
+        end\n\
+    end\n\
+end\n"
     } else {
         "JF_GLOBALS = JF_GLOBALS or {}\n"
     };
 
+    let run_scoped_global_reset = if run_scoped_globals.is_empty() {
+        String::new()
+    } else {
+        let mut assignments = String::new();
+        for variable in run_scoped_globals {
+            assignments.push_str(&format!(
+                "    jf_run_globals['{}'] = {}\n",
+                escape_lua_string(&variable.name),
+                param_value_to_lua_literal(&variable.initial_value)
+            ));
+        }
+        format!(
+            "SMODS.current_mod = SMODS.current_mod or {{}}\n\
+SMODS.current_mod.reset_game_globals = function(run_start)\n\
+    if not G or not G.GAME then return end\n\
+    G.GAME.jf_global_vars = G.GAME.jf_global_vars or {{}}\n\
+    local jf_run_globals = G.GAME.jf_global_vars\n\
+{}end\n",
+            assignments
+        )
+    };
+
     format!(
-        "{}local NFS = require(\"nativefs\")\nto_big = to_big or function(a) return a end\nlenient_bignum = lenient_bignum or function(a) return a end\n{}\n{}\n",
-        atlas_decls, globals_load, requires
+        "{}local NFS = require(\"nativefs\")\nto_big = to_big or function(a) return a end\nlenient_bignum = lenient_bignum or function(a) return a end\n{}\n{}{}\n",
+        atlas_decls, globals_load, run_scoped_global_reset, requires
     )
 }
 
@@ -1386,6 +1528,60 @@ pub fn build_mod_json(metadata: &ModMetadataInput) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn make_global_var(name: &str, is_persistent: bool) -> UserVariableInput {
+        UserVariableInput {
+            name: name.to_string(),
+            var_type: "number".to_string(),
+            is_global: true,
+            is_persistent,
+            initial_value: Some(1.0),
+            initial_suit: None,
+            initial_rank: None,
+            initial_poker_hand: None,
+            initial_key: None,
+            initial_text: None,
+        }
+    }
+
+    fn make_joker_entry(vars: Vec<UserVariableInput>) -> BatchJokerEntry {
+        BatchJokerEntry {
+            joker_data: JokerDataInput {
+                object_key: "j_test".to_string(),
+                name: "Test Joker".to_string(),
+                description: "Test".to_string(),
+                cost: 4,
+                rarity: serde_json::json!("common"),
+                blueprint_compat: Some(true),
+                eternal_compat: Some(true),
+                perishable_compat: Some(true),
+                unlocked: Some(true),
+                discovered: Some(true),
+                scale_w: None,
+                scale_h: None,
+                rules: vec![],
+                user_variables: vars,
+                force_eternal: false,
+                force_perishable: false,
+                force_rental: false,
+                force_foil: false,
+                force_holographic: false,
+                force_polychrome: false,
+                force_negative: false,
+                ignore_slot_limit: false,
+                info_queues: vec![],
+                pools: vec![],
+                appears_in_shop: Some(true),
+                appear_flags: None,
+                unlock_trigger: None,
+                unlock_description: None,
+            },
+            pos: AtlasPosInput { x: 0, y: 0 },
+            soul_pos: None,
+            file_name: "j_test.lua".to_string(),
+            custom_lua: None,
+        }
+    }
 
     #[test]
     fn wrapped_param_input_accepts_wrapped_shape() {
@@ -1464,5 +1660,78 @@ mod tests {
     fn normalize_rarity_does_not_double_prefix_custom_rarity() {
         let rarity = normalize_rarity(&serde_json::json!("jkr_superrare"), "jkr");
         assert_eq!(rarity, "jkr_superrare");
+    }
+
+    #[test]
+    fn collect_global_user_variables_includes_non_persistent_globals() {
+        let jokers = vec![
+            make_joker_entry(vec![make_global_var("global_non_persistent", false)]),
+            make_joker_entry(vec![make_global_var("global_persistent", true)]),
+        ];
+
+        let globals = collect_global_user_variables(&jokers, &[], &[], &[], &[], &[], &[]);
+
+        let names: Vec<&str> = globals.iter().map(|value| value.name.as_str()).collect();
+        assert!(names.contains(&"global_non_persistent"));
+        assert!(names.contains(&"global_persistent"));
+    }
+
+    #[test]
+    fn collect_persistent_global_user_variables_filters_non_persistent() {
+        let jokers = vec![
+            make_joker_entry(vec![make_global_var("global_non_persistent", false)]),
+            make_joker_entry(vec![make_global_var("global_persistent", true)]),
+        ];
+
+        let globals =
+            collect_persistent_global_user_variables(&jokers, &[], &[], &[], &[], &[], &[]);
+
+        let names: Vec<&str> = globals.iter().map(|value| value.name.as_str()).collect();
+        assert!(!names.contains(&"global_non_persistent"));
+        assert!(names.contains(&"global_persistent"));
+    }
+
+    #[test]
+    fn collect_run_scoped_global_user_variables_only_includes_non_persistent() {
+        let jokers = vec![
+            make_joker_entry(vec![make_global_var("global_non_persistent", false)]),
+            make_joker_entry(vec![make_global_var("global_persistent", true)]),
+        ];
+
+        let globals =
+            collect_run_scoped_global_user_variables(&jokers, &[], &[], &[], &[], &[], &[]);
+
+        let names: Vec<&str> = globals.iter().map(|value| value.name.as_str()).collect();
+        assert!(names.contains(&"global_non_persistent"));
+        assert!(!names.contains(&"global_persistent"));
+    }
+
+    #[test]
+    fn build_main_lua_registers_reset_game_globals_for_run_scoped_globals() {
+        let run_scoped = vec![UserVariableDef {
+            name: "global_non_persistent".to_string(),
+            var_type: UserVarType::Number,
+            initial_value: ParamValue::Int(7),
+            is_global: true,
+            is_persistent: false,
+        }];
+
+        let lua = build_main_lua(
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            false,
+            false,
+            false,
+            &run_scoped,
+        );
+
+        assert!(lua.contains("SMODS.current_mod.reset_game_globals = function(run_start)"));
+        assert!(lua.contains("G.GAME.jf_global_vars = G.GAME.jf_global_vars or {}"));
+        assert!(lua.contains("jf_run_globals['global_non_persistent'] = 7"));
     }
 }

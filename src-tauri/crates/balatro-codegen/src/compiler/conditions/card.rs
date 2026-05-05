@@ -9,11 +9,7 @@ pub fn card_rank(condition: &ConditionDef) -> Option<Expr> {
     let rank_id = rank_to_id(rank);
 
     Some(lua_eq(
-        lua_method(
-            lua_path(&["context", "other_card"]),
-            "get_id",
-            vec![],
-        ),
+        lua_method(lua_path(&["context", "other_card"]), "get_id", vec![]),
         lua_int(rank_id.parse().unwrap_or(0)),
     ))
 }
@@ -77,9 +73,9 @@ pub fn card_index(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
             lua_raw_expr("context.scoring_hand[#context.scoring_hand]"),
         )),
         "number" => {
-            let index_expr = resolve_condition_value(
-                &condition.params, "index_number", ctx, "card_index",
-            ).unwrap_or_else(|| lua_int(1));
+            let index_expr =
+                resolve_condition_value(&condition.params, "index_number", ctx, "card_index")
+                    .unwrap_or_else(|| lua_int(1));
             Some(lua_eq(
                 lua_path(&["context", "other_card"]),
                 lua_index(lua_path(&["context", "scoring_hand"]), index_expr),
@@ -101,4 +97,3 @@ fn rank_to_id(rank: &str) -> &str {
         _ => rank,
     }
 }
-

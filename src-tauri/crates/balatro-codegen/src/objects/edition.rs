@@ -1,7 +1,7 @@
+use super::GameObject;
 use crate::compiler;
 use crate::lua_ast::Chunk;
 use crate::types::{EditionDef, ObjectType};
-use super::GameObject;
 
 impl GameObject for EditionDef {
     fn object_type(&self) -> ObjectType {

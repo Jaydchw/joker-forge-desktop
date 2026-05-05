@@ -1,0 +1,17 @@
+{
+  "object_type": "consumable_type",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "coolset",
+    "name": "Cool Set",
+    "collection_name": "Cool Cards",
+    "primary_colour": "666666",
+    "secondary_colour": "666666",
+    "collection_rows": [
+      4,
+      5
+    ],
+    "default_card": null,
+    "shop_rate": 1.0
+  }
+}

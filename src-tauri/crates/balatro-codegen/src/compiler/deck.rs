@@ -1,7 +1,7 @@
+use super::context::CompileContext;
+use super::{build_shared_calculate_function, build_shared_loc_vars, compile_rules, RuleOutput};
 use crate::lua_ast::*;
 use crate::types::*;
-use super::context::CompileContext;
-use super::{compile_rules, build_shared_calculate_function, build_shared_loc_vars, RuleOutput};
 
 /// Compile a deck definition into a Lua chunk.
 pub fn compile_deck(deck: &DeckDef, mod_prefix: &str) -> Chunk {
@@ -29,11 +29,7 @@ pub fn compile_deck(deck: &DeckDef, mod_prefix: &str) -> Chunk {
     }
 }
 
-fn build_deck_table(
-    deck: &DeckDef,
-    ctx: &CompileContext,
-    rule_outputs: &[RuleOutput],
-) -> Expr {
+fn build_deck_table(deck: &DeckDef, ctx: &CompileContext, rule_outputs: &[RuleOutput]) -> Expr {
     let mut entries: Vec<TableEntry> = Vec::new();
 
     entries.push(kv("key", lua_str(&deck.key)));
@@ -159,7 +155,7 @@ fn build_deck_table(
 
 /// Build the `apply` function for decks.
 /// Decks use apply(self: back) for run-start effects.
-fn build_apply_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Option<Expr> {
+fn build_apply_function(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -> Option<Expr> {
     let apply_rules: Vec<&RuleOutput> = rule_outputs
         .iter()
         .filter(|r| r.trigger == "card_used" && !r.effect_stmts.is_empty())
@@ -170,9 +166,6 @@ fn build_apply_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Op
     }
 
     let mut body: Vec<Stmt> = Vec::new();
-    if let Some(init_block) = ctx.run_scoped_global_init_block() {
-        body.push(lua_raw_stmt(init_block));
-    }
     super::append_rule_chain_with_fallback(&mut body, &apply_rules, |ro| ro.effect_stmts.clone());
 
     Some(Expr::Function {
@@ -184,4 +177,3 @@ fn build_apply_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Op
 fn kv(key: &str, val: Expr) -> TableEntry {
     TableEntry::KeyValue(key.to_string(), val)
 }
-

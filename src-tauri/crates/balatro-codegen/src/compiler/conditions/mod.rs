@@ -13,7 +13,11 @@ use crate::types::{ConditionDef, ConditionGroupDef, LogicOp, ObjectType};
 /// Accepts a mutable compile context so that numeric condition parameters
 /// are automatically registered in `config.extra` and referenced via
 /// `card.ability.extra.<var>`, keeping them in sync with `loc_vars`.
-pub fn compile_condition(condition: &ConditionDef, _object_type: ObjectType, ctx: &mut CompileContext) -> Option<Expr> {
+pub fn compile_condition(
+    condition: &ConditionDef,
+    _object_type: ObjectType,
+    ctx: &mut CompileContext,
+) -> Option<Expr> {
     let expr = match condition.condition_type.as_str() {
         // Hand conditions
         "hand_type" => hand::hand_type(condition)?,
@@ -22,7 +26,9 @@ pub fn compile_condition(condition: &ConditionDef, _object_type: ObjectType, ctx
         "suit_count" => hand::suit_count(condition, ctx)?,
         "rank_count" => hand::rank_count(condition, ctx)?,
         "hand_level" => hand::hand_level(condition, ctx)?,
-        "discarded_card_count" | "discarded_hand_count" => hand::discarded_card_count(condition, ctx)?,
+        "discarded_card_count" | "discarded_hand_count" => {
+            hand::discarded_card_count(condition, ctx)?
+        }
         "discarded_suit_count" => hand::discarded_suit_count(condition, ctx)?,
         "discarded_rank_count" => hand::discarded_rank_count(condition, ctx)?,
         "hand_enhancement_count" => hand::enhancement_count(condition, ctx)?,
@@ -135,7 +141,11 @@ pub fn compile_condition_chain(
 }
 
 /// Compile a single condition group.
-fn compile_condition_group(group: &ConditionGroupDef, object_type: ObjectType, ctx: &mut CompileContext) -> Option<Expr> {
+fn compile_condition_group(
+    group: &ConditionGroupDef,
+    object_type: ObjectType,
+    ctx: &mut CompileContext,
+) -> Option<Expr> {
     if group.conditions.is_empty() {
         return None;
     }

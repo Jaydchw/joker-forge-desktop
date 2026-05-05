@@ -2,7 +2,6 @@ use crate::compiler::context::CompileContext;
 use crate::lua_ast::*;
 use crate::types::EffectDef;
 
-
 /// Result of compiling a passive effect.
 /// Passive effects don't go through the normal trigger→condition→effect flow;
 /// they produce code for `add_to_deck`, `remove_from_deck`: or special
@@ -58,15 +57,16 @@ pub fn free_rerolls(_effect: &EffectDef, _ctx: &mut CompileContext) -> PassiveEf
 
 /// Allow debt: lets player go into negative money.
 pub fn allow_debt(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
-    let resolved = crate::compiler::values::resolve_config_value(
-        &effect.params, "amount", ctx, "debt_amount",
-    );
+    let resolved =
+        crate::compiler::values::resolve_config_value(&effect.params, "amount", ctx, "debt_amount");
 
     let add = lua_raw_stmt(format!(
-        "G.GAME.bankrupt_at = G.GAME.bankrupt_at - {}", resolved.lua_str
+        "G.GAME.bankrupt_at = G.GAME.bankrupt_at - {}",
+        resolved.lua_str
     ));
     let remove = lua_raw_stmt(format!(
-        "G.GAME.bankrupt_at = G.GAME.bankrupt_at + {}", resolved.lua_str
+        "G.GAME.bankrupt_at = G.GAME.bankrupt_at + {}",
+        resolved.lua_str
     ));
 
     PassiveEffectOutput {
@@ -100,10 +100,7 @@ pub fn shortcut(_effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectO
 pub fn showman(_effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
     let key = ctx.smods_key();
     PassiveEffectOutput {
-        add_to_deck: vec![lua_raw_stmt(format!(
-            "-- Showman effect enabled ({})",
-            key
-        ))],
+        add_to_deck: vec![lua_raw_stmt(format!("-- Showman effect enabled ({})", key))],
         remove_from_deck: vec![lua_raw_stmt("-- Showman effect disabled".to_string())],
         ..Default::default()
     }
@@ -266,10 +263,15 @@ pub fn compile_passive(
             let out = super::slot_management::edit_consumable_slots_passive(effect, ctx);
             Some(out)
         }
-        "edit_hand_size" | "edit_play_size" | "edit_discard_size"
-        | "edit_voucher_slots" | "edit_booster_slots" | "edit_shop_slots" => {
-            let size_type = effect.effect_type.strip_prefix("edit_").unwrap_or("hand_size");
-            Some(super::slot_management::edit_item_size_passive_typed(effect, ctx, size_type))
+        "edit_hand_size" | "edit_play_size" | "edit_discard_size" | "edit_voucher_slots"
+        | "edit_booster_slots" | "edit_shop_slots" => {
+            let size_type = effect
+                .effect_type
+                .strip_prefix("edit_")
+                .unwrap_or("hand_size");
+            Some(super::slot_management::edit_item_size_passive_typed(
+                effect, ctx, size_type,
+            ))
         }
 
         // New passive effects
@@ -285,4 +287,3 @@ pub fn compile_passive(
         _ => None,
     }
 }
-

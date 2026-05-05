@@ -1,7 +1,7 @@
+use super::GameObject;
 use crate::compiler;
 use crate::lua_ast::Chunk;
-use crate::types::{VoucherDef, ObjectType};
-use super::GameObject;
+use crate::types::{ObjectType, VoucherDef};
 
 impl GameObject for VoucherDef {
     fn object_type(&self) -> ObjectType {

@@ -902,9 +902,12 @@ pub fn draw_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
         resolved.lua_str
     ));
 
-    let message = custom_message
-        .map(lua_str)
-        .unwrap_or_else(|| lua_raw_expr(format!("\"+\"..tostring({})..' Cards Drawn'", resolved.lua_str)));
+    let message = custom_message.map(lua_str).unwrap_or_else(|| {
+        lua_raw_expr(format!(
+            "\"+\"..tostring({})..' Cards Drawn'",
+            resolved.lua_str
+        ))
+    });
 
     EffectOutput {
         return_fields: vec![],
@@ -1001,7 +1004,10 @@ pub fn add_booster_into_shop(effect: &EffectDef, ctx: &mut CompileContext) -> Ef
         .unwrap_or("");
 
     let booster_code = match method {
-        "key_var" => format!("SMODS.add_booster_to_shop({})", ctx.user_var_path(booster_variable)),
+        "key_var" => format!(
+            "SMODS.add_booster_to_shop({})",
+            ctx.user_var_path(booster_variable)
+        ),
         "random" => "SMODS.add_booster_to_shop()".to_string(),
         _ => format!("SMODS.add_booster_to_shop('{}')", specific_booster),
     };
@@ -1838,4 +1844,3 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
     }
 }
-

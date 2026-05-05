@@ -1,9 +1,14 @@
 mod common;
 
-use balatro_codegen::{compile_edition, compile_enhancement, compile_rarity, compile_seal, Emitter};
 use balatro_codegen::types::{ParamValue, RarityDef};
+use balatro_codegen::{
+    compile_edition, compile_enhancement, compile_rarity, compile_seal, Emitter,
+};
 
-use common::{and_group, base_edition, base_enhancement, base_seal, condition, effect, rule_with_conditions, rule_with_effects};
+use common::{
+    and_group, base_edition, base_enhancement, base_seal, condition, effect, rule_with_conditions,
+    rule_with_effects,
+};
 
 #[test]
 fn enhancement_compiles_and_has_calculate() {

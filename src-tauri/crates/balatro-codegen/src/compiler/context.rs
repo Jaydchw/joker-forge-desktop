@@ -170,55 +170,6 @@ impl CompileContext {
         &self.user_vars
     }
 
-    /// Generate Lua initialization code for run-scoped global variables.
-    pub fn run_scoped_global_init_block(&self) -> Option<String> {
-        let run_globals: Vec<&UserVariableDef> = self
-            .user_vars
-            .iter()
-            .filter(|v| v.is_global && !v.is_persistent)
-            .collect();
-
-        if run_globals.is_empty() {
-            return None;
-        }
-
-        let mut code = String::from("if G.GAME then\n    G.GAME.jf_global_vars = G.GAME.jf_global_vars or {}");
-        for variable in run_globals {
-            code.push_str(&format!(
-                "\n    if G.GAME.jf_global_vars.{name} == nil then G.GAME.jf_global_vars.{name} = {value} end",
-                name = variable.name,
-                value = self.user_var_default_lua(variable),
-            ));
-        }
-        code.push_str("\nend");
-        Some(code)
-    }
-
-    fn user_var_default_lua(&self, variable: &UserVariableDef) -> String {
-        match variable.var_type {
-            UserVarType::Number => {
-                let n = variable.initial_value.as_f64().unwrap_or(0.0);
-                if n.fract() == 0.0 {
-                    format!("{}", n as i64)
-                } else {
-                    format!("{}", n)
-                }
-            }
-            UserVarType::Key
-            | UserVarType::Text
-            | UserVarType::Suit
-            | UserVarType::Rank
-            | UserVarType::PokerHand => {
-                let escaped = variable
-                    .initial_value
-                    .to_string_lossy()
-                    .replace('\\', "\\\\")
-                    .replace('\'', "\\'");
-                format!("'{}'", escaped)
-            }
-        }
-    }
-
     /// The full SMODS key for this object (e.g.: `j_modprefix_myjoker`).
     pub fn smods_key(&self) -> String {
         let prefix = match self.object_type {

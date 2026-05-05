@@ -85,6 +85,8 @@ const BALATRO_AUTOFIND_ALERT_KEY = "joker_forge_balatro_autofind_alert";
 const SPLIT_LOCALIZATION_EXPORT_KEY = "joker_forge_split_localization_export";
 const EXPORT_DESTINATION_MODE_KEY = "joker_forge_export_destination_mode";
 const JOKERFORGE_EXPORT_AS_JSON_KEY = "joker_forge_export_as_json";
+const SINGLE_MANAGED_MOD_EXPORT_KEY =
+  "joker_forge_single_managed_mod_export";
 const JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY =
   "joker_forge_auto_save_downloads";
 const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";
@@ -1230,6 +1232,7 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(SPLIT_LOCALIZATION_EXPORT_KEY);
   window.localStorage.removeItem(EXPORT_DESTINATION_MODE_KEY);
   window.localStorage.removeItem(JOKERFORGE_EXPORT_AS_JSON_KEY);
+  window.localStorage.removeItem(SINGLE_MANAGED_MOD_EXPORT_KEY);
   window.localStorage.removeItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY);
   window.localStorage.removeItem(LAUNCH_GAME_ON_EXPORT_KEY);
   window.localStorage.removeItem(BYPASS_UNSUPPORTED_RULES_DIALOG_KEY);
@@ -1645,6 +1648,21 @@ export const setAutoOpenNewItemDialogEnabled = (value: boolean) => {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
     AUTO_OPEN_NEW_ITEM_DIALOG_KEY,
+    value ? "true" : "false",
+  );
+};
+
+export const getSingleManagedModExportEnabled = (): boolean => {
+  if (typeof window === "undefined") return true;
+  const stored = window.localStorage.getItem(SINGLE_MANAGED_MOD_EXPORT_KEY);
+  if (stored === null) return true;
+  return stored === "true";
+};
+
+export const setSingleManagedModExportEnabled = (value: boolean) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    SINGLE_MANAGED_MOD_EXPORT_KEY,
     value ? "true" : "false",
   );
 };

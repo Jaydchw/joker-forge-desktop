@@ -1,7 +1,7 @@
+use super::compile_rules;
+use super::context::CompileContext;
 use crate::lua_ast::*;
 use crate::types::*;
-use super::context::CompileContext;
-use super::compile_rules;
 
 /// Compile a booster definition into a Lua chunk.
 pub fn compile_booster(booster: &BoosterDef, mod_prefix: &str) -> Chunk {

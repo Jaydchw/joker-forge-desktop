@@ -1,7 +1,7 @@
 mod common;
 
-use balatro_codegen::types::ParamValue;
 use balatro_codegen::types::ConsumableTypeDef;
+use balatro_codegen::types::ParamValue;
 use balatro_codegen::{compile_consumable, compile_consumable_type, Emitter};
 
 use common::{

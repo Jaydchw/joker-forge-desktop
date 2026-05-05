@@ -1,7 +1,7 @@
+use super::GameObject;
 use crate::compiler;
 use crate::lua_ast::Chunk;
 use crate::types::{DeckDef, ObjectType};
-use super::GameObject;
 
 impl GameObject for DeckDef {
     fn object_type(&self) -> ObjectType {

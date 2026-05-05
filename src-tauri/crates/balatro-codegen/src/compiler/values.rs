@@ -106,44 +106,43 @@ pub fn resolve_value(
         ParamValue::Str(s) => resolve_string_value(s, object_type, config_var_name),
         ParamValue::Typed(typed) => {
             if is_game_variable_type(&typed.value_type) {
-                    if let Some(s) = typed.value.as_str() {
-                        if let Some(gv) = parse_game_var(s) {
-                            return build_game_var_expr(&gv);
-                        }
+                if let Some(s) = typed.value.as_str() {
+                    if let Some(gv) = parse_game_var(s) {
+                        return build_game_var_expr(&gv);
                     }
-                    lua_nil()
+                }
+                lua_nil()
             } else if is_range_type(&typed.value_type) {
-                    if let Some(s) = typed.value.as_str() {
-                        if let Some(rv) = parse_range_var(s) {
-                            return lua_call("pseudorandom", vec![
-                                lua_str(s),
-                                lua_num(rv.min),
-                                lua_num(rv.max),
-                            ]);
-                        }
+                if let Some(s) = typed.value.as_str() {
+                    if let Some(rv) = parse_range_var(s) {
+                        return lua_call(
+                            "pseudorandom",
+                            vec![lua_str(s), lua_num(rv.min), lua_num(rv.max)],
+                        );
                     }
-                    lua_nil()
+                }
+                lua_nil()
             } else if is_user_variable_type(&typed.value_type) {
-                    if let Some(name) = typed.value.as_str() {
+                if let Some(name) = typed.value.as_str() {
+                    return ability_path_expr(object_type, name);
+                }
+                lua_nil()
+            } else {
+                // Fall through to string/number resolution
+                if let Some(n) = typed.value.as_f64() {
+                    if let Some(name) = config_var_name {
                         return ability_path_expr(object_type, name);
                     }
-                    lua_nil()
-            } else {
-                    // Fall through to string/number resolution
-                    if let Some(n) = typed.value.as_f64() {
-                        if let Some(name) = config_var_name {
-                            return ability_path_expr(object_type, name);
-                        }
-                        if n.fract() == 0.0 {
-                            lua_int(n as i64)
-                        } else {
-                            lua_num(n)
-                        }
-                    } else if let Some(s) = typed.value.as_str() {
-                        resolve_string_value(s, object_type, config_var_name)
+                    if n.fract() == 0.0 {
+                        lua_int(n as i64)
                     } else {
-                        lua_nil()
+                        lua_num(n)
                     }
+                } else if let Some(s) = typed.value.as_str() {
+                    resolve_string_value(s, object_type, config_var_name)
+                } else {
+                    lua_nil()
+                }
             }
         }
     }
@@ -156,11 +155,10 @@ fn resolve_string_value(s: &str, object_type: ObjectType, config_var_name: Optio
     }
     // Range variable reference
     if let Some(rv) = parse_range_var(s) {
-        return lua_call("pseudorandom", vec![
-            lua_str(s),
-            lua_num(rv.min),
-            lua_num(rv.max),
-        ]);
+        return lua_call(
+            "pseudorandom",
+            vec![lua_str(s), lua_num(rv.min), lua_num(rv.max)],
+        );
     }
     // Try parsing as number
     if let Ok(n) = s.parse::<f64>() {
@@ -310,7 +308,10 @@ pub fn resolve_config_value(
                         let code = game_var_lua_code(&gv.var_id)
                             .unwrap_or(&gv.var_id)
                             .to_string();
-                        return ResolvedValue { expr, lua_str: code };
+                        return ResolvedValue {
+                            expr,
+                            lua_str: code,
+                        };
                     }
                 }
                 ResolvedValue {
@@ -324,11 +325,11 @@ pub fn resolve_config_value(
                             "pseudorandom",
                             vec![lua_str(s), lua_num(rv.min), lua_num(rv.max)],
                         );
-                        let code = format!(
-                            "pseudorandom(\"{}\", {}, {})",
-                            s, rv.min, rv.max
-                        );
-                        return ResolvedValue { expr, lua_str: code };
+                        let code = format!("pseudorandom(\"{}\", {}, {})", s, rv.min, rv.max);
+                        return ResolvedValue {
+                            expr,
+                            lua_str: code,
+                        };
                     }
                 }
                 ResolvedValue {

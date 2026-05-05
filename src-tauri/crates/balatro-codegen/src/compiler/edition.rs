@@ -1,14 +1,22 @@
+use super::colors::normalize_hex_colour;
+use super::context::CompileContext;
+use super::enhancement::build_card_calculate_function;
+use super::{build_shared_loc_vars, compile_rules, RuleOutput};
 use crate::lua_ast::*;
 use crate::types::*;
-use super::context::CompileContext;
-use super::colors::normalize_hex_colour;
-use super::{compile_rules, build_shared_loc_vars, RuleOutput};
-use super::enhancement::build_card_calculate_function;
 
 /// Known vanilla shaders that don't need SMODS.Shader registration.
 const VANILLA_SHADERS: &[&str] = &[
-    "foil", "holo", "polychrome", "negative", "negative_shine",
-    "voucher", "booster", "dissolve", "played", "unplayed",
+    "foil",
+    "holo",
+    "polychrome",
+    "negative",
+    "negative_shine",
+    "voucher",
+    "booster",
+    "dissolve",
+    "played",
+    "unplayed",
 ];
 
 fn is_custom_shader(shader: &str) -> bool {

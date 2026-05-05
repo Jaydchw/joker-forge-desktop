@@ -1,5 +1,5 @@
-use crate::compiler::values::comparison_op;
 use crate::compiler::context::CompileContext;
+use crate::compiler::values::comparison_op;
 use crate::lua_ast::*;
 use crate::types::ConditionDef;
 
@@ -55,10 +55,7 @@ pub fn text_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<E
         .map(|v| v.to_string_lossy())
         .unwrap_or_default();
 
-    Some(lua_eq(
-        ctx.user_var_expr(variable_name),
-        lua_str(text),
-    ))
+    Some(lua_eq(ctx.user_var_expr(variable_name), lua_str(text)))
 }
 
 pub fn poker_hand_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
@@ -69,10 +66,7 @@ pub fn poker_hand_variable(condition: &ConditionDef, ctx: &CompileContext) -> Op
         .map(|v| v.to_string_lossy())
         .unwrap_or_default();
 
-    Some(lua_eq(
-        ctx.user_var_expr(variable_name),
-        lua_str(hand_name),
-    ))
+    Some(lua_eq(ctx.user_var_expr(variable_name), lua_str(hand_name)))
 }
 
 pub fn rank_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
@@ -83,10 +77,7 @@ pub fn rank_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<E
         .map(|v| v.to_string_lossy())
         .unwrap_or_default();
 
-    Some(lua_eq(
-        ctx.user_var_expr(variable_name),
-        lua_str(rank),
-    ))
+    Some(lua_eq(ctx.user_var_expr(variable_name), lua_str(rank)))
 }
 
 pub fn suit_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
@@ -97,8 +88,5 @@ pub fn suit_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<E
         .map(|v| v.to_string_lossy())
         .unwrap_or_default();
 
-    Some(lua_eq(
-        ctx.user_var_expr(variable_name),
-        lua_str(suit),
-    ))
+    Some(lua_eq(ctx.user_var_expr(variable_name), lua_str(suit)))
 }

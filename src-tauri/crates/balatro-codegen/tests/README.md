@@ -19,12 +19,17 @@ This crate uses two complementary test layers:
 
 - Reusable test builders live in `tests/common/mod.rs`.
 - Add new helper constructors there before duplicating object/rule setup.
+- Snapshot-style Lua fixtures live in `tests/lua-code-examples/**`.
+  - Each case uses a `*.json` input spec and a matching `*.lua` expected output.
+  - The `*.lua` file starts with contributor comments, then expected generated Lua.
+  - Integration test: `tests/lua_example_snapshots.rs`.
 
 ## Expansion guidelines
 
 - Add internal algorithm regressions under `src/compiler/tests.rs`.
 - Add output/contract tests under `tests/*.rs` per object family.
 - Prefer focused tests with one assertion theme each (branch order, trigger filtering, emitted section markers, etc.).
+- For broad output coverage, prefer adding a new case in `lua-code-examples` instead of adding another ad-hoc `contains(...)` assertion.
 
 ## Suggested pattern for new suite files
 
@@ -38,5 +43,8 @@ This crate uses two complementary test layers:
 
 - Run only crate tests:
   - `cargo test -p balatro-codegen`
+- Regenerate Lua snapshot bodies from JSON specs:
+  - PowerShell: `$env:UPDATE_LUA_EXAMPLES='1'; cargo test -p balatro-codegen lua_codegen_matches_examples`
+  - Bash: `UPDATE_LUA_EXAMPLES=1 cargo test -p balatro-codegen lua_codegen_matches_examples`
 - Run full workspace build (frontend + tauri side checks from workspace root):
   - `npm run build`

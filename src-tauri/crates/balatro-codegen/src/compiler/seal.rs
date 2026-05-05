@@ -1,9 +1,9 @@
+use super::colors::normalize_hex_colour;
+use super::context::CompileContext;
+use super::enhancement::build_card_calculate_function;
+use super::{build_shared_loc_vars, compile_rules, RuleOutput};
 use crate::lua_ast::*;
 use crate::types::*;
-use super::context::CompileContext;
-use super::colors::normalize_hex_colour;
-use super::{compile_rules, build_shared_loc_vars, RuleOutput};
-use super::enhancement::build_card_calculate_function;
 
 /// Compile a seal definition into a Lua chunk.
 pub fn compile_seal(seal: &SealDef, mod_prefix: &str) -> Chunk {
@@ -46,11 +46,7 @@ fn has_retrigger_effects(rules: &[RuleDef]) -> bool {
         .any(|r| r.effects.iter().any(|e| e.effect_type == "retrigger_card"))
 }
 
-fn build_seal_table(
-    seal: &SealDef,
-    ctx: &CompileContext,
-    rule_outputs: &[RuleOutput],
-) -> Expr {
+fn build_seal_table(seal: &SealDef, ctx: &CompileContext, rule_outputs: &[RuleOutput]) -> Expr {
     let mut entries: Vec<TableEntry> = Vec::new();
 
     entries.push(kv("key", lua_str(&seal.key)));

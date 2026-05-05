@@ -40,6 +40,8 @@ interface ExportModRustOptions {
   destinationMode?: "downloads" | "balatro-mods";
   balatroModsPath?: string;
   overwriteExistingModFolder?: boolean;
+  removeOtherManagedModsFromBalatroFolder?: boolean;
+  managedModFolderNames?: string[];
 }
 
 type ItemWithImage = Pick<
@@ -498,6 +500,8 @@ export const exportModRust = async (
     enhancementsAtlas2xPng: enhancementsAtlas2x ? dataURLToUint8Array(enhancementsAtlas2x.atlasDataUrl) : null,
     sealsAtlas1xPng: sealsAtlas1x ? dataURLToUint8Array(sealsAtlas1x.atlasDataUrl) : null,
     sealsAtlas2xPng: sealsAtlas2x ? dataURLToUint8Array(sealsAtlas2x.atlasDataUrl) : null,
+    removeOtherManagedMods: options.removeOtherManagedModsFromBalatroFolder ?? false,
+    managedModFolderNames: options.managedModFolderNames ?? null,
   });
 
   return { exportRootPath, modFolderPath, fileCount };

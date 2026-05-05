@@ -325,6 +325,93 @@ pub fn compile_rulebuilder_node_snippet(
 // writes it directly to disk, both in a single round-trip.
 // ---------------------------------------------------------------------------
 
+fn compile_joker_lua_from_input(
+    item: &JokerDataInput,
+    pos: AtlasPosInput,
+    soul_pos: Option<AtlasPosInput>,
+    mod_prefix: &str,
+    include_loc_txt: bool,
+    global_user_variables: &[UserVariableDef],
+) -> String {
+    let mut def = super::export::joker_data_to_def(item, mod_prefix, pos, soul_pos);
+    merge_global_user_vars(&mut def.user_variables, global_user_variables);
+    let chunk = compile_joker_with_options(&def, mod_prefix, include_loc_txt);
+    strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+}
+
+fn compile_consumable_lua_from_input(
+    item: &ConsumableDataInput,
+    pos: AtlasPosInput,
+    soul_pos: Option<AtlasPosInput>,
+    mod_prefix: &str,
+    global_user_variables: &[UserVariableDef],
+) -> String {
+    let mut def = super::export::consumable_data_to_def(item, pos, soul_pos);
+    merge_global_user_vars(&mut def.user_variables, global_user_variables);
+    let chunk = compile_consumable(&def, mod_prefix);
+    strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+}
+
+fn compile_voucher_lua_from_input(
+    item: &VoucherDataInput,
+    pos: AtlasPosInput,
+    soul_pos: Option<AtlasPosInput>,
+    mod_prefix: &str,
+    global_user_variables: &[UserVariableDef],
+) -> String {
+    let mut def = super::export::voucher_data_to_def(item, pos, soul_pos);
+    merge_global_user_vars(&mut def.user_variables, global_user_variables);
+    let chunk = compile_voucher(&def, mod_prefix);
+    strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+}
+
+fn compile_deck_lua_from_input(
+    item: &DeckDataInput,
+    pos: AtlasPosInput,
+    mod_prefix: &str,
+    global_user_variables: &[UserVariableDef],
+) -> String {
+    let mut def = super::export::deck_data_to_def(item, pos);
+    merge_global_user_vars(&mut def.user_variables, global_user_variables);
+    let chunk = compile_deck(&def, mod_prefix);
+    strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+}
+
+fn compile_enhancement_lua_from_input(
+    item: &EnhancementDataInput,
+    pos: AtlasPosInput,
+    mod_prefix: &str,
+    global_user_variables: &[UserVariableDef],
+) -> String {
+    let mut def = super::export::enhancement_data_to_def(item, pos);
+    merge_global_user_vars(&mut def.user_variables, global_user_variables);
+    let chunk = compile_enhancement(&def, mod_prefix);
+    strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+}
+
+fn compile_seal_lua_from_input(
+    item: &SealDataInput,
+    pos: AtlasPosInput,
+    mod_prefix: &str,
+    global_user_variables: &[UserVariableDef],
+) -> String {
+    let mut def = super::export::seal_data_to_def(item, pos);
+    merge_global_user_vars(&mut def.user_variables, global_user_variables);
+    let chunk = compile_seal(&def, mod_prefix);
+    strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+}
+
+fn compile_edition_lua_from_input(
+    item: &EditionDataInput,
+    mod_prefix: &str,
+    global_user_variables: &[UserVariableDef],
+) -> String {
+    let mut def = super::export::edition_data_to_def(item);
+    merge_global_user_vars(&mut def.user_variables, global_user_variables);
+    let chunk = compile_edition(&def, mod_prefix);
+    strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+}
+
 /// Compile a single joker from raw frontend data.
 ///
 /// Accepts the unmodified TypeScript `JokerData` object. The Rust `export`
@@ -340,15 +427,18 @@ pub fn compile_joker_from_data(
     include_loc_txt: bool,
     global_user_variables: Option<Vec<super::export::UserVariableInput>>,
 ) -> Result<String, String> {
-    let mut joker_def = super::export::joker_data_to_def(&joker_data, &mod_prefix, pos, soul_pos);
-    if let Some(global_user_variables) = global_user_variables {
-        let mapped_globals = super::export::map_user_variable_inputs(&global_user_variables);
-        merge_global_user_vars(&mut joker_def.user_variables, &mapped_globals);
-    }
-    let chunk = compile_joker_with_options(&joker_def, &mod_prefix, include_loc_txt);
-    Ok(strip_export_comments(&format_lua_source(
-        &LuaEmitter::new().emit_chunk(&chunk),
-    )))
+    let mapped_globals = global_user_variables
+        .as_deref()
+        .map(super::export::map_user_variable_inputs)
+        .unwrap_or_default();
+    Ok(compile_joker_lua_from_input(
+        &joker_data,
+        pos,
+        soul_pos,
+        &mod_prefix,
+        include_loc_txt,
+        &mapped_globals,
+    ))
 }
 
 #[tauri::command]
@@ -367,70 +457,82 @@ pub fn compile_item_from_data(
         .map(super::export::map_user_variable_inputs)
         .unwrap_or_default();
 
-    let lua = match item_type.as_str() {
+    match item_type.as_str() {
         "joker" => {
             let parsed: JokerDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid joker data: {}", e))?;
-            let mut def =
-                super::export::joker_data_to_def(&parsed, &mod_prefix, base_pos, soul_pos);
-            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
-            let chunk = compile_joker_with_options(&def, &mod_prefix, include_loc_txt);
-            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            Ok(compile_joker_lua_from_input(
+                &parsed,
+                base_pos,
+                soul_pos,
+                &mod_prefix,
+                include_loc_txt,
+                &mapped_globals,
+            ))
         }
         "consumable" => {
             let parsed: ConsumableDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid consumable data: {}", e))?;
-            let mut def = super::export::consumable_data_to_def(&parsed, base_pos, soul_pos);
-            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
-            let chunk = compile_consumable(&def, &mod_prefix);
-            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            Ok(compile_consumable_lua_from_input(
+                &parsed,
+                base_pos,
+                soul_pos,
+                &mod_prefix,
+                &mapped_globals,
+            ))
         }
         "voucher" => {
             let parsed: VoucherDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid voucher data: {}", e))?;
-            let mut def = super::export::voucher_data_to_def(&parsed, base_pos, soul_pos);
-            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
-            let chunk = compile_voucher(&def, &mod_prefix);
-            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            Ok(compile_voucher_lua_from_input(
+                &parsed,
+                base_pos,
+                soul_pos,
+                &mod_prefix,
+                &mapped_globals,
+            ))
         }
         "deck" => {
             let parsed: DeckDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid deck data: {}", e))?;
-            let mut def = super::export::deck_data_to_def(&parsed, base_pos);
-            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
-            let chunk = compile_deck(&def, &mod_prefix);
-            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            Ok(compile_deck_lua_from_input(
+                &parsed,
+                base_pos,
+                &mod_prefix,
+                &mapped_globals,
+            ))
         }
         "enhancement" => {
             let parsed: EnhancementDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid enhancement data: {}", e))?;
-            let mut def = super::export::enhancement_data_to_def(&parsed, base_pos);
-            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
-            let chunk = compile_enhancement(&def, &mod_prefix);
-            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            Ok(compile_enhancement_lua_from_input(
+                &parsed,
+                base_pos,
+                &mod_prefix,
+                &mapped_globals,
+            ))
         }
         "seal" => {
             let parsed: SealDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid seal data: {}", e))?;
-            let mut def = super::export::seal_data_to_def(&parsed, base_pos);
-            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
-            let chunk = compile_seal(&def, &mod_prefix);
-            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            Ok(compile_seal_lua_from_input(
+                &parsed,
+                base_pos,
+                &mod_prefix,
+                &mapped_globals,
+            ))
         }
         "edition" => {
             let parsed: EditionDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid edition data: {}", e))?;
-            let mut def = super::export::edition_data_to_def(&parsed);
-            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
-            let chunk = compile_edition(&def, &mod_prefix);
-            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            Ok(compile_edition_lua_from_input(
+                &parsed,
+                &mod_prefix,
+                &mapped_globals,
+            ))
         }
-        _ => {
-            return Err(format!("Unsupported item type: {}", item_type));
-        }
-    };
-
-    Ok(lua)
+        _ => Err(format!("Unsupported item type: {}", item_type)),
+    }
 }
 
 /// Compile and write a batch of jokers to disk in a single IPC call.
@@ -507,13 +609,33 @@ pub fn export_mod_package(
     seals_atlas_2x_png: Option<Vec<u8>>,
     decks_atlas_1x_png: Option<Vec<u8>>,
     decks_atlas_2x_png: Option<Vec<u8>>,
+    remove_other_managed_mods: bool,
+    managed_mod_folder_names: Option<Vec<String>>,
 ) -> Result<usize, String> {
     let root = Path::new(&mod_folder_path);
+    if remove_other_managed_mods {
+        if let Some(managed_mod_folder_names) = managed_mod_folder_names {
+            let current_mod_folder_name = root
+                .file_name()
+                .and_then(|value| value.to_str())
+                .ok_or_else(|| {
+                    format!(
+                        "Could not resolve mod folder name from export path: {}",
+                        mod_folder_path
+                    )
+                })?;
+            remove_other_managed_mod_folders(
+                root,
+                current_mod_folder_name,
+                &managed_mod_folder_names,
+            )?;
+        }
+    }
     fs::create_dir_all(root)
         .map_err(|e| format!("Failed to create mod folder {}: {}", mod_folder_path, e))?;
 
     let mut file_count = 0;
-    let global_vars = super::export::collect_global_user_variables(
+    let all_global_vars = super::export::collect_global_user_variables(
         &jokers,
         &consumables,
         &vouchers,
@@ -522,7 +644,25 @@ pub fn export_mod_package(
         &seals,
         &editions,
     );
-    let has_global_vars = !global_vars.is_empty();
+    let persistent_global_vars = super::export::collect_persistent_global_user_variables(
+        &jokers,
+        &consumables,
+        &vouchers,
+        &decks,
+        &enhancements,
+        &seals,
+        &editions,
+    );
+    let run_scoped_global_vars = super::export::collect_run_scoped_global_user_variables(
+        &jokers,
+        &consumables,
+        &vouchers,
+        &decks,
+        &enhancements,
+        &seals,
+        &editions,
+    );
+    let has_persistent_global_vars = !persistent_global_vars.is_empty();
 
     let main_path = root.join(&metadata.main_file);
     let main_lua = format_lua_source(&super::export::build_main_lua(
@@ -535,15 +675,17 @@ pub fn export_mod_package(
         &editions,
         !rarities.is_empty(),
         !consumable_sets.is_empty(),
-        has_global_vars,
+        has_persistent_global_vars,
+        &run_scoped_global_vars,
     ));
     fs::write(&main_path, main_lua.as_bytes())
         .map_err(|e| format!("Failed to write {}: {}", main_path.display(), e))?;
     file_count += 1;
 
-    if has_global_vars {
+    if has_persistent_global_vars {
         let globals_path = root.join("globals.lua");
-        let globals_lua = format_lua_source(&super::export::build_globals_lua(&global_vars));
+        let globals_lua =
+            format_lua_source(&super::export::build_globals_lua(&persistent_global_vars));
         fs::write(&globals_path, globals_lua.as_bytes())
             .map_err(|e| format!("Failed to write {}: {}", globals_path.display(), e))?;
         file_count += 1;
@@ -677,15 +819,14 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let mut def = super::export::joker_data_to_def(
+                compile_joker_lua_from_input(
                     &entry.joker_data,
-                    &metadata.prefix,
                     entry.pos.clone(),
                     entry.soul_pos.clone(),
-                );
-                merge_global_user_vars(&mut def.user_variables, &global_vars);
-                let chunk = compile_joker_with_options(&def, &metadata.prefix, include_loc_txt);
-                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+                    &metadata.prefix,
+                    include_loc_txt,
+                    &all_global_vars,
+                )
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -702,14 +843,13 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let mut def = super::export::consumable_data_to_def(
+                compile_consumable_lua_from_input(
                     &entry.consumable_data,
                     entry.pos.clone(),
                     entry.soul_pos.clone(),
-                );
-                merge_global_user_vars(&mut def.user_variables, &global_vars);
-                let chunk = compile_consumable(&def, &metadata.prefix);
-                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+                    &metadata.prefix,
+                    &all_global_vars,
+                )
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -726,14 +866,13 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let mut def = super::export::voucher_data_to_def(
+                compile_voucher_lua_from_input(
                     &entry.voucher_data,
                     entry.pos.clone(),
                     entry.soul_pos.clone(),
-                );
-                merge_global_user_vars(&mut def.user_variables, &global_vars);
-                let chunk = compile_voucher(&def, &metadata.prefix);
-                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+                    &metadata.prefix,
+                    &all_global_vars,
+                )
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -750,10 +889,12 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let mut def = super::export::deck_data_to_def(&entry.deck_data, entry.pos.clone());
-                merge_global_user_vars(&mut def.user_variables, &global_vars);
-                let chunk = compile_deck(&def, &metadata.prefix);
-                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+                compile_deck_lua_from_input(
+                    &entry.deck_data,
+                    entry.pos.clone(),
+                    &metadata.prefix,
+                    &all_global_vars,
+                )
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -770,13 +911,12 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let mut def = super::export::enhancement_data_to_def(
+                compile_enhancement_lua_from_input(
                     &entry.enhancement_data,
                     entry.pos.clone(),
-                );
-                merge_global_user_vars(&mut def.user_variables, &global_vars);
-                let chunk = compile_enhancement(&def, &metadata.prefix);
-                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+                    &metadata.prefix,
+                    &all_global_vars,
+                )
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -793,10 +933,12 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let mut def = super::export::seal_data_to_def(&entry.seal_data, entry.pos.clone());
-                merge_global_user_vars(&mut def.user_variables, &global_vars);
-                let chunk = compile_seal(&def, &metadata.prefix);
-                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+                compile_seal_lua_from_input(
+                    &entry.seal_data,
+                    entry.pos.clone(),
+                    &metadata.prefix,
+                    &all_global_vars,
+                )
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -813,10 +955,11 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let mut def = super::export::edition_data_to_def(&entry.edition_data);
-                merge_global_user_vars(&mut def.user_variables, &global_vars);
-                let chunk = compile_edition(&def, &metadata.prefix);
-                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+                compile_edition_lua_from_input(
+                    &entry.edition_data,
+                    &metadata.prefix,
+                    &all_global_vars,
+                )
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -840,6 +983,59 @@ pub fn export_mod_package(
     }
 
     Ok(file_count)
+}
+
+fn remove_other_managed_mod_folders(
+    current_mod_folder_path: &Path,
+    current_mod_folder_name: &str,
+    managed_mod_folder_names: &[String],
+) -> Result<(), String> {
+    let mods_root = current_mod_folder_path.parent().ok_or_else(|| {
+        format!(
+            "Could not resolve parent mods folder for {}",
+            current_mod_folder_path.display()
+        )
+    })?;
+
+    let managed_set: HashSet<String> = managed_mod_folder_names
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_ascii_lowercase())
+        .collect();
+
+    if managed_set.is_empty() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(mods_root)
+        .map_err(|e| format!("Failed to read mods folder {}: {}", mods_root.display(), e))?
+    {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let folder_name = entry.file_name();
+        let folder_name = folder_name.to_string_lossy().to_string();
+        if folder_name.eq_ignore_ascii_case(current_mod_folder_name) {
+            continue;
+        }
+        if !managed_set.contains(&folder_name.to_ascii_lowercase()) {
+            continue;
+        }
+
+        fs::remove_dir_all(&path).map_err(|e| {
+            format!(
+                "Failed to remove managed mod folder {}: {}",
+                path.display(),
+                e
+            )
+        })?;
+    }
+
+    Ok(())
 }
 
 fn merge_global_user_vars(target: &mut Vec<UserVariableDef>, global_vars: &[UserVariableDef]) {
@@ -1297,14 +1493,16 @@ pub fn ensure_balatro_mod_setup(
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
     }
-    fs::copy(&version_dll_source, &version_dll_target).map_err(|e| {
-        format!(
-            "Failed to install Lovely (copy {} to {}): {}",
-            version_dll_source.display(),
-            version_dll_target.display(),
-            e
-        )
-    })?;
+    if !version_dll_target.exists() {
+        fs::copy(&version_dll_source, &version_dll_target).map_err(|e| {
+            format!(
+                "Failed to install Lovely (copy {} to {}): {}",
+                version_dll_source.display(),
+                version_dll_target.display(),
+                e
+            )
+        })?;
+    }
 
     let mods_dir = resolve_mods_dir_from_appdata(&appdata_root);
     if mods_dir.exists() && !mods_dir.is_dir() {

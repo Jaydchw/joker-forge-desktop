@@ -209,7 +209,12 @@ fn joker_calculate_wraps_rules_and_keeps_fallback_last_for_same_trigger() {
 
 #[test]
 fn shared_calculate_keeps_triggers_isolated() {
-    let ctx = CompileContext::new(ObjectType::Deck, "mod".to_string(), "b_test".to_string(), false);
+    let ctx = CompileContext::new(
+        ObjectType::Deck,
+        "mod".to_string(),
+        "b_test".to_string(),
+        false,
+    );
 
     let hand_rule = make_rule_output("r_hand", "hand_played", None, "HAND");
     let round_rule = make_rule_output("r_round", "round_end", None, "ROUND");

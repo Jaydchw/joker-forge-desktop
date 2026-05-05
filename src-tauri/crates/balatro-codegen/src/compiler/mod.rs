@@ -1,6 +1,6 @@
+pub mod colors;
 pub mod conditions;
 pub mod context;
-pub mod colors;
 pub mod effects;
 pub mod triggers;
 pub mod values;
@@ -555,9 +555,6 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
 
     // Group rules by trigger
     let mut body: Vec<Stmt> = Vec::new();
-    if let Some(init_block) = ctx.run_scoped_global_init_block() {
-        body.push(lua_raw_stmt(init_block));
-    }
     let has_any_destroy = non_passive.iter().any(|r| r.has_destroy);
 
     if has_any_destroy {
@@ -651,7 +648,7 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
 /// Build `add_to_deck` and `remove_from_deck` from passive effects.
 fn build_passive_functions(
     rule_outputs: &[RuleOutput],
-    ctx: &CompileContext,
+    _ctx: &CompileContext,
 ) -> (Option<Expr>, Option<Expr>) {
     let mut add_stmts: Vec<Stmt> = Vec::new();
     let mut remove_stmts: Vec<Stmt> = Vec::new();
@@ -662,15 +659,6 @@ fn build_passive_functions(
                 add_stmts.extend(po.add_to_deck.clone());
                 remove_stmts.extend(po.remove_from_deck.clone());
             }
-        }
-    }
-
-    if let Some(init_block) = ctx.run_scoped_global_init_block() {
-        if !add_stmts.is_empty() {
-            add_stmts.insert(0, lua_raw_stmt(init_block.clone()));
-        }
-        if !remove_stmts.is_empty() {
-            remove_stmts.insert(0, lua_raw_stmt(init_block));
         }
     }
 
@@ -955,7 +943,7 @@ fn rank_to_id(rank: &str) -> i64 {
     }
 }
 
-fn build_calc_dollar_bonus(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Option<Expr> {
+fn build_calc_dollar_bonus(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -> Option<Expr> {
     let mut regular: Vec<&BlindRewardOutput> = Vec::new();
     let mut boss: Vec<&BlindRewardOutput> = Vec::new();
 
@@ -974,9 +962,6 @@ fn build_calc_dollar_bonus(rule_outputs: &[RuleOutput], ctx: &CompileContext) ->
     }
 
     let mut body: Vec<Stmt> = Vec::new();
-    if let Some(init_block) = ctx.run_scoped_global_init_block() {
-        body.push(lua_raw_stmt(init_block));
-    }
     body.push(lua_local("blind_reward", lua_int(0)));
 
     if !boss.is_empty() {
@@ -1288,9 +1273,6 @@ pub(crate) fn build_shared_calculate_function(
     }
 
     let mut body: Vec<Stmt> = Vec::new();
-    if let Some(init_block) = ctx.run_scoped_global_init_block() {
-        body.push(lua_raw_stmt(init_block));
-    }
 
     let mut triggers_seen: Vec<String> = Vec::new();
     for ro in &non_passive {

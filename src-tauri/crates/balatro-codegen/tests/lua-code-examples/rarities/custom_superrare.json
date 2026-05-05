@@ -1,0 +1,10 @@
+{
+  "object_type": "rarity",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "superrare",
+    "name": "Super Rare",
+    "badge_colour": "6A7A8B",
+    "default_weight": 0.1
+  }
+}

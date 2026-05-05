@@ -1,7 +1,7 @@
+use super::GameObject;
 use crate::compiler;
 use crate::lua_ast::Chunk;
-use crate::types::{SealDef, ObjectType};
-use super::GameObject;
+use crate::types::{ObjectType, SealDef};
 
 impl GameObject for SealDef {
     fn object_type(&self) -> ObjectType {

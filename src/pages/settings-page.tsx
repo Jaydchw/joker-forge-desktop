@@ -46,6 +46,7 @@ import {
   getConfirmDeleteEnabled,
   getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
+  getSingleManagedModExportEnabled,
   getSplitLocalizationExportEnabled,
   getThemePreference,
   getRuleBuilderSettings,
@@ -57,6 +58,7 @@ import {
   setConfirmDeleteEnabled,
   setJokerforgeExportSaveMode,
   setJokerforgeExportAsJsonEnabled,
+  setSingleManagedModExportEnabled,
   setSplitLocalizationExportEnabled,
   setThemePreference,
   setRuleBuilderSettings,
@@ -382,6 +384,7 @@ export default function SettingsPage() {
   const [exportSaveMode, setExportSaveMode] =
     useState<JokerforgeExportSaveMode>("ask");
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
+  const [singleManagedModExport, setSingleManagedModExport] = useState(true);
   const [launchOnExport, setLaunchOnExport] = useState(false);
   const [autoOpenNewItemDialog, setAutoOpenNewItemDialog] = useState(true);
   const [bypassUnsupportedRulesDialog, setBypassUnsupportedRulesDialog] =
@@ -421,6 +424,7 @@ export default function SettingsPage() {
     setSplitLocalizationExport(getSplitLocalizationExportEnabled());
     setExportSaveMode(getJokerforgeExportSaveMode());
     setExportJokerforgeAsJson(getJokerforgeExportAsJsonEnabled());
+    setSingleManagedModExport(getSingleManagedModExportEnabled());
     setLaunchOnExport(window.localStorage.getItem(LAUNCH_GAME_ON_EXPORT_KEY) === "true");
     setAutoOpenNewItemDialog(getAutoOpenNewItemDialogEnabled());
     setBypassUnsupportedRulesDialog(getBypassUnsupportedRulesDialogEnabled());
@@ -852,6 +856,27 @@ export default function SettingsPage() {
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <Label htmlFor="single-managed-mod-export">
+                      Keep Balatro Mods Folder To One Managed Mod
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      When exporting to Balatro Mods folder, remove other managed
+                      mod folders so only the current project remains.
+                    </p>
+                  </div>
+                  <Switch
+                    id="single-managed-mod-export"
+                    checked={singleManagedModExport}
+                    onCheckedChange={(value) => {
+                      setSingleManagedModExport(value);
+                      setSingleManagedModExportEnabled(value);
+                    }}
+                    className="cursor-pointer"
+                  />
                 </div>
               </div>
             </div>

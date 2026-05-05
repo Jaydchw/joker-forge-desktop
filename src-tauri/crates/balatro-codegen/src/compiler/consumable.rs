@@ -1,5 +1,5 @@
-use super::context::CompileContext;
 use super::colors::normalize_hex_colour;
+use super::context::CompileContext;
 use super::{build_shared_calculate_function, build_shared_loc_vars, compile_rules};
 use crate::lua_ast::*;
 use crate::types::*;
@@ -32,10 +32,9 @@ pub fn compile_consumable(consumable: &ConsumableDef, mod_prefix: &str) -> Chunk
 
 /// Compile a ConsumableType definition into a Lua chunk.
 pub fn compile_consumable_type(ct: &ConsumableTypeDef, mod_prefix: &str) -> Chunk {
-    let primary = normalize_hex_colour(&ct.primary_colour)
-        .unwrap_or_else(|| "666666".to_string());
-    let secondary = normalize_hex_colour(&ct.secondary_colour)
-        .unwrap_or_else(|| "666666".to_string());
+    let primary = normalize_hex_colour(&ct.primary_colour).unwrap_or_else(|| "666666".to_string());
+    let secondary =
+        normalize_hex_colour(&ct.secondary_colour).unwrap_or_else(|| "666666".to_string());
 
     let mut entries: Vec<TableEntry> = Vec::new();
     entries.push(kv("key", lua_str(&ct.key)));
@@ -193,7 +192,7 @@ fn build_consumable_table(
 
 /// Build the `use` function for consumables.
 /// Compiles rules with trigger == "card_used".
-fn build_use_function(rule_outputs: &[super::RuleOutput], ctx: &CompileContext) -> Option<Expr> {
+fn build_use_function(rule_outputs: &[super::RuleOutput], _ctx: &CompileContext) -> Option<Expr> {
     let use_rules: Vec<&super::RuleOutput> = rule_outputs
         .iter()
         .filter(|r| r.trigger == "card_used" && !r.effect_stmts.is_empty())
@@ -207,9 +206,6 @@ fn build_use_function(rule_outputs: &[super::RuleOutput], ctx: &CompileContext) 
         "used_card".to_string(),
         Some(lua_or(lua_ident("copier"), lua_ident("card"))),
     )];
-    if let Some(init_block) = ctx.run_scoped_global_init_block() {
-        body.push(lua_raw_stmt(init_block));
-    }
 
     super::append_rule_chain_with_fallback(&mut body, &use_rules, |ro| ro.effect_stmts.clone());
 
@@ -220,7 +216,7 @@ fn build_use_function(rule_outputs: &[super::RuleOutput], ctx: &CompileContext) 
 }
 
 /// Build the `can_use` function for consumables.
-fn build_can_use_function(rule_outputs: &[super::RuleOutput], ctx: &CompileContext) -> Expr {
+fn build_can_use_function(rule_outputs: &[super::RuleOutput], _ctx: &CompileContext) -> Expr {
     let use_rules: Vec<&super::RuleOutput> = rule_outputs
         .iter()
         .filter(|r| r.trigger == "card_used")
@@ -232,15 +228,12 @@ fn build_can_use_function(rule_outputs: &[super::RuleOutput], ctx: &CompileConte
         .filter_map(|ro| ro.condition_expr.clone())
         .collect();
 
-    let mut body = if conditions.is_empty() {
+    let body = if conditions.is_empty() {
         vec![lua_return(lua_bool(true))]
     } else {
         let combined = lua_or_chain(conditions);
         vec![lua_return(combined)]
     };
-    if let Some(init_block) = ctx.run_scoped_global_init_block() {
-        body.insert(0, lua_raw_stmt(init_block));
-    }
 
     Expr::Function {
         params: vec!["self".into(), "card".into()],
@@ -251,4 +244,3 @@ fn build_can_use_function(rule_outputs: &[super::RuleOutput], ctx: &CompileConte
 fn kv(key: &str, val: Expr) -> TableEntry {
     TableEntry::KeyValue(key.to_string(), val)
 }
-

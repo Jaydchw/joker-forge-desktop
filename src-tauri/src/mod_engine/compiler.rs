@@ -602,4 +602,3 @@ fn convert_values(
 }
 
 // `capitalize` removed, category labels now come from the NodeCategory match arm strings.
-

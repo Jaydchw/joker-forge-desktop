@@ -205,4 +205,3 @@ impl From<&EntityState> for StateSyncPayload {
         }
     }
 }
-

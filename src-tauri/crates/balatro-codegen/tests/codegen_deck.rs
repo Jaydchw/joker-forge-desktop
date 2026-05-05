@@ -1,7 +1,7 @@
 mod common;
 
-use balatro_codegen::{compile_deck, Emitter};
 use balatro_codegen::types::ParamValue;
+use balatro_codegen::{compile_deck, Emitter};
 
 use common::{and_group, base_deck, condition, effect, rule_with_conditions, rule_with_effects};
 

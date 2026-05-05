@@ -221,7 +221,10 @@ pub fn create_playing_card(effect: &EffectDef, _ctx: &mut CompileContext) -> Eff
 /// Create Playing Cards effect: adds multiple base playing cards.
 pub fn create_playing_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
     let resolved = crate::compiler::values::resolve_config_value(
-        &effect.params, "count", ctx, "create_cards_count",
+        &effect.params,
+        "count",
+        ctx,
+        "create_cards_count",
     );
 
     let pre = vec![lua_raw_stmt(format!(
@@ -436,8 +439,16 @@ pub fn create_last_played_planet(effect: &EffectDef, _ctx: &mut CompileContext) 
         .unwrap_or(false);
     let custom_message = get_str_param(effect, "customMessage");
 
-    let buffer_code = if is_negative { "" } else { "G.GAME.consumeable_buffer = G.GAME.consumeable_buffer + 1\n            " };
-    let buffer_reset = if is_negative { "" } else { "\n                        G.GAME.consumeable_buffer = 0" };
+    let buffer_code = if is_negative {
+        ""
+    } else {
+        "G.GAME.consumeable_buffer = G.GAME.consumeable_buffer + 1\n            "
+    };
+    let buffer_reset = if is_negative {
+        ""
+    } else {
+        "\n                        G.GAME.consumeable_buffer = 0"
+    };
     let negative_code = if is_negative {
         "\n                        planet_card:set_edition(\"e_negative\", true)"
     } else {
@@ -595,4 +606,3 @@ fn normalize_joker_key(key: &str) -> String {
         format!("j_{}", key)
     }
 }
-

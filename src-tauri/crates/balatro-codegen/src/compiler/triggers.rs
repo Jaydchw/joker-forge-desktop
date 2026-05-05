@@ -5,11 +5,7 @@ use crate::types::ObjectType;
 ///
 /// Returns the Lua expression that goes inside `if <expr> then` to determine
 /// whether the current calculate() invocation matches this trigger.
-pub fn trigger_context(
-    object_type: ObjectType,
-    trigger: &str,
-    blueprint_compat: bool,
-) -> Expr {
+pub fn trigger_context(object_type: ObjectType, trigger: &str, blueprint_compat: bool) -> Expr {
     trigger_context_for_rule(object_type, trigger, blueprint_compat, false)
 }
 
@@ -80,9 +76,12 @@ pub fn retrigger_trigger_context(
             );
             Some(maybe_blueprint(base, blueprint_compat))
         }
-        (ObjectType::Enhancement | ObjectType::Seal | ObjectType::Edition, "card_scored") => Some(
-            lua_and(ctx("repetition"), lua_eq(ctx("cardarea"), lua_path(&["G", "play"]))),
-        ),
+        (ObjectType::Enhancement | ObjectType::Seal | ObjectType::Edition, "card_scored") => {
+            Some(lua_and(
+                ctx("repetition"),
+                lua_eq(ctx("cardarea"), lua_path(&["G", "play"])),
+            ))
+        }
         _ => None,
     }
 }
@@ -94,27 +93,9 @@ pub fn retrigger_trigger_context(
 fn joker_trigger_context(trigger: &str, bp: bool) -> Option<Expr> {
     let expr = match trigger {
         // Hand scoring
-        "hand_played" => bp_check(
-            lua_and(
-                lua_eq(ctx("cardarea"), lua_path(&["G", "jokers"])),
-                ctx("joker_main"),
-            ),
-            bp,
-        ),
-        "before_hand_played" => bp_check(
-            lua_and(
-                ctx("before"),
-                lua_eq(ctx("cardarea"), lua_path(&["G", "jokers"])),
-            ),
-            bp,
-        ),
-        "after_hand_played" => bp_check(
-            lua_and(
-                ctx("after"),
-                lua_eq(ctx("cardarea"), lua_path(&["G", "jokers"])),
-            ),
-            bp,
-        ),
+        "hand_played" => bp_check(ctx("joker_main"), bp),
+        "before_hand_played" => bp_check(ctx("before"), bp),
+        "after_hand_played" => bp_check(ctx("after"), bp),
         "card_scored" => bp_check(
             lua_and(
                 ctx("individual"),
@@ -196,10 +177,7 @@ fn joker_trigger_context(trigger: &str, bp: bool) -> Option<Expr> {
         "buying_self" => bp_check(
             lua_and(
                 ctx("buying_card"),
-                lua_and(
-                    lua_raw_expr("context.card.config.center.key == self.key"),
-                    lua_eq(ctx("cardarea"), lua_path(&["G", "jokers"])),
-                ),
+                lua_raw_expr("context.card.config.center.key == self.key"),
             ),
             bp,
         ),
@@ -305,10 +283,7 @@ fn card_trigger_context(trigger: &str, object_type: ObjectType) -> Option<Expr> 
                 ),
             ),
         ),
-        "card_discarded" => lua_and(
-            ctx("discard"),
-            lua_eq(ctx("other_card"), lua_ident("card")),
-        ),
+        "card_discarded" => lua_and(ctx("discard"), lua_eq(ctx("other_card"), lua_ident("card"))),
         _ => return None,
     };
     Some(expr)
@@ -334,10 +309,7 @@ fn deck_trigger_context(trigger: &str) -> Option<Expr> {
             ctx("individual"),
             lua_eq(ctx("cardarea"), lua_path(&["G", "play"])),
         )),
-        "hand_played" => Some(lua_and(
-            lua_eq(ctx("cardarea"), lua_path(&["G", "jokers"])),
-            ctx("joker_main"),
-        )),
+        "hand_played" => Some(ctx("joker_main")),
         _ => shared_trigger_context(trigger),
     }
 }
@@ -353,10 +325,7 @@ fn shared_trigger_context(trigger: &str) -> Option<Expr> {
     let expr = match trigger {
         "round_end" => lua_and(
             ctx("end_of_round"),
-            lua_and(
-                lua_eq(ctx("game_over"), lua_bool(false)),
-                ctx("main_eval"),
-            ),
+            lua_and(lua_eq(ctx("game_over"), lua_bool(false)), ctx("main_eval")),
         ),
         "blind_selected" => ctx("setting_blind"),
         "blind_skipped" => ctx("skip_blind"),
@@ -370,10 +339,7 @@ fn shared_trigger_context(trigger: &str) -> Option<Expr> {
         "booster_exited" => ctx("ending_booster"),
         "shop_entered" => ctx("starting_shop"),
         "shop_exited" => ctx("ending_shop"),
-        "hand_played" => lua_and(
-            lua_eq(ctx("cardarea"), lua_path(&["G", "jokers"])),
-            ctx("joker_main"),
-        ),
+        "hand_played" => ctx("joker_main"),
         _ => return None,
     };
     Some(expr)
@@ -400,4 +366,3 @@ fn maybe_blueprint(expr: Expr, blueprint_compat: bool) -> Expr {
 fn bp_check(expr: Expr, blueprint_compat: bool) -> Expr {
     maybe_blueprint(expr, blueprint_compat)
 }
-

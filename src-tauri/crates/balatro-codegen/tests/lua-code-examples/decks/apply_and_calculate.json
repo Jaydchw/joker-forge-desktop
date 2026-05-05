@@ -1,0 +1,51 @@
+{
+  "object_type": "deck",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "b_apply_and_calculate",
+    "name": "Apply And Calculate",
+    "description": [
+      "Has both calculate and apply hooks."
+    ],
+    "atlas": "Enhancers",
+    "pos": {
+      "x": 0,
+      "y": 0
+    },
+    "rules": [
+      {
+        "id": "calc_rule",
+        "trigger": "hand_played",
+        "effects": [
+          {
+            "effect_type": "add_chips",
+            "params": {
+              "value": 2
+            }
+          }
+        ]
+      },
+      {
+        "id": "apply_rule",
+        "trigger": "card_used",
+        "effects": [
+          {
+            "effect_type": "add_mult",
+            "params": {
+              "value": 3
+            }
+          }
+        ]
+      }
+    ],
+    "user_variables": [],
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "config_vouchers": [],
+    "config_consumables": [],
+    "no_interest": false,
+    "no_faces": false,
+    "erratic_deck": false
+  }
+}

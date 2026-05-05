@@ -1,0 +1,40 @@
+{
+  "object_type": "edition",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "e_card_scored_bonus",
+    "name": "Card Scored Bonus Edition",
+    "description": [
+      "Adds chips on card scored."
+    ],
+    "rules": [
+      {
+        "id": "rule_score",
+        "trigger": "card_scored",
+        "effects": [
+          {
+            "effect_type": "add_chips",
+            "params": {
+              "value": 5
+            }
+          }
+        ]
+      }
+    ],
+    "user_variables": [],
+    "shader": null,
+    "in_shop": true,
+    "weight": 1.0,
+    "extra_cost": 0,
+    "apply_to_float": false,
+    "badge_colour": null,
+    "sound": null,
+    "pitch": null,
+    "volume": null,
+    "disable_shadow": false,
+    "disable_base_shader": false,
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false
+  }
+}

@@ -617,4 +617,3 @@ impl ConfigValue {
         }
     }
 }
-
