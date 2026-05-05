@@ -384,12 +384,12 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
       className="relative h-full bg-card/95 backdrop-blur-md border-l border-border"
       style={{ width: `${widthPercent}%` }}
     >
-      {/* Resize notch */}
+      {/* Full-height resize edge */}
       <div
-        className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 cursor-col-resize group"
+        className="absolute left-0 top-0 bottom-0 -translate-x-1/2 z-20 w-3 cursor-col-resize group"
         onMouseDown={onStartResize}
       >
-        <div className="w-2 h-12 rounded-full bg-border/60 group-hover:bg-primary/50 group-active:bg-primary/70 transition-colors duration-150 shadow-sm" />
+        <div className="mx-auto h-full w-px bg-border/70 group-hover:bg-primary/55 group-active:bg-primary/75 transition-colors duration-150" />
       </div>
 
       <div className="h-full flex flex-col">
