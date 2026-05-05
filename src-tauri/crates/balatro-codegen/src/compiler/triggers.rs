@@ -143,14 +143,8 @@ fn joker_trigger_context(trigger: &str, bp: bool) -> Option<Expr> {
             ),
             bp,
         ),
-        "blind_selected" => bp_check(
-            lua_and(ctx("setting_blind"), ctx("joker_main")),
-            bp,
-        ),
-        "blind_skipped" => bp_check(
-            lua_and(ctx("skip_blind"), ctx("joker_main")),
-            bp,
-        ),
+        "blind_selected" => bp_check(lua_and(ctx("setting_blind"), ctx("main_eval")), bp),
+        "blind_skipped" => bp_check(lua_and(ctx("skip_blind"), ctx("main_eval")), bp),
         "blind_disabled" => bp_check(ctx("blind_disabled"), bp),
         "boss_defeated" => bp_check(
             lua_and(
@@ -162,42 +156,18 @@ fn joker_trigger_context(trigger: &str, bp: bool) -> Option<Expr> {
         "ante_start" => bp_check(ctx("ante_change"), bp),
 
         // Economy
-        "card_bought" => bp_check(
-            lua_and(ctx("buying_card"), ctx("joker_main")),
-            bp,
-        ),
-        "card_sold" => bp_check(
-            lua_and(ctx("selling_card"), ctx("joker_main")),
-            bp,
-        ),
-        "selling_self" => bp_check(
-            lua_and(ctx("selling_self"), ctx("joker_main")),
-            bp,
-        ),
-        "buying_self" => bp_check(
-            lua_and(
-                ctx("buying_card"),
-                lua_raw_expr("context.card.config.center.key == self.key"),
-            ),
-            bp,
-        ),
+        "card_bought" => bp_check(lua_and(ctx("buying_card"), ctx("main_eval")), bp),
+        "card_sold" => bp_check(lua_and(ctx("selling_card"), ctx("main_eval")), bp),
+        "selling_self" => bp_check(ctx("selling_self"), bp),
+        "buying_self" => bp_check(ctx("buying_self"), bp),
         "shop_entered" => bp_check(ctx("starting_shop"), bp),
         "shop_exited" => bp_check(ctx("ending_shop"), bp),
-        "shop_reroll" => bp_check(
-            lua_and(ctx("reroll_shop"), ctx("joker_main")),
-            bp,
-        ),
+        "shop_reroll" => bp_check(lua_and(ctx("reroll_shop"), ctx("main_eval")), bp),
 
         // Packs & consumables
         "consumable_used" => bp_check(ctx("using_consumeable"), bp),
-        "playing_card_added" => bp_check(
-            lua_and(ctx("playing_card_added"), ctx("joker_main")),
-            bp,
-        ),
-        "booster_opened" => bp_check(
-            lua_and(ctx("open_booster"), ctx("joker_main")),
-            bp,
-        ),
+        "playing_card_added" => bp_check(lua_and(ctx("playing_card_added"), ctx("main_eval")), bp),
+        "booster_opened" => bp_check(lua_and(ctx("open_booster"), ctx("main_eval")), bp),
         "booster_skipped" => bp_check(ctx("skipping_booster"), bp),
         "booster_exited" => bp_check(ctx("ending_booster"), bp),
 
@@ -309,7 +279,7 @@ fn deck_trigger_context(trigger: &str) -> Option<Expr> {
             ctx("individual"),
             lua_eq(ctx("cardarea"), lua_path(&["G", "play"])),
         )),
-        "hand_played" => Some(ctx("joker_main")),
+        "hand_played" => Some(ctx("main_eval")),
         _ => shared_trigger_context(trigger),
     }
 }
@@ -339,7 +309,7 @@ fn shared_trigger_context(trigger: &str) -> Option<Expr> {
         "booster_exited" => ctx("ending_booster"),
         "shop_entered" => ctx("starting_shop"),
         "shop_exited" => ctx("ending_shop"),
-        "hand_played" => ctx("joker_main"),
+        "hand_played" => ctx("main_eval"),
         _ => return None,
     };
     Some(expr)

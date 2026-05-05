@@ -36,7 +36,7 @@ SMODS.Consumable {
         }
     end,
     calculate = function(self, card, context)
-        if context.joker_main then
+        if context.main_eval then
             return {
                 chips = card.ability.extra.chips0
             }
