@@ -37,8 +37,8 @@ const appendByType = (
   const seen = new Set(options.map((option) => option.value.toLowerCase()));
 
   for (const variable of getUserVariables(joker)) {
-    const matchesType = variable.type === type;
-    if (!matchesType && !variable.isGlobal) {
+    const matchesType = !variable.type ? type === "number" : variable.type === type;
+    if (!matchesType) {
       continue;
     }
 
@@ -65,9 +65,7 @@ export const getAllVariables = (joker: Partial<JokerData>): UserVariable[] => {
 export const getNumberVariables = (
   joker: Partial<JokerData>,
 ): UserVariable[] => {
-  return getUserVariables(joker).filter(
-    (v) => v.isGlobal || !v.type || v.type === "number",
-  );
+  return getUserVariables(joker).filter((v) => !v.type || v.type === "number");
 };
 
 export const addNumberVariablesToOptions = (

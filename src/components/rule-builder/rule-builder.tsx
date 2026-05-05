@@ -267,6 +267,10 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   const [selectedGameVariable, setSelectedGameVariable] =
     useState<GameVariable | null>(null);
+  const [addVariableRequest, setAddVariableRequest] = useState<{
+    type: "number" | "suit" | "rank" | "pokerhand" | "key" | "text";
+    nonce: number;
+  } | null>(null);
   const [liveCodeSnippet, setLiveCodeSnippet] = useState<string>(
     "Live item code will appear here.",
   );
@@ -325,6 +329,23 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const globalUserVariables = useMemo(
     () => collectGlobalVariables(data).map((entry) => entry.variable),
     [data],
+  );
+  const openVariablesPanel = useCallback(
+    (
+      preferredType?: "number" | "suit" | "rank" | "pokerhand" | "key" | "text",
+    ) => {
+      if (preferredType) {
+        setAddVariableRequest({
+          type: preferredType,
+          nonce: Date.now(),
+        });
+      }
+
+      if (!panels.variables?.isVisible) {
+        togglePanel("variables");
+      }
+    },
+    [panels.variables?.isVisible, togglePanel],
   );
 
   // Stable item reference that excludes customCode to prevent regeneration loops.
@@ -4225,6 +4246,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                         item={item as any}
                         onUpdateItem={onUpdateItem}
                         onClose={() => togglePanel("variables")}
+                        addVariableRequest={addVariableRequest}
                         onPositionChange={(position) =>
                           updatePanelPosition("variables", position)
                         }
@@ -4250,7 +4272,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                       onPositionChange={(position) =>
                         updatePanelPosition("inspector", position)
                       }
-                      onToggleVariablesPanel={() => togglePanel("variables")}
+                      onToggleVariablesPanel={openVariablesPanel}
                       onToggleGameVariablesPanel={() =>
                         togglePanel("gameVariables")
                       }

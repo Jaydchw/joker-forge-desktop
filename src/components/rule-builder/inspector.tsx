@@ -104,7 +104,9 @@ interface InspectorProps {
   onUpdateJoker: (updates: Partial<JokerData>) => void;
   onClose: () => void;
   onPositionChange: (position: { x: number; y: number }) => void;
-  onToggleVariablesPanel: () => void;
+  onToggleVariablesPanel: (
+    preferredType?: "number" | "suit" | "rank" | "pokerhand" | "key" | "text",
+  ) => void;
   onToggleGameVariablesPanel: () => void;
   onCreateRandomGroupFromEffect: (ruleId: string, effectId: string) => void;
   onCreateLoopGroupFromEffect: (ruleId: string, effectId: string) => void;
@@ -128,7 +130,9 @@ interface ParameterFieldProps {
     valueType?: string;
   }>;
   onCreateVariable?: (name: string, initialValue: number) => void;
-  onOpenVariablesPanel?: () => void;
+  onOpenVariablesPanel?: (
+    preferredType?: "number" | "suit" | "rank" | "pokerhand" | "key" | "text",
+  ) => void;
   onOpenGameVariablesPanel?: () => void;
   selectedGameVariable?: GameVariable | null;
   onGameVariableApplied?: () => void;
@@ -147,7 +151,9 @@ interface ChanceInputProps {
     valueType?: string;
   }>;
   onCreateVariable: (name: string, initialValue: number) => void;
-  onOpenVariablesPanel: () => void;
+  onOpenVariablesPanel: (
+    preferredType?: "number" | "suit" | "rank" | "pokerhand" | "key" | "text",
+  ) => void;
   onOpenGameVariablesPanel: () => void;
   selectedGameVariable?: GameVariable | null;
   onGameVariableApplied?: () => void;
@@ -380,7 +386,7 @@ const ChanceInput: React.FC<ChanceInputProps> = React.memo(
                 variant="secondary"
                 size="sm"
                 fullWidth
-                onClick={onOpenVariablesPanel}
+                onClick={() => onOpenVariablesPanel("number")}
                 icon={<Plus className="h-4 w-4" />}
                 className="cursor-pointer"
               >
@@ -726,7 +732,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         if (param.variableTypes?.includes("number")) {
           const numberVariables =
             joker.userVariables?.filter(
-              (v) => v.type === "number" || v.isGlobal,
+              (v) => !v.type || v.type === "number",
             ) || [];
           options.push(
             ...numberVariables.map((variable) => ({
@@ -739,7 +745,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         if (param.variableTypes?.includes("suit")) {
           const suitVariables =
             joker.userVariables?.filter(
-              (v) => v.type === "suit" || v.isGlobal,
+              (v) => v.type === "suit",
             ) || [];
           options.push(
             ...suitVariables.map((variable) => ({
@@ -752,7 +758,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         if (param.variableTypes?.includes("rank")) {
           const rankVariables =
             joker.userVariables?.filter(
-              (v) => v.type === "rank" || v.isGlobal,
+              (v) => v.type === "rank",
             ) || [];
           options.push(
             ...rankVariables.map((variable) => ({
@@ -765,7 +771,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         if (param.variableTypes?.includes("pokerhand")) {
           const pokerHandVariables =
             joker.userVariables?.filter(
-              (v) => v.type === "pokerhand" || v.isGlobal,
+              (v) => v.type === "pokerhand",
             ) || [];
           options.push(
             ...pokerHandVariables.map((variable) => ({
@@ -778,7 +784,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         if (param.variableTypes?.includes("key")) {
           const keyVariables =
             joker.userVariables?.filter(
-              (v) => v.type === "key" || v.isGlobal,
+              (v) => v.type === "key",
             ) || [];
           options.push(
             ...keyVariables.map((variable) => ({
@@ -791,7 +797,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         if (param.variableTypes?.includes("text")) {
           const textVariables =
             joker.userVariables?.filter(
-              (v) => v.type === "text" || v.isGlobal,
+              (v) => v.type === "text",
             ) || [];
           options.push(
             ...textVariables.map((variable) => ({
@@ -828,41 +834,67 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
       }
 
       options = options.filter((option) => !option.exempt?.includes(itemType));
+      const variableTypeOrder = [
+        "number",
+        "suit",
+        "rank",
+        "pokerhand",
+        "key",
+        "text",
+      ] as const;
+      const preferredVariableType = variableTypeOrder.find((type) =>
+        param.variableTypes?.includes(type),
+      );
+      const isVariableOnlySelector = param.id === "variable_name";
+      const variableOptions = options.filter((option) => option.valueType === "user_var");
 
       return (
         <div className="space-y-1">
           <label className="block text-zinc-200 text-sm">
             {String(param.label)}
           </label>
-          <Select
-            value={((value as string) || "") === "" ? undefined : String(value)}
-            onValueChange={(selectedValue) => {
-              const selectedOption = options.find(
-                (opt) => String(opt.value) === selectedValue,
-              ) ?? {
-                value: selectedValue,
-                label: selectedValue,
-                valueType: "text",
-              };
+          {isVariableOnlySelector && variableOptions.length === 0 ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              fullWidth
+              onClick={() => onOpenVariablesPanel?.(preferredVariableType)}
+              icon={<Plus className="h-4 w-4" />}
+              className="cursor-pointer"
+            >
+              Add Variable
+            </Button>
+          ) : (
+            <Select
+              value={((value as string) || "") === "" ? undefined : String(value)}
+              onValueChange={(selectedValue) => {
+                const selectedOption = options.find(
+                  (opt) => String(opt.value) === selectedValue,
+                ) ?? {
+                  value: selectedValue,
+                  label: selectedValue,
+                  valueType: "text",
+                };
 
-              onChange(selectedOption);
-            }}
-          >
-            <SelectTrigger size="sm" className="w-full">
-              <SelectValue placeholder="Select option" />
-            </SelectTrigger>
-            <SelectContent className="z-120 bg-popover text-popover-foreground border-border shadow-2xl">
-              {options.map((option) => (
-                <SelectItem
-                  key={`param-${param.id}-${option.value}-${option.label}`}
-                  value={String(option.value)}
-                  className="text-foreground"
-                >
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                onChange(selectedOption);
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue placeholder="Select option" />
+              </SelectTrigger>
+              <SelectContent className="z-120 bg-popover text-popover-foreground border-border shadow-2xl">
+                {options.map((option) => (
+                  <SelectItem
+                    key={`param-${param.id}-${option.value}-${option.label}`}
+                    value={String(option.value)}
+                    className="text-foreground"
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       );
     }
@@ -1169,7 +1201,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
                   variant="secondary"
                   size="sm"
                   fullWidth
-                  onClick={() => onOpenVariablesPanel?.()}
+                  onClick={() => onOpenVariablesPanel?.("number")}
                   icon={<Plus className="h-4 w-4" />}
                   className="cursor-pointer"
                 >
@@ -1262,9 +1294,11 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
             <label className="text-zinc-200 text-sm">{param.label}</label>
           )}
           <div className="space-y-2">
-            {boxes?.map((checkbox) => (
-              <div className="flex items-center gap-2" key={checkbox.value}>
+            {boxes?.map((checkbox, idx) => (
+              <div key={checkbox.value}>
                 <Checkbox
+                  id={`${param.id}-${checkbox.value}-${idx}`}
+                  label={checkbox.label}
                   checked={checkbox.checked}
                   onChange={() => {
                     const index = boxes.indexOf(checkbox);
@@ -1278,9 +1312,6 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
                     });
                   }}
                 />
-                <label className="text-zinc-100 text-sm">
-                  {checkbox.label}
-                </label>
               </div>
             ))}
           </div>

@@ -46,6 +46,10 @@ interface VariablesProps {
   onUpdateItem: (updates: Partial<ItemData>) => void;
   onClose: () => void;
   onPositionChange: (position: { x: number; y: number }) => void;
+  addVariableRequest?: {
+    type: "number" | "suit" | "rank" | "pokerhand" | "key" | "text";
+    nonce: number;
+  } | null;
 }
 
 const SUIT_OPTIONS = SUITS.map((suit) => ({
@@ -103,6 +107,7 @@ const Variables: React.FC<VariablesProps> = ({
   item,
   onUpdateItem,
   onClose,
+  addVariableRequest,
 }) => {
   const { data } = useProjectData();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -140,6 +145,14 @@ const Variables: React.FC<VariablesProps> = ({
   );
   const [editingIsGlobal, setEditingIsGlobal] = useState(false);
   const [editingIsPersistent, setEditingIsPersistent] = useState(false);
+
+  React.useEffect(() => {
+    if (!addVariableRequest) return;
+
+    setShowAddForm(true);
+    setNewVariableType(addVariableRequest.type);
+    setNameValidationError("");
+  }, [addVariableRequest]);
 
   const localUserVariables =
     "userVariables" in item &&
