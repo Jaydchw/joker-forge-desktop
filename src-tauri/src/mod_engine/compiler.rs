@@ -525,6 +525,7 @@ fn map_user_variables(
                 var_type,
                 initial_value,
                 is_global: v.is_global,
+                is_persistent: v.is_persistent,
             }
         })
         .collect()

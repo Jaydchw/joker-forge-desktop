@@ -150,7 +150,7 @@ fn build_deck_table(
     }
 
     // apply function (card_used triggers, deck run-start hook)
-    if let Some(f) = build_apply_function(rule_outputs) {
+    if let Some(f) = build_apply_function(rule_outputs, ctx) {
         entries.push(TableEntry::KeyValue("apply".to_string(), f));
     }
 
@@ -159,7 +159,7 @@ fn build_deck_table(
 
 /// Build the `apply` function for decks.
 /// Decks use apply(self: back) for run-start effects.
-fn build_apply_function(rule_outputs: &[RuleOutput]) -> Option<Expr> {
+fn build_apply_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Option<Expr> {
     let apply_rules: Vec<&RuleOutput> = rule_outputs
         .iter()
         .filter(|r| r.trigger == "card_used" && !r.effect_stmts.is_empty())
@@ -170,6 +170,9 @@ fn build_apply_function(rule_outputs: &[RuleOutput]) -> Option<Expr> {
     }
 
     let mut body: Vec<Stmt> = Vec::new();
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        body.push(lua_raw_stmt(init_block));
+    }
     super::append_rule_chain_with_fallback(&mut body, &apply_rules, |ro| ro.effect_stmts.clone());
 
     Some(Expr::Function {

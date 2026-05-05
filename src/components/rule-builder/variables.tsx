@@ -22,6 +22,7 @@ import {
   Trash,
   PencilSimple,
   GlobeHemisphereWest,
+  Database,
 } from "@phosphor-icons/react";
 import { Input as InputField } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -120,6 +121,7 @@ const Variables: React.FC<VariablesProps> = ({
   const [newVariableKey, setNewVariableKey] = useState<string>("none");
   const [newVariableText, setNewVariableText] = useState<string>("Hello");
   const [newVariableIsGlobal, setNewVariableIsGlobal] = useState(false);
+  const [newVariableIsPersistent, setNewVariableIsPersistent] = useState(false);
 
   const [nameValidationError, setNameValidationError] = useState<string>("");
   const [editValidationError, setEditValidationError] = useState<string>("");
@@ -137,6 +139,7 @@ const Variables: React.FC<VariablesProps> = ({
     POKER_HAND_VALUES[0],
   );
   const [editingIsGlobal, setEditingIsGlobal] = useState(false);
+  const [editingIsPersistent, setEditingIsPersistent] = useState(false);
 
   const localUserVariables =
     "userVariables" in item &&
@@ -246,6 +249,7 @@ const Variables: React.FC<VariablesProps> = ({
       name: newVariableName.trim(),
       type: newVariableType,
       isGlobal: newVariableIsGlobal,
+      isPersistent: newVariableIsGlobal ? newVariableIsPersistent : false,
     };
 
     if (newVariableType === "number") {
@@ -273,6 +277,7 @@ const Variables: React.FC<VariablesProps> = ({
     setNewVariableKey("none");
     setNewVariableText("Hello");
     setNewVariableIsGlobal(false);
+    setNewVariableIsPersistent(false);
     setNewVariableType("number");
     setNameValidationError("");
     setShowAddForm(false);
@@ -296,6 +301,7 @@ const Variables: React.FC<VariablesProps> = ({
     setEditingPokerHand(variable.initialPokerHand || POKER_HAND_VALUES[0]);
     setEditingJoker((variable.initialKey as string) || "j_joker");
     setEditingIsGlobal(!!variable.isGlobal);
+    setEditingIsPersistent(!!variable.isPersistent);
     setEditValidationError("");
   };
 
@@ -309,6 +315,7 @@ const Variables: React.FC<VariablesProps> = ({
       name: editingName,
       type: editingType,
       isGlobal: editingIsGlobal,
+      isPersistent: editingIsGlobal ? editingIsPersistent : false,
     };
 
     if (editingType === "number") {
@@ -514,10 +521,33 @@ const Variables: React.FC<VariablesProps> = ({
                               ? "Global variable enabled"
                               : "Make variable global"
                           }
-                          onClick={() => setEditingIsGlobal((prev) => !prev)}
+                          onClick={() =>
+                            setEditingIsGlobal((prev) => {
+                              const next = !prev;
+                              if (!next) {
+                                setEditingIsPersistent(false);
+                              }
+                              return next;
+                            })
+                          }
                           isActive={editingIsGlobal}
                           className="h-8 w-8"
                         />
+                        {editingIsGlobal ? (
+                          <IconButton
+                            icon={Database}
+                            tooltip={
+                              editingIsPersistent
+                                ? "Persistent between runs"
+                                : "Local to current run"
+                            }
+                            onClick={() =>
+                              setEditingIsPersistent((prev) => !prev)
+                            }
+                            isActive={editingIsPersistent}
+                            className="h-8 w-8"
+                          />
+                        ) : null}
                       </div>
 
                       {editingType === "number" && (
@@ -647,7 +677,9 @@ const Variables: React.FC<VariablesProps> = ({
                         </span>
                         {variable.isGlobal ? (
                           <span className="text-[10px] uppercase tracking-wide text-jungle-green-400">
-                            Global
+                            {variable.isPersistent
+                              ? "Global - Persistent"
+                              : "Global - Run"}
                           </span>
                         ) : null}
                         {usageInfo.count > 0 && (
@@ -722,10 +754,33 @@ const Variables: React.FC<VariablesProps> = ({
                         ? "Global variable enabled"
                         : "Make variable global"
                     }
-                    onClick={() => setNewVariableIsGlobal((prev) => !prev)}
+                    onClick={() =>
+                      setNewVariableIsGlobal((prev) => {
+                        const next = !prev;
+                        if (!next) {
+                          setNewVariableIsPersistent(false);
+                        }
+                        return next;
+                      })
+                    }
                     isActive={newVariableIsGlobal}
                     className="h-8 w-8"
                   />
+                  {newVariableIsGlobal ? (
+                    <IconButton
+                      icon={Database}
+                      tooltip={
+                        newVariableIsPersistent
+                          ? "Persistent between runs"
+                          : "Local to current run"
+                      }
+                      onClick={() =>
+                        setNewVariableIsPersistent((prev) => !prev)
+                      }
+                      isActive={newVariableIsPersistent}
+                      className="h-8 w-8"
+                    />
+                  ) : null}
                 </div>
 
                 {newVariableType === "number" && (
@@ -808,6 +863,7 @@ const Variables: React.FC<VariablesProps> = ({
                       setNewVariableKey("none");
                       setNewVariablePokerHand(POKER_HAND_VALUES[0]);
                       setNewVariableIsGlobal(false);
+                      setNewVariableIsPersistent(false);
                       setNewVariableType("number");
                       setNameValidationError("");
                     }}

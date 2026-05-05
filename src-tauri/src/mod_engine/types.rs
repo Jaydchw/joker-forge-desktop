@@ -92,6 +92,8 @@ pub struct EntityUserVariable {
     #[serde(default)]
     pub is_global: bool,
     #[serde(default)]
+    pub is_persistent: bool,
+    #[serde(default)]
     pub initial_value: Option<f64>,
     #[serde(default)]
     pub initial_suit: Option<String>,

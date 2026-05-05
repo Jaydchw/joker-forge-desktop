@@ -241,6 +241,9 @@ pub(crate) fn build_card_calculate_function(
     }
 
     let mut body: Vec<Stmt> = Vec::new();
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        body.push(lua_raw_stmt(init_block));
+    }
 
     // Destroy card handling
     if has_destroy {

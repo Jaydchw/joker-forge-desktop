@@ -517,7 +517,7 @@ fn build_joker_table(
     entries.push(jf_section_end("loc_vars"));
 
     // Blind reward hook
-    if let Some(calc_dollar_bonus) = build_calc_dollar_bonus(rule_outputs) {
+    if let Some(calc_dollar_bonus) = build_calc_dollar_bonus(rule_outputs, ctx) {
         entries.push(TableEntry::KeyValue(
             "calc_dollar_bonus".to_string(),
             calc_dollar_bonus,
@@ -525,7 +525,7 @@ fn build_joker_table(
     }
 
     // Passive effect functions
-    let (add_deck, remove_deck) = build_passive_functions(rule_outputs);
+    let (add_deck, remove_deck) = build_passive_functions(rule_outputs, ctx);
     if let Some(f) = add_deck {
         entries.push(TableEntry::KeyValue("add_to_deck".to_string(), f));
     }
@@ -555,6 +555,9 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
 
     // Group rules by trigger
     let mut body: Vec<Stmt> = Vec::new();
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        body.push(lua_raw_stmt(init_block));
+    }
     let has_any_destroy = non_passive.iter().any(|r| r.has_destroy);
 
     if has_any_destroy {
@@ -646,7 +649,10 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
 }
 
 /// Build `add_to_deck` and `remove_from_deck` from passive effects.
-fn build_passive_functions(rule_outputs: &[RuleOutput]) -> (Option<Expr>, Option<Expr>) {
+fn build_passive_functions(
+    rule_outputs: &[RuleOutput],
+    ctx: &CompileContext,
+) -> (Option<Expr>, Option<Expr>) {
     let mut add_stmts: Vec<Stmt> = Vec::new();
     let mut remove_stmts: Vec<Stmt> = Vec::new();
 
@@ -656,6 +662,15 @@ fn build_passive_functions(rule_outputs: &[RuleOutput]) -> (Option<Expr>, Option
                 add_stmts.extend(po.add_to_deck.clone());
                 remove_stmts.extend(po.remove_from_deck.clone());
             }
+        }
+    }
+
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        if !add_stmts.is_empty() {
+            add_stmts.insert(0, lua_raw_stmt(init_block.clone()));
+        }
+        if !remove_stmts.is_empty() {
+            remove_stmts.insert(0, lua_raw_stmt(init_block));
         }
     }
 
@@ -750,11 +765,33 @@ fn build_loc_vars(
                 ))));
             }
             _ => {
-                if uv.is_global {
+                if uv.is_global && uv.is_persistent {
                     var_refs.push(TableEntry::Value(lua_field(
                         lua_raw_expr("JF_GLOBALS"),
                         &uv.name,
                     )));
+                } else if uv.is_global {
+                    let default_lua = match uv.var_type {
+                        crate::types::UserVarType::Number => {
+                            let n = uv.initial_value.as_f64().unwrap_or(0.0);
+                            if n.fract() == 0.0 {
+                                format!("{}", n as i64)
+                            } else {
+                                format!("{}", n)
+                            }
+                        }
+                        _ => format!(
+                            "'{}'",
+                            uv.initial_value
+                                .to_string_lossy()
+                                .replace('\\', "\\\\")
+                                .replace('\'', "\\'")
+                        ),
+                    };
+                    var_refs.push(TableEntry::Value(lua_raw_expr(format!(
+                        "((G.GAME and G.GAME.jf_global_vars and G.GAME.jf_global_vars.{}) or {})",
+                        uv.name, default_lua
+                    ))));
                 } else {
                     var_refs.push(TableEntry::Value(lua_field(
                         lua_raw_expr("self.config.extra"),
@@ -918,7 +955,7 @@ fn rank_to_id(rank: &str) -> i64 {
     }
 }
 
-fn build_calc_dollar_bonus(rule_outputs: &[RuleOutput]) -> Option<Expr> {
+fn build_calc_dollar_bonus(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Option<Expr> {
     let mut regular: Vec<&BlindRewardOutput> = Vec::new();
     let mut boss: Vec<&BlindRewardOutput> = Vec::new();
 
@@ -936,7 +973,11 @@ fn build_calc_dollar_bonus(rule_outputs: &[RuleOutput]) -> Option<Expr> {
         return None;
     }
 
-    let mut body: Vec<Stmt> = vec![lua_local("blind_reward", lua_int(0))];
+    let mut body: Vec<Stmt> = Vec::new();
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        body.push(lua_raw_stmt(init_block));
+    }
+    body.push(lua_local("blind_reward", lua_int(0)));
 
     if !boss.is_empty() {
         let mut boss_body: Vec<Stmt> = Vec::new();
@@ -1247,6 +1288,9 @@ pub(crate) fn build_shared_calculate_function(
     }
 
     let mut body: Vec<Stmt> = Vec::new();
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        body.push(lua_raw_stmt(init_block));
+    }
 
     let mut triggers_seen: Vec<String> = Vec::new();
     for ro in &non_passive {
@@ -1383,11 +1427,33 @@ pub(crate) fn build_shared_loc_vars(
                 ))));
             }
             _ => {
-                if uv.is_global {
+                if uv.is_global && uv.is_persistent {
                     var_refs.push(TableEntry::Value(lua_field(
                         lua_raw_expr("JF_GLOBALS"),
                         &uv.name,
                     )));
+                } else if uv.is_global {
+                    let default_lua = match uv.var_type {
+                        crate::types::UserVarType::Number => {
+                            let n = uv.initial_value.as_f64().unwrap_or(0.0);
+                            if n.fract() == 0.0 {
+                                format!("{}", n as i64)
+                            } else {
+                                format!("{}", n)
+                            }
+                        }
+                        _ => format!(
+                            "'{}'",
+                            uv.initial_value
+                                .to_string_lossy()
+                                .replace('\\', "\\\\")
+                                .replace('\'', "\\'")
+                        ),
+                    };
+                    var_refs.push(TableEntry::Value(lua_raw_expr(format!(
+                        "((G.GAME and G.GAME.jf_global_vars and G.GAME.jf_global_vars.{}) or {})",
+                        uv.name, default_lua
+                    ))));
                 } else {
                     var_refs.push(TableEntry::Value(lua_field(
                         lua_raw_expr("self.config.extra"),

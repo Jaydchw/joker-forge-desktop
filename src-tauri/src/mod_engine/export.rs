@@ -413,6 +413,8 @@ pub struct UserVariableInput {
     pub var_type: String,
     #[serde(default)]
     pub is_global: bool,
+    #[serde(default)]
+    pub is_persistent: bool,
     pub initial_value: Option<f64>,
     pub initial_suit: Option<String>,
     pub initial_rank: Option<String>,
@@ -841,6 +843,7 @@ fn map_user_variable(v: &UserVariableInput) -> UserVariableDef {
         var_type,
         initial_value,
         is_global: v.is_global,
+        is_persistent: v.is_persistent,
     }
 }
 
@@ -1155,7 +1158,7 @@ fn register_globals_from_input(
     out: &mut BTreeMap<String, UserVariableDef>,
 ) {
     for var in vars {
-        if !var.is_global || var.name.trim().is_empty() {
+        if !var.is_global || !var.is_persistent || var.name.trim().is_empty() {
             continue;
         }
         let normalized = var.name.trim().to_ascii_lowercase();

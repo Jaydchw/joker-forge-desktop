@@ -180,12 +180,12 @@ fn build_consumable_table(
     }
 
     // use function (card_used triggers)
-    if let Some(f) = build_use_function(rule_outputs) {
+    if let Some(f) = build_use_function(rule_outputs, ctx) {
         entries.push(TableEntry::KeyValue("use".to_string(), f));
     }
 
     // can_use function
-    let can_use_fn = build_can_use_function(rule_outputs);
+    let can_use_fn = build_can_use_function(rule_outputs, ctx);
     entries.push(TableEntry::KeyValue("can_use".to_string(), can_use_fn));
 
     lua_table_raw(entries)
@@ -193,7 +193,7 @@ fn build_consumable_table(
 
 /// Build the `use` function for consumables.
 /// Compiles rules with trigger == "card_used".
-fn build_use_function(rule_outputs: &[super::RuleOutput]) -> Option<Expr> {
+fn build_use_function(rule_outputs: &[super::RuleOutput], ctx: &CompileContext) -> Option<Expr> {
     let use_rules: Vec<&super::RuleOutput> = rule_outputs
         .iter()
         .filter(|r| r.trigger == "card_used" && !r.effect_stmts.is_empty())
@@ -207,6 +207,9 @@ fn build_use_function(rule_outputs: &[super::RuleOutput]) -> Option<Expr> {
         "used_card".to_string(),
         Some(lua_or(lua_ident("copier"), lua_ident("card"))),
     )];
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        body.push(lua_raw_stmt(init_block));
+    }
 
     super::append_rule_chain_with_fallback(&mut body, &use_rules, |ro| ro.effect_stmts.clone());
 
@@ -217,7 +220,7 @@ fn build_use_function(rule_outputs: &[super::RuleOutput]) -> Option<Expr> {
 }
 
 /// Build the `can_use` function for consumables.
-fn build_can_use_function(rule_outputs: &[super::RuleOutput]) -> Expr {
+fn build_can_use_function(rule_outputs: &[super::RuleOutput], ctx: &CompileContext) -> Expr {
     let use_rules: Vec<&super::RuleOutput> = rule_outputs
         .iter()
         .filter(|r| r.trigger == "card_used")
@@ -229,12 +232,15 @@ fn build_can_use_function(rule_outputs: &[super::RuleOutput]) -> Expr {
         .filter_map(|ro| ro.condition_expr.clone())
         .collect();
 
-    let body = if conditions.is_empty() {
+    let mut body = if conditions.is_empty() {
         vec![lua_return(lua_bool(true))]
     } else {
         let combined = lua_or_chain(conditions);
         vec![lua_return(combined)]
     };
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        body.insert(0, lua_raw_stmt(init_block));
+    }
 
     Expr::Function {
         params: vec!["self".into(), "card".into()],

@@ -27,6 +27,10 @@ pub struct CompileContext {
 }
 
 impl CompileContext {
+    fn user_var_def(&self, var_name: &str) -> Option<&UserVariableDef> {
+        self.user_vars.iter().find(|v| v.name == var_name)
+    }
+
     pub fn new(
         object_type: ObjectType,
         mod_prefix: String,
@@ -60,9 +64,16 @@ impl CompileContext {
 
     /// Whether the given user variable is marked global.
     pub fn user_var_is_global(&self, var_name: &str) -> bool {
-        self.user_vars
-            .iter()
-            .any(|v| v.name == var_name && v.is_global)
+        self.user_var_def(var_name)
+            .map(|v| v.is_global)
+            .unwrap_or(false)
+    }
+
+    /// Whether the given user variable persists across runs.
+    pub fn user_var_is_persistent(&self, var_name: &str) -> bool {
+        self.user_var_def(var_name)
+            .map(|v| v.is_persistent)
+            .unwrap_or(false)
     }
 
     /// Whether the given user variable exists in this object's variable scope.
@@ -74,8 +85,13 @@ impl CompileContext {
     /// Global user variables resolve through `JF_GLOBALS`.
     pub fn user_var_expr(&self, var_name: &str) -> Expr {
         use crate::lua_ast::*;
-        if self.user_var_is_global(var_name) {
+        if self.user_var_is_global(var_name) && self.user_var_is_persistent(var_name) {
             lua_field(lua_raw_expr("JF_GLOBALS"), var_name)
+        } else if self.user_var_is_global(var_name) {
+            lua_raw_expr(format!(
+                "(G.GAME and G.GAME.jf_global_vars and G.GAME.jf_global_vars.{})",
+                var_name
+            ))
         } else {
             self.ability_var(var_name)
         }
@@ -83,8 +99,10 @@ impl CompileContext {
 
     /// Returns the textual Lua path used for a user variable.
     pub fn user_var_path(&self, var_name: &str) -> String {
-        if self.user_var_is_global(var_name) {
+        if self.user_var_is_global(var_name) && self.user_var_is_persistent(var_name) {
             format!("JF_GLOBALS.{}", var_name)
+        } else if self.user_var_is_global(var_name) {
+            format!("G.GAME.jf_global_vars.{}", var_name)
         } else {
             format!("{}.{}", self.ability_path(), var_name)
         }
@@ -150,6 +168,55 @@ impl CompileContext {
     /// Get user variables.
     pub fn user_vars(&self) -> &[UserVariableDef] {
         &self.user_vars
+    }
+
+    /// Generate Lua initialization code for run-scoped global variables.
+    pub fn run_scoped_global_init_block(&self) -> Option<String> {
+        let run_globals: Vec<&UserVariableDef> = self
+            .user_vars
+            .iter()
+            .filter(|v| v.is_global && !v.is_persistent)
+            .collect();
+
+        if run_globals.is_empty() {
+            return None;
+        }
+
+        let mut code = String::from("if G.GAME then\n    G.GAME.jf_global_vars = G.GAME.jf_global_vars or {}");
+        for variable in run_globals {
+            code.push_str(&format!(
+                "\n    if G.GAME.jf_global_vars.{name} == nil then G.GAME.jf_global_vars.{name} = {value} end",
+                name = variable.name,
+                value = self.user_var_default_lua(variable),
+            ));
+        }
+        code.push_str("\nend");
+        Some(code)
+    }
+
+    fn user_var_default_lua(&self, variable: &UserVariableDef) -> String {
+        match variable.var_type {
+            UserVarType::Number => {
+                let n = variable.initial_value.as_f64().unwrap_or(0.0);
+                if n.fract() == 0.0 {
+                    format!("{}", n as i64)
+                } else {
+                    format!("{}", n)
+                }
+            }
+            UserVarType::Key
+            | UserVarType::Text
+            | UserVarType::Suit
+            | UserVarType::Rank
+            | UserVarType::PokerHand => {
+                let escaped = variable
+                    .initial_value
+                    .to_string_lossy()
+                    .replace('\\', "\\\\")
+                    .replace('\'', "\\'");
+                format!("'{}'", escaped)
+            }
+        }
     }
 
     /// The full SMODS key for this object (e.g.: `j_modprefix_myjoker`).

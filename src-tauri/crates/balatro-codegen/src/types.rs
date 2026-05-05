@@ -433,6 +433,8 @@ pub struct UserVariableDef {
     pub initial_value: ParamValue,
     #[serde(default)]
     pub is_global: bool,
+    #[serde(default)]
+    pub is_persistent: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

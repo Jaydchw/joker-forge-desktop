@@ -139,7 +139,7 @@ fn build_voucher_table(
     }
 
     // redeem function (card_used triggers, voucher-specific hook)
-    if let Some(f) = build_redeem_function(rule_outputs) {
+    if let Some(f) = build_redeem_function(rule_outputs, ctx) {
         entries.push(TableEntry::KeyValue("redeem".to_string(), f));
     }
 
@@ -157,7 +157,7 @@ fn build_voucher_table(
 
 /// Build the `redeem` function for vouchers.
 /// Vouchers use redeem(self: card) instead of use().
-fn build_redeem_function(rule_outputs: &[RuleOutput]) -> Option<Expr> {
+fn build_redeem_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Option<Expr> {
     let redeem_rules: Vec<&RuleOutput> = rule_outputs
         .iter()
         .filter(|r| r.trigger == "card_used" && !r.effect_stmts.is_empty())
@@ -168,6 +168,9 @@ fn build_redeem_function(rule_outputs: &[RuleOutput]) -> Option<Expr> {
     }
 
     let mut body: Vec<Stmt> = Vec::new();
+    if let Some(init_block) = ctx.run_scoped_global_init_block() {
+        body.push(lua_raw_stmt(init_block));
+    }
     super::append_rule_chain_with_fallback(&mut body, &redeem_rules, |ro| ro.effect_stmts.clone());
 
     Some(Expr::Function {
