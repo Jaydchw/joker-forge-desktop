@@ -357,12 +357,21 @@ export function OverviewPage() {
                       Switch Project
                     </div>
                     {projects.map((proj) => (
-                      <button
+                      <div
                         key={proj.id}
+                        role="button"
+                        tabIndex={0}
                         className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-accent transition-colors text-left group cursor-pointer"
                         onClick={() => {
                           switchProject(proj.id);
                           setIsProjectMenuOpen(false);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            switchProject(proj.id);
+                            setIsProjectMenuOpen(false);
+                          }
                         }}
                       >
                         <span
@@ -389,7 +398,7 @@ export function OverviewPage() {
                             <Trash className="h-4 w-4" weight="bold" />
                           </button>
                         </span>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </motion.div>
