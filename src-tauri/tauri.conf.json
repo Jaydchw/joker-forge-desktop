@@ -48,6 +48,9 @@
         "sidebarImage": "icons/installer-banner.bmp",
         "headerImage": "icons/installer-header.bmp"
       }
-    }
+    },
+    "resources": [
+      "../public/other"
+    ]
   }
 }

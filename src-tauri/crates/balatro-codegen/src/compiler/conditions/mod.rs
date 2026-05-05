@@ -84,12 +84,12 @@ pub fn compile_condition(condition: &ConditionDef, _object_type: ObjectType, ctx
         "booster_pack_type" => game_state::booster_type(condition)?,
 
         // Variable conditions
-        "internal_variable" => variables::internal_variable(condition)?,
-        "key_variable" => variables::key_variable(condition)?,
-        "text_variable" => variables::text_variable(condition)?,
-        "poker_hand_variable" => variables::poker_hand_variable(condition)?,
-        "rank_variable" => variables::rank_variable(condition)?,
-        "suit_variable" => variables::suit_variable(condition)?,
+        "internal_variable" => variables::internal_variable(condition, ctx)?,
+        "key_variable" => variables::key_variable(condition, ctx)?,
+        "text_variable" => variables::text_variable(condition, ctx)?,
+        "poker_hand_variable" => variables::poker_hand_variable(condition, ctx)?,
+        "rank_variable" => variables::rank_variable(condition, ctx)?,
+        "suit_variable" => variables::suit_variable(condition, ctx)?,
 
         // Generic compare
         "generic_compare" => game_state::generic_compare(condition)?,

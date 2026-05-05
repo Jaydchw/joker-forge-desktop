@@ -1,9 +1,11 @@
 use crate::lua_ast::*;
 use crate::types::*;
+use super::colors::normalize_hex_colour;
 
 /// Compile a rarity definition into a Lua chunk.
 pub fn compile_rarity(rarity: &RarityDef, _mod_prefix: &str) -> Chunk {
-    let hex = rarity.badge_colour.trim_start_matches('#');
+    let hex = normalize_hex_colour(&rarity.badge_colour)
+        .unwrap_or_else(|| "6A7A8B".to_string());
 
     let mut entries: Vec<TableEntry> = Vec::new();
     entries.push(kv("key", lua_str(&rarity.key)));

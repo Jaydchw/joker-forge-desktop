@@ -32,6 +32,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import { collectGlobalVariables } from "@/lib/global-user-variables";
 import {
   instantiateItemFromTemplate,
   useTemplateStore,
@@ -113,7 +114,7 @@ export default function SealsPage() {
       placeholderCreditIndex: placeholder?.index,
       placeholderCategory: placeholder?.category,
       objectKey: "new_seal",
-      badge_colour: "HEX",
+      badge_colour: "FFFFFF",
       unlocked: true,
       discovered: true,
       rules: [],
@@ -154,13 +155,17 @@ export default function SealsPage() {
   const handleExport = useCallback(
     async (item: SealData) => {
       try {
-        await exportSingleItemRust(item as any, "seal", data.metadata.prefix);
+        await exportSingleItemRust(item as any, "seal", data.metadata.prefix, {
+          globalUserVariables: collectGlobalVariables(data).map(
+            (entry) => entry.variable,
+          ),
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         window.alert(`Seal export failed: ${message}`);
       }
     },
-    [data.metadata.prefix],
+    [data],
   );
 
   const {

@@ -1,7 +1,8 @@
 import type { ProjectData } from "@/lib/storage";
 import { normalizeProjectData } from "@/lib/jokerforge/legacy-transpiler";
 import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, writeTextFile } from "@tauri-apps/plugin-fs";
+import { join } from "@tauri-apps/api/path";
 
 export interface JokerforgeV2Export {
   format: "jokerforge";
@@ -40,9 +41,10 @@ export const exportJokerforgeV2 = async (
   fileName?: string,
   extension: "jokerforge" | "json" = "jokerforge",
   options?: {
-    autoSaveToDownloads?: boolean;
+    saveMode?: "ask" | "downloads" | "balatro-mods";
+    balatroAppdataPath?: string;
   },
-): Promise<"downloaded" | "saved" | "cancelled"> => {
+): Promise<"downloaded" | "saved" | "saved-mods" | "cancelled"> => {
   const baseName =
     fileName ||
     sanitizeFilenameBase(
@@ -52,7 +54,7 @@ export const exportJokerforgeV2 = async (
   const content = serializeJokerforgeV2(project);
   const fullName = `${baseName}.${extension}`;
 
-  if (options?.autoSaveToDownloads) {
+  if (options?.saveMode === "downloads") {
     const blob = new Blob([content], { type: "application/json" });
     const url = URL.createObjectURL(blob);
 
@@ -65,6 +67,22 @@ export const exportJokerforgeV2 = async (
 
     URL.revokeObjectURL(url);
     return "downloaded";
+  }
+
+  if (options?.saveMode === "balatro-mods") {
+    const appdataPath = (options.balatroAppdataPath || "").trim();
+    if (!appdataPath) {
+      throw new Error("Balatro AppData path is not set.");
+    }
+
+    const modsDir = await join(appdataPath, "Mods");
+    if (!(await exists(modsDir))) {
+      await mkdir(modsDir, { recursive: true });
+    }
+
+    const targetPath = await join(modsDir, fullName);
+    await writeTextFile(targetPath, content);
+    return "saved-mods";
   }
 
   const targetPath = await save({

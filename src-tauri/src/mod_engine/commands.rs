@@ -1,20 +1,27 @@
-use std::{collections::HashMap, fs, path::Path};
-
-use balatro_codegen::{
-    compile_consumable, compile_deck, compile_edition, compile_enhancement,
-    compile_joker_with_options, compile_node_snippet, compile_seal, compile_voucher,
-    format_lua_source, Emitter as LuaEmitter, JokerDef, ObjectType,
+use std::{
+    collections::{HashMap, HashSet},
+    env, fs,
+    path::{Path, PathBuf},
 };
+
+use balatro_codegen::types::UserVariableDef;
+use balatro_codegen::{
+    compile_consumable, compile_consumable_type, compile_deck, compile_edition,
+    compile_enhancement, compile_joker_with_options, compile_node_snippet, compile_rarity,
+    compile_seal, compile_voucher, format_lua_source, Emitter as LuaEmitter, JokerDef, ObjectType,
+};
+use serde::Serialize;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager, State, Window};
+use tauri::{path::BaseDirectory, AppHandle, Emitter, Manager, State, Window};
 
 use super::{
     compiler::Compiler,
     export::{
         AtlasPosInput, BatchConsumableEntry, BatchDeckEntry, BatchEditionEntry,
         BatchEnhancementEntry, BatchJokerEntry, BatchSealEntry, BatchVoucherEntry,
-        ConsumableDataInput, DeckDataInput, EditionDataInput, EnhancementDataInput, JokerDataInput,
-        ModMetadataInput, SealDataInput, VoucherDataInput,
+        ConsumableDataInput, ConsumableSetDataInput, DeckDataInput, EditionDataInput,
+        EnhancementDataInput, JokerDataInput, ModMetadataInput, RarityDataInput, SealDataInput,
+        VoucherDataInput,
     },
     state::AppState,
     types::{Edge, EntityState, Node, RuleCatalogPayload, SnippetResponse, StateSyncPayload},
@@ -331,10 +338,17 @@ pub fn compile_joker_from_data(
     soul_pos: Option<AtlasPosInput>,
     mod_prefix: String,
     include_loc_txt: bool,
+    global_user_variables: Option<Vec<super::export::UserVariableInput>>,
 ) -> Result<String, String> {
-    let joker_def = super::export::joker_data_to_def(&joker_data, pos, soul_pos);
+    let mut joker_def = super::export::joker_data_to_def(&joker_data, &mod_prefix, pos, soul_pos);
+    if let Some(global_user_variables) = global_user_variables {
+        let mapped_globals = super::export::map_user_variable_inputs(&global_user_variables);
+        merge_global_user_vars(&mut joker_def.user_variables, &mapped_globals);
+    }
     let chunk = compile_joker_with_options(&joker_def, &mod_prefix, include_loc_txt);
-    Ok(format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+    Ok(strip_export_comments(&format_lua_source(
+        &LuaEmitter::new().emit_chunk(&chunk),
+    )))
 }
 
 #[tauri::command]
@@ -345,58 +359,71 @@ pub fn compile_item_from_data(
     soul_pos: Option<AtlasPosInput>,
     mod_prefix: String,
     include_loc_txt: bool,
+    global_user_variables: Option<Vec<super::export::UserVariableInput>>,
 ) -> Result<String, String> {
     let base_pos = pos.unwrap_or(AtlasPosInput { x: 0, y: 0 });
+    let mapped_globals = global_user_variables
+        .as_deref()
+        .map(super::export::map_user_variable_inputs)
+        .unwrap_or_default();
 
     let lua = match item_type.as_str() {
         "joker" => {
             let parsed: JokerDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid joker data: {}", e))?;
-            let def = super::export::joker_data_to_def(&parsed, base_pos, soul_pos);
+            let mut def =
+                super::export::joker_data_to_def(&parsed, &mod_prefix, base_pos, soul_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_joker_with_options(&def, &mod_prefix, include_loc_txt);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
         }
         "consumable" => {
             let parsed: ConsumableDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid consumable data: {}", e))?;
-            let def = super::export::consumable_data_to_def(&parsed, base_pos, soul_pos);
+            let mut def = super::export::consumable_data_to_def(&parsed, base_pos, soul_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_consumable(&def, &mod_prefix);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
         }
         "voucher" => {
             let parsed: VoucherDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid voucher data: {}", e))?;
-            let def = super::export::voucher_data_to_def(&parsed, base_pos, soul_pos);
+            let mut def = super::export::voucher_data_to_def(&parsed, base_pos, soul_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_voucher(&def, &mod_prefix);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
         }
         "deck" => {
             let parsed: DeckDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid deck data: {}", e))?;
-            let def = super::export::deck_data_to_def(&parsed, base_pos);
+            let mut def = super::export::deck_data_to_def(&parsed, base_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_deck(&def, &mod_prefix);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
         }
         "enhancement" => {
             let parsed: EnhancementDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid enhancement data: {}", e))?;
-            let def = super::export::enhancement_data_to_def(&parsed, base_pos);
+            let mut def = super::export::enhancement_data_to_def(&parsed, base_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_enhancement(&def, &mod_prefix);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
         }
         "seal" => {
             let parsed: SealDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid seal data: {}", e))?;
-            let def = super::export::seal_data_to_def(&parsed, base_pos);
+            let mut def = super::export::seal_data_to_def(&parsed, base_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_seal(&def, &mod_prefix);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
         }
         "edition" => {
             let parsed: EditionDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid edition data: {}", e))?;
-            let def = super::export::edition_data_to_def(&parsed);
+            let mut def = super::export::edition_data_to_def(&parsed);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_edition(&def, &mod_prefix);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
         }
         _ => {
             return Err(format!("Unsupported item type: {}", item_type));
@@ -433,11 +460,12 @@ pub fn batch_export_jokers(
         } else {
             let joker_def = super::export::joker_data_to_def(
                 &entry.joker_data,
+                &mod_prefix,
                 entry.pos.clone(),
                 entry.soul_pos.clone(),
             );
             let chunk = compile_joker_with_options(&joker_def, &mod_prefix, include_loc_txt);
-            format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+            strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
         };
 
         let path = folder.join(&entry.file_name);
@@ -455,6 +483,8 @@ pub fn batch_export_jokers(
 pub fn export_mod_package(
     mod_folder_path: String,
     metadata: ModMetadataInput,
+    rarities: Vec<RarityDataInput>,
+    consumable_sets: Vec<ConsumableSetDataInput>,
     jokers: Vec<BatchJokerEntry>,
     consumables: Vec<BatchConsumableEntry>,
     vouchers: Vec<BatchVoucherEntry>,
@@ -483,6 +513,16 @@ pub fn export_mod_package(
         .map_err(|e| format!("Failed to create mod folder {}: {}", mod_folder_path, e))?;
 
     let mut file_count = 0;
+    let global_vars = super::export::collect_global_user_variables(
+        &jokers,
+        &consumables,
+        &vouchers,
+        &decks,
+        &enhancements,
+        &seals,
+        &editions,
+    );
+    let has_global_vars = !global_vars.is_empty();
 
     let main_path = root.join(&metadata.main_file);
     let main_lua = format_lua_source(&super::export::build_main_lua(
@@ -493,16 +533,81 @@ pub fn export_mod_package(
         &enhancements,
         &seals,
         &editions,
+        !rarities.is_empty(),
+        !consumable_sets.is_empty(),
+        has_global_vars,
     ));
     fs::write(&main_path, main_lua.as_bytes())
         .map_err(|e| format!("Failed to write {}: {}", main_path.display(), e))?;
     file_count += 1;
+
+    if has_global_vars {
+        let globals_path = root.join("globals.lua");
+        let globals_lua = format_lua_source(&super::export::build_globals_lua(&global_vars));
+        fs::write(&globals_path, globals_lua.as_bytes())
+            .map_err(|e| format!("Failed to write {}: {}", globals_path.display(), e))?;
+        file_count += 1;
+    }
 
     let json_path = root.join(format!("{}.json", metadata.id));
     let mod_json = super::export::build_mod_json(&metadata)?;
     fs::write(&json_path, mod_json.as_bytes())
         .map_err(|e| format!("Failed to write {}: {}", json_path.display(), e))?;
     file_count += 1;
+
+    if !rarities.is_empty() {
+        let mut sorted_rarities: Vec<&RarityDataInput> = rarities.iter().collect();
+        sorted_rarities.sort_by(|a, b| {
+            a.key
+                .trim()
+                .to_ascii_lowercase()
+                .cmp(&b.key.trim().to_ascii_lowercase())
+        });
+
+        let rarity_lua = sorted_rarities
+            .iter()
+            .map(|item| {
+                let def = super::export::rarity_data_to_def(item);
+                let chunk = compile_rarity(&def, &metadata.prefix);
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        let rarity_path = root.join("rarities.lua");
+        fs::write(&rarity_path, rarity_lua.as_bytes())
+            .map_err(|e| format!("Failed to write {}: {}", rarity_path.display(), e))?;
+        file_count += 1;
+    }
+
+    if !consumable_sets.is_empty() {
+        let consumables_dir = root.join("consumables");
+        fs::create_dir_all(&consumables_dir)
+            .map_err(|e| format!("Failed to create {}: {}", consumables_dir.display(), e))?;
+
+        let mut sorted_sets: Vec<&ConsumableSetDataInput> = consumable_sets.iter().collect();
+        sorted_sets.sort_by(|a, b| {
+            a.key
+                .trim()
+                .to_ascii_lowercase()
+                .cmp(&b.key.trim().to_ascii_lowercase())
+        });
+
+        let sets_lua = sorted_sets
+            .iter()
+            .map(|item| {
+                let def = super::export::consumable_set_data_to_def(item);
+                let chunk = compile_consumable_type(&def, &metadata.prefix);
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        let sets_path = consumables_dir.join("sets.lua");
+        fs::write(&sets_path, sets_lua.as_bytes())
+            .map_err(|e| format!("Failed to write {}: {}", sets_path.display(), e))?;
+        file_count += 1;
+    }
 
     // Write atlas PNGs
     let write_atlas = |scale: &str, name: &str, bytes: Vec<u8>| -> Result<(), String> {
@@ -511,22 +616,57 @@ pub fn export_mod_package(
             fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
         }
-        fs::write(&path, bytes)
-            .map_err(|e| format!("Failed to write {}: {}", path.display(), e))
+        fs::write(&path, bytes).map_err(|e| format!("Failed to write {}: {}", path.display(), e))
     };
 
-    if let Some(b) = atlas_1x_png { write_atlas("1x", "CustomJokers.png", b)?; file_count += 1; }
-    if let Some(b) = atlas_2x_png { write_atlas("2x", "CustomJokers.png", b)?; file_count += 1; }
-    if let Some(b) = consumables_atlas_1x_png { write_atlas("1x", "CustomConsumables.png", b)?; file_count += 1; }
-    if let Some(b) = consumables_atlas_2x_png { write_atlas("2x", "CustomConsumables.png", b)?; file_count += 1; }
-    if let Some(b) = enhancements_atlas_1x_png { write_atlas("1x", "CustomEnhancements.png", b)?; file_count += 1; }
-    if let Some(b) = enhancements_atlas_2x_png { write_atlas("2x", "CustomEnhancements.png", b)?; file_count += 1; }
-    if let Some(b) = seals_atlas_1x_png { write_atlas("1x", "CustomSeals.png", b)?; file_count += 1; }
-    if let Some(b) = seals_atlas_2x_png { write_atlas("2x", "CustomSeals.png", b)?; file_count += 1; }
-    if let Some(b) = vouchers_atlas_1x_png { write_atlas("1x", "CustomVouchers.png", b)?; file_count += 1; }
-    if let Some(b) = vouchers_atlas_2x_png { write_atlas("2x", "CustomVouchers.png", b)?; file_count += 1; }
-    if let Some(b) = decks_atlas_1x_png { write_atlas("1x", "CustomDecks.png", b)?; file_count += 1; }
-    if let Some(b) = decks_atlas_2x_png { write_atlas("2x", "CustomDecks.png", b)?; file_count += 1; }
+    if let Some(b) = atlas_1x_png {
+        write_atlas("1x", "CustomJokers.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = atlas_2x_png {
+        write_atlas("2x", "CustomJokers.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = consumables_atlas_1x_png {
+        write_atlas("1x", "CustomConsumables.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = consumables_atlas_2x_png {
+        write_atlas("2x", "CustomConsumables.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = enhancements_atlas_1x_png {
+        write_atlas("1x", "CustomEnhancements.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = enhancements_atlas_2x_png {
+        write_atlas("2x", "CustomEnhancements.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = seals_atlas_1x_png {
+        write_atlas("1x", "CustomSeals.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = seals_atlas_2x_png {
+        write_atlas("2x", "CustomSeals.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = vouchers_atlas_1x_png {
+        write_atlas("1x", "CustomVouchers.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = vouchers_atlas_2x_png {
+        write_atlas("2x", "CustomVouchers.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = decks_atlas_1x_png {
+        write_atlas("1x", "CustomDecks.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = decks_atlas_2x_png {
+        write_atlas("2x", "CustomDecks.png", b)?;
+        file_count += 1;
+    }
 
     // Write jokers
     if !jokers.is_empty() {
@@ -537,13 +677,15 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let def = super::export::joker_data_to_def(
+                let mut def = super::export::joker_data_to_def(
                     &entry.joker_data,
+                    &metadata.prefix,
                     entry.pos.clone(),
                     entry.soul_pos.clone(),
                 );
+                merge_global_user_vars(&mut def.user_variables, &global_vars);
                 let chunk = compile_joker_with_options(&def, &metadata.prefix, include_loc_txt);
-                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -560,13 +702,14 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let def = super::export::consumable_data_to_def(
+                let mut def = super::export::consumable_data_to_def(
                     &entry.consumable_data,
                     entry.pos.clone(),
                     entry.soul_pos.clone(),
                 );
+                merge_global_user_vars(&mut def.user_variables, &global_vars);
                 let chunk = compile_consumable(&def, &metadata.prefix);
-                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -583,13 +726,14 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let def = super::export::voucher_data_to_def(
+                let mut def = super::export::voucher_data_to_def(
                     &entry.voucher_data,
                     entry.pos.clone(),
                     entry.soul_pos.clone(),
                 );
+                merge_global_user_vars(&mut def.user_variables, &global_vars);
                 let chunk = compile_voucher(&def, &metadata.prefix);
-                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -606,9 +750,10 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let def = super::export::deck_data_to_def(&entry.deck_data, entry.pos.clone());
+                let mut def = super::export::deck_data_to_def(&entry.deck_data, entry.pos.clone());
+                merge_global_user_vars(&mut def.user_variables, &global_vars);
                 let chunk = compile_deck(&def, &metadata.prefix);
-                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -625,12 +770,13 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let def = super::export::enhancement_data_to_def(
+                let mut def = super::export::enhancement_data_to_def(
                     &entry.enhancement_data,
                     entry.pos.clone(),
                 );
+                merge_global_user_vars(&mut def.user_variables, &global_vars);
                 let chunk = compile_enhancement(&def, &metadata.prefix);
-                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -647,9 +793,10 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let def = super::export::seal_data_to_def(&entry.seal_data, entry.pos.clone());
+                let mut def = super::export::seal_data_to_def(&entry.seal_data, entry.pos.clone());
+                merge_global_user_vars(&mut def.user_variables, &global_vars);
                 let chunk = compile_seal(&def, &metadata.prefix);
-                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -666,9 +813,10 @@ pub fn export_mod_package(
             let lua = if let Some(custom) = &entry.custom_lua {
                 custom.clone()
             } else {
-                let def = super::export::edition_data_to_def(&entry.edition_data);
+                let mut def = super::export::edition_data_to_def(&entry.edition_data);
+                merge_global_user_vars(&mut def.user_variables, &global_vars);
                 let chunk = compile_edition(&def, &metadata.prefix);
-                format_lua_source(&LuaEmitter::new().emit_chunk(&chunk))
+                strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;
@@ -692,6 +840,504 @@ pub fn export_mod_package(
     }
 
     Ok(file_count)
+}
+
+fn merge_global_user_vars(target: &mut Vec<UserVariableDef>, global_vars: &[UserVariableDef]) {
+    let mut seen: HashSet<String> = target
+        .iter()
+        .map(|v| v.name.trim().to_ascii_lowercase())
+        .collect();
+
+    for global in global_vars {
+        let key = global.name.trim().to_ascii_lowercase();
+        if key.is_empty() || seen.contains(&key) {
+            continue;
+        }
+        target.push(global.clone());
+        seen.insert(key);
+    }
+}
+
+fn strip_export_comments(lua: &str) -> String {
+    let mut lines: Vec<&str> = lua
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("--"))
+        .collect();
+
+    while lines.last().is_some_and(|line| line.trim().is_empty()) {
+        lines.pop();
+    }
+
+    if lines.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", lines.join("\n"))
+    }
+}
+
+fn join_relative_path(root: &Path, relative: &str) -> PathBuf {
+    relative
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .fold(root.to_path_buf(), |current, segment| current.join(segment))
+}
+
+fn resolve_bundled_path(app: &AppHandle, relative: &str) -> Option<PathBuf> {
+    if let Ok(resource_path) = app.path().resolve(relative, BaseDirectory::Resource) {
+        if resource_path.exists() {
+            return Some(resource_path);
+        }
+    }
+
+    let dev_fallback_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("public");
+    let dev_fallback = join_relative_path(&dev_fallback_root, relative);
+    if dev_fallback.exists() {
+        return Some(dev_fallback);
+    }
+
+    None
+}
+
+fn path_name_eq(path: &Path, expected: &str) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.eq_ignore_ascii_case(expected))
+        .unwrap_or(false)
+}
+
+fn normalize_slashes(input: &str) -> String {
+    input.replace('/', "\\")
+}
+
+fn to_existing_dir(path: &Path) -> Option<PathBuf> {
+    path.exists().then(|| path.to_path_buf())
+}
+
+fn has_balatro_exe(path: &Path) -> bool {
+    path.join("Balatro.exe").exists()
+}
+
+fn resolve_appdata_root_from_any_path(raw: &str) -> Option<PathBuf> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let normalized = normalize_slashes(trimmed);
+    let candidate = PathBuf::from(normalized);
+    if !candidate.exists() {
+        return None;
+    }
+
+    if candidate.is_file() {
+        return None;
+    }
+
+    if has_balatro_exe(&candidate) {
+        return None;
+    }
+
+    if path_name_eq(&candidate, "Mods") || path_name_eq(&candidate, "mods") {
+        if let Some(parent) = candidate.parent() {
+            if path_name_eq(parent, "Balatro") {
+                return to_existing_dir(parent);
+            }
+        }
+    }
+
+    if path_name_eq(&candidate, "Balatro") {
+        return to_existing_dir(&candidate);
+    }
+
+    candidate
+        .ancestors()
+        .find(|ancestor| path_name_eq(ancestor, "Balatro") && !has_balatro_exe(ancestor))
+        .and_then(to_existing_dir)
+}
+
+fn resolve_default_balatro_appdata_root() -> Option<PathBuf> {
+    if let Some(app_data) = env::var_os("APPDATA") {
+        let candidate = PathBuf::from(app_data).join("Balatro");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    if let Some(user_profile) = env::var_os("USERPROFILE") {
+        let candidate = PathBuf::from(user_profile)
+            .join("AppData")
+            .join("Roaming")
+            .join("Balatro");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
+fn resolve_mods_dir_from_appdata(appdata_root: &Path) -> PathBuf {
+    let uppercase = appdata_root.join("Mods");
+    let lowercase = appdata_root.join("mods");
+    if uppercase.exists() {
+        return uppercase;
+    }
+    if lowercase.exists() {
+        return lowercase;
+    }
+    uppercase
+}
+
+fn resolve_game_dir_from_any_path(raw: &str) -> Option<PathBuf> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let normalized = normalize_slashes(trimmed);
+    let candidate = PathBuf::from(normalized);
+    if !candidate.exists() {
+        return None;
+    }
+
+    if candidate.is_file()
+        && candidate
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.eq_ignore_ascii_case("Balatro.exe"))
+            .unwrap_or(false)
+    {
+        return candidate.parent().map(|parent| parent.to_path_buf());
+    }
+
+    if candidate.is_dir() {
+        if has_balatro_exe(&candidate) {
+            return Some(candidate);
+        }
+
+        let common_candidate = candidate.join("Balatro");
+        if has_balatro_exe(&common_candidate) {
+            return Some(common_candidate);
+        }
+
+        let steamapps_candidate = candidate.join("common").join("Balatro");
+        if has_balatro_exe(&steamapps_candidate) {
+            return Some(steamapps_candidate);
+        }
+
+        let library_candidate = candidate.join("steamapps").join("common").join("Balatro");
+        if has_balatro_exe(&library_candidate) {
+            return Some(library_candidate);
+        }
+    }
+
+    None
+}
+
+fn collect_drive_roots() -> Vec<PathBuf> {
+    (b'A'..=b'Z')
+        .map(|letter| format!("{}:\\", letter as char))
+        .map(PathBuf::from)
+        .filter(|root| root.exists())
+        .collect()
+}
+
+fn collect_candidate_steam_roots() -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = Vec::new();
+
+    if let Some(program_files_x86) = env::var_os("ProgramFiles(x86)") {
+        roots.push(PathBuf::from(program_files_x86).join("Steam"));
+    }
+    if let Some(program_files) = env::var_os("ProgramFiles") {
+        roots.push(PathBuf::from(program_files).join("Steam"));
+    }
+
+    for drive_root in collect_drive_roots() {
+        roots.push(drive_root.join("Steam"));
+        roots.push(drive_root.join("Program Files (x86)").join("Steam"));
+        roots.push(drive_root.join("Program Files").join("Steam"));
+    }
+
+    let mut deduped = HashSet::new();
+    roots
+        .into_iter()
+        .filter(|path| deduped.insert(path.to_string_lossy().to_lowercase()))
+        .filter(|path| path.exists())
+        .collect()
+}
+
+fn extract_quoted_tokens(line: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut escaped = false;
+
+    for ch in line.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == '"' {
+            if in_quotes {
+                tokens.push(current.clone());
+                current.clear();
+                in_quotes = false;
+            } else {
+                in_quotes = true;
+            }
+            continue;
+        }
+        if in_quotes {
+            current.push(ch);
+        }
+    }
+
+    tokens
+}
+
+fn parse_libraryfolders_vdf(content: &str) -> Vec<PathBuf> {
+    content
+        .lines()
+        .filter_map(|line| {
+            let tokens = extract_quoted_tokens(line);
+            if tokens.len() < 2 {
+                return None;
+            }
+            if !tokens[0].eq_ignore_ascii_case("path") {
+                return None;
+            }
+            let value = tokens[1].replace("\\\\", "\\");
+            let path = PathBuf::from(value);
+            path.exists().then_some(path)
+        })
+        .collect()
+}
+
+fn collect_library_roots_from_steam() -> Vec<PathBuf> {
+    let mut library_roots: Vec<PathBuf> = Vec::new();
+    let mut seen = HashSet::new();
+
+    for steam_root in collect_candidate_steam_roots() {
+        if seen.insert(steam_root.to_string_lossy().to_lowercase()) {
+            library_roots.push(steam_root.clone());
+        }
+
+        let libraryfiles = [
+            steam_root.join("steamapps").join("libraryfolders.vdf"),
+            steam_root.join("config").join("libraryfolders.vdf"),
+        ];
+
+        for file in libraryfiles {
+            if !file.exists() {
+                continue;
+            }
+            let Ok(contents) = fs::read_to_string(&file) else {
+                continue;
+            };
+            for root in parse_libraryfolders_vdf(&contents) {
+                if seen.insert(root.to_string_lossy().to_lowercase()) {
+                    library_roots.push(root);
+                }
+            }
+        }
+    }
+
+    for drive_root in collect_drive_roots() {
+        let direct_library = drive_root.join("SteamLibrary");
+        if direct_library.exists() && seen.insert(direct_library.to_string_lossy().to_lowercase()) {
+            library_roots.push(direct_library);
+        }
+    }
+
+    library_roots
+}
+
+fn auto_find_balatro_game_dir() -> Option<PathBuf> {
+    for library_root in collect_library_roots_from_steam() {
+        let direct = library_root
+            .join("steamapps")
+            .join("common")
+            .join("Balatro");
+        if has_balatro_exe(&direct) {
+            return Some(direct);
+        }
+
+        let common_root = library_root.join("common").join("Balatro");
+        if has_balatro_exe(&common_root) {
+            return Some(common_root);
+        }
+    }
+
+    None
+}
+
+fn resolve_balatro_paths_internal(
+    configured_appdata_path: Option<String>,
+    configured_game_path: Option<String>,
+    legacy_path: Option<String>,
+) -> (Option<PathBuf>, Option<PathBuf>) {
+    let appdata = configured_appdata_path
+        .as_deref()
+        .and_then(resolve_appdata_root_from_any_path)
+        .or_else(|| {
+            legacy_path
+                .as_deref()
+                .and_then(resolve_appdata_root_from_any_path)
+        })
+        .or_else(resolve_default_balatro_appdata_root);
+
+    let game = configured_game_path
+        .as_deref()
+        .and_then(resolve_game_dir_from_any_path)
+        .or_else(|| {
+            legacy_path
+                .as_deref()
+                .and_then(resolve_game_dir_from_any_path)
+        })
+        .or_else(auto_find_balatro_game_dir);
+
+    (appdata, game)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoDetectedBalatroPaths {
+    pub appdata_path: Option<String>,
+    pub game_path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BalatroSetupResult {
+    pub appdata_path: String,
+    pub game_path: String,
+    pub mods_path: String,
+}
+
+#[tauri::command]
+pub fn auto_find_balatro_paths(
+    configured_appdata_path: Option<String>,
+    configured_game_path: Option<String>,
+    legacy_path: Option<String>,
+) -> AutoDetectedBalatroPaths {
+    let (appdata, game) =
+        resolve_balatro_paths_internal(configured_appdata_path, configured_game_path, legacy_path);
+
+    AutoDetectedBalatroPaths {
+        appdata_path: appdata.map(|path| path.to_string_lossy().to_string()),
+        game_path: game.map(|path| path.to_string_lossy().to_string()),
+    }
+}
+
+fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), String> {
+    fs::create_dir_all(target)
+        .map_err(|e| format!("Failed to create {}: {}", target.display(), e))?;
+
+    for entry in fs::read_dir(source)
+        .map_err(|e| format!("Failed to read directory {}: {}", source.display(), e))?
+    {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let source_path = entry.path();
+        let target_path = target.join(entry.file_name());
+        let metadata = entry.metadata().map_err(|e| {
+            format!(
+                "Failed to read metadata for {}: {}",
+                source_path.display(),
+                e
+            )
+        })?;
+
+        if metadata.is_dir() {
+            copy_dir_recursive(&source_path, &target_path)?;
+        } else if metadata.is_file() {
+            if let Some(parent) = target_path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
+            }
+            fs::copy(&source_path, &target_path).map_err(|e| {
+                format!(
+                    "Failed to copy {} to {}: {}",
+                    source_path.display(),
+                    target_path.display(),
+                    e
+                )
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn ensure_balatro_mod_setup(
+    appdata_path: Option<String>,
+    game_path: Option<String>,
+    legacy_path: Option<String>,
+    app: AppHandle,
+) -> Result<BalatroSetupResult, String> {
+    let (resolved_appdata, resolved_game) =
+        resolve_balatro_paths_internal(appdata_path, game_path, legacy_path);
+
+    let appdata_root =
+        resolved_appdata.ok_or_else(|| "Unable to find Balatro AppData folder.".to_string())?;
+    let game_dir =
+        resolved_game.ok_or_else(|| "Unable to find Balatro game folder.".to_string())?;
+
+    let version_dll_target = game_dir.join("version.dll");
+    let version_dll_source = resolve_bundled_path(&app, "other/version.dll")
+        .ok_or_else(|| "Missing bundled Lovely file: other/version.dll".to_string())?;
+    if let Some(parent) = version_dll_target.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
+    }
+    fs::copy(&version_dll_source, &version_dll_target).map_err(|e| {
+        format!(
+            "Failed to install Lovely (copy {} to {}): {}",
+            version_dll_source.display(),
+            version_dll_target.display(),
+            e
+        )
+    })?;
+
+    let mods_dir = resolve_mods_dir_from_appdata(&appdata_root);
+    if mods_dir.exists() && !mods_dir.is_dir() {
+        return Err(format!(
+            "Balatro Mods path exists but is not a folder: {}",
+            mods_dir.display()
+        ));
+    }
+    fs::create_dir_all(&mods_dir)
+        .map_err(|e| format!("Failed to create Mods folder {}: {}", mods_dir.display(), e))?;
+
+    let smods_target = mods_dir.join("smods");
+    if smods_target.exists() && !smods_target.is_dir() {
+        return Err(format!(
+            "Steamodded target exists but is not a folder: {}",
+            smods_target.display()
+        ));
+    }
+    let smods_manifest = smods_target.join("manifest.json");
+    let smods_src_dir = smods_target.join("src");
+    let should_sync_smods =
+        !smods_target.exists() || !smods_manifest.exists() || !smods_src_dir.is_dir();
+    if should_sync_smods {
+        let smods_source = resolve_bundled_path(&app, "other/smods-main")
+            .ok_or_else(|| "Missing bundled Steamodded folder: other/smods-main".to_string())?;
+        copy_dir_recursive(&smods_source, &smods_target)?;
+    }
+
+    Ok(BalatroSetupResult {
+        appdata_path: appdata_root.to_string_lossy().to_string(),
+        game_path: game_dir.to_string_lossy().to_string(),
+        mods_path: mods_dir.to_string_lossy().to_string(),
+    })
 }
 
 #[tauri::command]
@@ -750,9 +1396,9 @@ fn install_update_and_restart_impl(installer_path: String) -> Result<(), String>
     use std::os::windows::process::CommandExt;
     use std::process::Command;
 
-    let exe_path = env::current_exe()
-        .map_err(|e| format!("Failed to get current executable path: {}", e))?;
-    
+    let exe_path =
+        env::current_exe().map_err(|e| format!("Failed to get current executable path: {}", e))?;
+
     let mut script_path = env::temp_dir();
     script_path.push(format!("update_{}.bat", std::process::id()));
 
@@ -802,4 +1448,29 @@ fn install_update_and_restart_impl(installer_path: String) -> Result<(), String>
 #[tauri::command]
 pub fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
+}
+
+#[tauri::command]
+pub fn launch_or_relaunch_balatro(game_path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    let game_dir = resolve_game_dir_from_any_path(&game_path)
+        .ok_or_else(|| "Unable to resolve Balatro game folder.".to_string())?;
+    let exe_path = game_dir.join("Balatro.exe");
+    if !exe_path.exists() {
+        return Err(format!("Balatro.exe not found at {}", exe_path.display()));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/IM", "Balatro.exe", "/F"])
+            .output();
+    }
+
+    Command::new(&exe_path)
+        .spawn()
+        .map_err(|e| format!("Failed to launch Balatro.exe: {}", e))?;
+
+    Ok(())
 }

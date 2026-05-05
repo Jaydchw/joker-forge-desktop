@@ -1,15 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
 import { downloadDir, join } from "@tauri-apps/api/path";
-import { exists } from "@tauri-apps/plugin-fs";
+import { exists, remove } from "@tauri-apps/plugin-fs";
 import type {
   BaseGameObject,
   ConsumableData,
+  ConsumableSetData,
   DeckData,
   EditionData,
   EnhancementData,
   JokerData,
   ModMetadata,
+  RarityData,
   SealData,
+  UserVariable,
   VoucherData,
 } from "@/lib/types";
 
@@ -19,6 +22,7 @@ import type {
 
 interface CompileSingleJokerOptions {
   includeLocTxt?: boolean;
+  globalUserVariables?: UserVariable[];
 }
 
 export type PreviewCompileItemType =
@@ -35,6 +39,7 @@ interface ExportModRustOptions {
   localizationLocale?: string;
   destinationMode?: "downloads" | "balatro-mods";
   balatroModsPath?: string;
+  overwriteExistingModFolder?: boolean;
 }
 
 type ItemWithImage = Pick<
@@ -261,12 +266,17 @@ const downloadBlob = (filename: string, content: Blob) => {
 // Path helpers
 // ---------------------------------------------------------------------------
 
-const ensureUniqueModFolderPath = async (
+const resolveModFolderPath = async (
   exportRootPath: string,
   modId: string,
+  options: ExportModRustOptions,
 ): Promise<string> => {
   const basePath = await join(exportRootPath, modId);
   if (!(await exists(basePath))) return basePath;
+  if (options.overwriteExistingModFolder) {
+    await remove(basePath, { recursive: true });
+    return basePath;
+  }
   const timestamp = new Date()
     .toISOString()
     .replace(/[:.]/g, "-")
@@ -320,6 +330,7 @@ export const compileSingleItemLua = async (
     soulPos: null,
     modPrefix,
     includeLocTxt: options.includeLocTxt ?? true,
+    globalUserVariables: options.globalUserVariables ?? null,
   });
 };
 
@@ -338,10 +349,11 @@ export const compileSingleJokerLua = async (
 export const exportSingleJokerRust = async (
   joker: JokerData,
   modPrefix: string,
+  options: CompileSingleJokerOptions = {},
 ): Promise<void> => {
   const code = joker.customCode?.fullCode
     ? joker.customCode.fullCode
-    : await compileSingleJokerLua(joker, modPrefix);
+    : await compileSingleJokerLua(joker, modPrefix, options);
   downloadBlob(
     `${joker.objectKey}.lua`,
     new Blob([code], { type: "text/plain" }),
@@ -355,10 +367,11 @@ export const exportSingleItemRust = async (
   item: BaseGameObject,
   itemType: PreviewCompileItemType,
   modPrefix: string,
+  options: CompileSingleJokerOptions = {},
 ): Promise<void> => {
   const code = item.customCode?.fullCode
     ? item.customCode.fullCode
-    : await compileSingleItemLua(item, itemType, modPrefix);
+    : await compileSingleItemLua(item, itemType, modPrefix, options);
   downloadBlob(
     `${item.objectKey}.lua`,
     new Blob([code], { type: "text/plain" }),
@@ -375,6 +388,8 @@ export const exportSingleItemRust = async (
  */
 export const exportModRust = async (
   metadata: ModMetadata,
+  rarities: RarityData[],
+  consumableSets: ConsumableSetData[],
   jokers: JokerData[],
   consumables: ConsumableData[],
   vouchers: VoucherData[],
@@ -385,9 +400,10 @@ export const exportModRust = async (
   options: ExportModRustOptions = {},
 ): Promise<ExportModRustResult> => {
   const exportRootPath = await resolveExportRootPath(options);
-  const modFolderPath = await ensureUniqueModFolderPath(
+  const modFolderPath = await resolveModFolderPath(
     exportRootPath,
     metadata.id,
+    options,
   );
   const useLocalizationFile = options.useLocalizationFile ?? false;
   const locale = options.localizationLocale ?? "en-us";
@@ -421,6 +437,8 @@ export const exportModRust = async (
   const fileCount = await invoke<number>("export_mod_package", {
     modFolderPath,
     metadata,
+    rarities,
+    consumableSets,
     jokers: sortedJokers.map((joker) => ({
       jokerData: joker,
       pos: jokerAtlas1x?.positionsById[joker.id] ?? { x: 0, y: 0 },

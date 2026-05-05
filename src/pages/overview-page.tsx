@@ -28,8 +28,10 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import {
-  getJokerforgeAutoSaveDownloadsEnabled,
+  getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
+  getBalatroAppdataPath,
+  getBalatroGamePath,
   type RecentActivityEntry,
   useProjectData,
 } from "@/lib/storage";
@@ -43,6 +45,9 @@ import { importJokerforgeFromText } from "@/lib/jokerforge/importer";
 import { exportJokerforgeV2 } from "@/lib/jokerforge/exporter";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
+import { invoke } from "@tauri-apps/api/core";
+
+const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";
 
 export function OverviewPage() {
   const navigate = useNavigate();
@@ -141,16 +146,28 @@ export function OverviewPage() {
       const extension = getJokerforgeExportAsJsonEnabled()
         ? "json"
         : "jokerforge";
+      const exportSaveMode = getJokerforgeExportSaveMode();
       const result = await exportJokerforgeV2(data, undefined, extension, {
-        autoSaveToDownloads: getJokerforgeAutoSaveDownloadsEnabled(),
+        saveMode: exportSaveMode,
+        balatroAppdataPath: getBalatroAppdataPath(),
       });
       if (result === "cancelled") return;
+      if (
+        window.localStorage.getItem(LAUNCH_GAME_ON_EXPORT_KEY) === "true" &&
+        getBalatroGamePath().trim()
+      ) {
+        await invoke("launch_or_relaunch_balatro", {
+          gamePath: getBalatroGamePath(),
+        });
+      }
       pushGlobalAlert({
         type: "success",
         title: "Export Complete",
         message:
           result === "downloaded"
             ? `Downloaded .${extension} file.`
+            : result === "saved-mods"
+              ? `Saved .${extension} file to Balatro Mods folder.`
             : `Saved .${extension} file.`,
       });
     } catch (error) {

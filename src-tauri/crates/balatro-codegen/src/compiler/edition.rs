@@ -1,6 +1,7 @@
 use crate::lua_ast::*;
 use crate::types::*;
 use super::context::CompileContext;
+use super::colors::normalize_hex_colour;
 use super::{compile_rules, build_shared_loc_vars, RuleOutput};
 use super::enhancement::build_card_calculate_function;
 
@@ -119,9 +120,10 @@ fn build_edition_table(
         entries.push(kv("apply_to_float", lua_bool(v)));
     }
     if let Some(colour) = &edition.badge_colour {
-        if colour != "#FFAA00" {
-            let hex = colour.trim_start_matches('#');
-            entries.push(kv("badge_colour", lua_call("HEX", vec![lua_str(hex)])));
+        if let Some(hex) = normalize_hex_colour(colour) {
+            if hex != "FFAA00" {
+                entries.push(kv("badge_colour", lua_call("HEX", vec![lua_str(hex)])));
+            }
         }
     }
     if let Some(sound) = &edition.sound {

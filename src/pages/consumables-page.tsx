@@ -37,6 +37,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import { collectGlobalVariables } from "@/lib/global-user-variables";
 import {
   instantiateItemFromTemplate,
   useTemplateStore,
@@ -173,13 +174,18 @@ export default function ConsumablesPage() {
           item as any,
           "consumable",
           data.metadata.prefix,
+          {
+            globalUserVariables: collectGlobalVariables(data).map(
+              (entry) => entry.variable,
+            ),
+          },
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         window.alert(`Consumable export failed: ${message}`);
       }
     },
-    [data.metadata.prefix],
+    [data],
   );
 
   const {

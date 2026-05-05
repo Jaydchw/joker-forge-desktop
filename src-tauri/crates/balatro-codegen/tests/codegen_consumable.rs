@@ -1,7 +1,8 @@
 mod common;
 
 use balatro_codegen::types::ParamValue;
-use balatro_codegen::{compile_consumable, Emitter};
+use balatro_codegen::types::ConsumableTypeDef;
+use balatro_codegen::{compile_consumable, compile_consumable_type, Emitter};
 
 use common::{
     and_group, base_consumable, condition, effect, rule_with_conditions, rule_with_effects,
@@ -75,4 +76,24 @@ fn consumable_card_used_conditional_precedes_unconditional_fallback() {
         .expect("expected fallback payload in use function");
 
     assert!(cond_idx < fallback_idx);
+}
+
+#[test]
+fn consumable_type_invalid_colours_fall_back_to_safe_default() {
+    let ct = ConsumableTypeDef {
+        key: "coolset".to_string(),
+        name: "Cool Set".to_string(),
+        collection_name: Some("Cool Cards".to_string()),
+        primary_colour: "HEX".to_string(),
+        secondary_colour: "not-a-colour".to_string(),
+        collection_rows: (4, 5),
+        default_card: None,
+        shop_rate: Some(1.0),
+    };
+
+    let chunk = compile_consumable_type(&ct, "modprefix");
+    let output = Emitter::new().emit_chunk(&chunk);
+
+    assert!(output.contains("primary_colour = HEX('666666')"));
+    assert!(output.contains("secondary_colour = HEX('666666')"));
 }

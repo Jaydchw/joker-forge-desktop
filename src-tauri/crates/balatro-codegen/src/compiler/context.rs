@@ -58,6 +58,38 @@ impl CompileContext {
         lua_field(lua_raw_expr(path), var_name)
     }
 
+    /// Whether the given user variable is marked global.
+    pub fn user_var_is_global(&self, var_name: &str) -> bool {
+        self.user_vars
+            .iter()
+            .any(|v| v.name == var_name && v.is_global)
+    }
+
+    /// Whether the given user variable exists in this object's variable scope.
+    pub fn has_user_var(&self, var_name: &str) -> bool {
+        self.user_vars.iter().any(|v| v.name == var_name)
+    }
+
+    /// Returns a Lua expression for reading/writing a user variable.
+    /// Global user variables resolve through `JF_GLOBALS`.
+    pub fn user_var_expr(&self, var_name: &str) -> Expr {
+        use crate::lua_ast::*;
+        if self.user_var_is_global(var_name) {
+            lua_field(lua_raw_expr("JF_GLOBALS"), var_name)
+        } else {
+            self.ability_var(var_name)
+        }
+    }
+
+    /// Returns the textual Lua path used for a user variable.
+    pub fn user_var_path(&self, var_name: &str) -> String {
+        if self.user_var_is_global(var_name) {
+            format!("JF_GLOBALS.{}", var_name)
+        } else {
+            format!("{}.{}", self.ability_path(), var_name)
+        }
+    }
+
     /// Increment the count for an effect type and return the current count.
     /// First occurrence returns 0, second returns 1: etc.
     pub fn next_effect_count(&mut self, effect_type: &str) -> usize {
@@ -159,6 +191,9 @@ impl CompileContext {
 
         // User variables with initial values
         for uvar in &self.user_vars {
+            if uvar.is_global {
+                continue;
+            }
             let val = match uvar.var_type {
                 UserVarType::Number => {
                     let n = uvar.initial_value.as_f64().unwrap_or(0.0);

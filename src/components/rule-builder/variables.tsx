@@ -26,6 +26,8 @@ import {
 import { Input as InputField } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { validateVariableName } from "@/lib/validation-utils";
+import { useProjectData } from "@/lib/storage";
+import { collectGlobalVariables } from "@/lib/global-user-variables";
 import Panel from "./panel";
 import IconButton from "@/components/ui/icon-button";
 import {
@@ -101,6 +103,7 @@ const Variables: React.FC<VariablesProps> = ({
   onUpdateItem,
   onClose,
 }) => {
+  const { data } = useProjectData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingVariable, setEditingVariable] = useState<string | null>(null);
   const [newVariableType, setNewVariableType] = useState<
@@ -135,12 +138,50 @@ const Variables: React.FC<VariablesProps> = ({
   );
   const [editingIsGlobal, setEditingIsGlobal] = useState(false);
 
-  const usageDetails = useMemo(() => getVariableUsageDetails(item), [item]);
-  const userVariables =
+  const localUserVariables =
     "userVariables" in item &&
     Array.isArray((item as { userVariables: UserVariable[] }).userVariables)
       ? (item as { userVariables: UserVariable[] }).userVariables
       : [];
+  const sharedGlobalVariables = useMemo(
+    () =>
+      collectGlobalVariables(data, { excludeItemId: item?.id }).map(
+        (entry) => entry.variable,
+      ),
+    [data, item?.id],
+  );
+  const userVariables = useMemo(() => {
+    const merged: UserVariable[] = [];
+    const seen = new Set<string>();
+
+    for (const variable of localUserVariables) {
+      const key = variable.name.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(variable);
+    }
+
+    for (const variable of sharedGlobalVariables) {
+      const key = variable.name.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(variable);
+    }
+
+    return merged;
+  }, [localUserVariables, sharedGlobalVariables]);
+  const localVariableIds = useMemo(
+    () => new Set(localUserVariables.map((variable) => variable.id)),
+    [localUserVariables],
+  );
+  const usageDetails = useMemo(
+    () =>
+      getVariableUsageDetails({
+        ...item,
+        userVariables,
+      }),
+    [item, userVariables],
+  );
 
   const getUsageInfo = (variableName: string) => {
     const usages = usageDetails.filter(
@@ -221,7 +262,7 @@ const Variables: React.FC<VariablesProps> = ({
       newVariable.initialText = newVariableText;
     }
 
-    const updatedVariables = [...userVariables, newVariable];
+    const updatedVariables = [...localUserVariables, newVariable];
     onUpdateItem({ userVariables: updatedVariables });
 
     setNewVariableName("");
@@ -238,7 +279,7 @@ const Variables: React.FC<VariablesProps> = ({
   };
 
   const handleDeleteVariable = (variableId: string) => {
-    const updatedVariables = userVariables.filter(
+    const updatedVariables = localUserVariables.filter(
       (v: UserVariable) => v.id !== variableId,
     );
     onUpdateItem({ userVariables: updatedVariables });
@@ -284,7 +325,7 @@ const Variables: React.FC<VariablesProps> = ({
       updatedVariable.initialText = editingText;
     }
 
-    const updatedVariables = userVariables.map((v: UserVariable) =>
+    const updatedVariables = localUserVariables.map((v: UserVariable) =>
       v.id === variableId ? updatedVariable : v,
     );
     onUpdateItem({ userVariables: updatedVariables });
@@ -414,6 +455,7 @@ const Variables: React.FC<VariablesProps> = ({
             userVariables.map((variable) => {
               const usageInfo = getUsageInfo(variable.name);
               const isEditing = editingVariable === variable.id;
+              const isLocalVariable = localVariableIds.has(variable.id);
               const VariableIcon = getVariableIcon(variable.type);
               const colorClass = getVariableColor(variable.type);
 
@@ -574,22 +616,28 @@ const Variables: React.FC<VariablesProps> = ({
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <IconButton
-                            icon={PencilSimple}
-                            tooltip="Edit Variable"
-                            onClick={() => handleStartEdit(variable)}
-                            className="h-7 w-7"
-                            iconClassName="h-3.5 w-3.5"
-                          />
-                          <IconButton
-                            icon={Trash}
-                            tooltip="Delete Variable"
-                            onClick={() => handleDeleteVariable(variable.id)}
-                            className="h-7 w-7 border-destructive/40 text-destructive hover:border-destructive/60 hover:text-destructive"
-                            iconClassName="h-3.5 w-3.5"
-                          />
-                        </div>
+                        {isLocalVariable ? (
+                          <div className="flex items-center gap-1">
+                            <IconButton
+                              icon={PencilSimple}
+                              tooltip="Edit Variable"
+                              onClick={() => handleStartEdit(variable)}
+                              className="h-7 w-7"
+                              iconClassName="h-3.5 w-3.5"
+                            />
+                            <IconButton
+                              icon={Trash}
+                              tooltip="Delete Variable"
+                              onClick={() => handleDeleteVariable(variable.id)}
+                              className="h-7 w-7 border-destructive/40 text-destructive hover:border-destructive/60 hover:text-destructive"
+                              iconClassName="h-3.5 w-3.5"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            Shared
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between text-sm">

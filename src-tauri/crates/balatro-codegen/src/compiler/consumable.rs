@@ -1,4 +1,5 @@
 use super::context::CompileContext;
+use super::colors::normalize_hex_colour;
 use super::{build_shared_calculate_function, build_shared_loc_vars, compile_rules};
 use crate::lua_ast::*;
 use crate::types::*;
@@ -31,18 +32,20 @@ pub fn compile_consumable(consumable: &ConsumableDef, mod_prefix: &str) -> Chunk
 
 /// Compile a ConsumableType definition into a Lua chunk.
 pub fn compile_consumable_type(ct: &ConsumableTypeDef, mod_prefix: &str) -> Chunk {
-    let primary = ct.primary_colour.trim_start_matches('#');
-    let secondary = ct.secondary_colour.trim_start_matches('#');
+    let primary = normalize_hex_colour(&ct.primary_colour)
+        .unwrap_or_else(|| "666666".to_string());
+    let secondary = normalize_hex_colour(&ct.secondary_colour)
+        .unwrap_or_else(|| "666666".to_string());
 
     let mut entries: Vec<TableEntry> = Vec::new();
     entries.push(kv("key", lua_str(&ct.key)));
     entries.push(kv(
         "primary_colour",
-        lua_call("HEX", vec![lua_str(primary)]),
+        lua_call("HEX", vec![lua_str(&primary)]),
     ));
     entries.push(kv(
         "secondary_colour",
-        lua_call("HEX", vec![lua_str(secondary)]),
+        lua_call("HEX", vec![lua_str(&secondary)]),
     ));
     entries.push(kv(
         "collection_rows",

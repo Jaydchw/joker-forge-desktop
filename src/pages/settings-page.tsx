@@ -39,28 +39,32 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  getBalatroInstallPath,
+  getBalatroAppdataPath,
+  getBalatroGamePath,
   getAutoOpenNewItemDialogEnabled,
-  getJokerforgeAutoSaveDownloadsEnabled,
+  getBypassUnsupportedRulesDialogEnabled,
   getConfirmDeleteEnabled,
-  getExportDestinationMode,
+  getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
   getSplitLocalizationExportEnabled,
   getThemePreference,
   getRuleBuilderSettings,
   resetProjectData,
-  setBalatroInstallPath,
+  setBalatroAppdataPath,
+  setBalatroGamePath,
   setAutoOpenNewItemDialogEnabled,
-  setJokerforgeAutoSaveDownloadsEnabled,
+  setBypassUnsupportedRulesDialogEnabled,
   setConfirmDeleteEnabled,
-  setExportDestinationMode,
+  setJokerforgeExportSaveMode,
   setJokerforgeExportAsJsonEnabled,
   setSplitLocalizationExportEnabled,
   setThemePreference,
   setRuleBuilderSettings,
+  useProjectData,
   type RuleBuilderShortcutId,
   type RuleBuilderSettings,
   DEFAULT_RULE_BUILDER_SETTINGS,
+  type JokerforgeExportSaveMode,
   type ThemePreference,
 } from "@/lib/storage";
 import {
@@ -97,6 +101,64 @@ const cloneTheme = (theme: AppThemeDefinition): AppThemeDefinition => ({
 const sanitizeFileName = (value: string) =>
   (value || "theme").replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") ||
   "theme";
+
+const BASE64_IMAGE_PLACEHOLDER = "[Base64 Image Omitted]";
+const BASE64_IMAGE_KEYS = new Set([
+  "image",
+  "overlayImage",
+  "iconImage",
+  "gameImage",
+  "imageDataUrl",
+]);
+const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isEmptyValue = (value: unknown): boolean => {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value.trim().length === 0;
+  if (Array.isArray(value)) return value.length === 0;
+  if (isPlainObject(value)) return Object.keys(value).length === 0;
+  return false;
+};
+
+const sanitizeModDataForClipboard = (
+  value: unknown,
+  key = "",
+): unknown | undefined => {
+  if (typeof value === "string") {
+    if (value.toLowerCase().startsWith("data:image/")) {
+      return BASE64_IMAGE_PLACEHOLDER;
+    }
+
+    if (BASE64_IMAGE_KEYS.has(key) && value.trim().length > 0) {
+      return BASE64_IMAGE_PLACEHOLDER;
+    }
+
+    return value.trim().length > 0 ? value : undefined;
+  }
+
+  if (Array.isArray(value)) {
+    const sanitizedItems = value
+      .map((item) => sanitizeModDataForClipboard(item))
+      .filter((item) => item !== undefined && !isEmptyValue(item));
+
+    return sanitizedItems.length > 0 ? sanitizedItems : undefined;
+  }
+
+  if (isPlainObject(value)) {
+    const result: Record<string, unknown> = {};
+    for (const [entryKey, entryValue] of Object.entries(value)) {
+      const sanitized = sanitizeModDataForClipboard(entryValue, entryKey);
+      if (sanitized === undefined || isEmptyValue(sanitized)) continue;
+      result[entryKey] = sanitized;
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+  }
+
+  return value;
+};
 
 type SettingsCategory =
   | "general"
@@ -309,16 +371,21 @@ function ThemeEditorFields({
 }
 
 export default function SettingsPage() {
+  const { data } = useProjectData();
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategory>("general");
 
   const [confirmDeletes, setConfirmDeletes] = useState(true);
-  const [balatroPath, setBalatroPath] = useState("");
+  const [balatroAppdataPath, setBalatroAppdataPathState] = useState("");
+  const [balatroGamePath, setBalatroGamePathState] = useState("");
   const [splitLocalizationExport, setSplitLocalizationExport] = useState(false);
-  const [exportToBalatroMods, setExportToBalatroMods] = useState(false);
+  const [exportSaveMode, setExportSaveMode] =
+    useState<JokerforgeExportSaveMode>("ask");
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
-  const [autoSaveToDownloads, setAutoSaveToDownloads] = useState(false);
+  const [launchOnExport, setLaunchOnExport] = useState(false);
   const [autoOpenNewItemDialog, setAutoOpenNewItemDialog] = useState(true);
+  const [bypassUnsupportedRulesDialog, setBypassUnsupportedRulesDialog] =
+    useState(false);
   const [ruleBuilderSettings, setRuleBuilderSettingsState] =
     useState<RuleBuilderSettings>(DEFAULT_RULE_BUILDER_SETTINGS);
   const [isResetDataDialogOpen, setIsResetDataDialogOpen] = useState(false);
@@ -349,12 +416,14 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setConfirmDeletes(getConfirmDeleteEnabled());
-    setBalatroPath(getBalatroInstallPath());
+    setBalatroAppdataPathState(getBalatroAppdataPath());
+    setBalatroGamePathState(getBalatroGamePath());
     setSplitLocalizationExport(getSplitLocalizationExportEnabled());
-    setExportToBalatroMods(getExportDestinationMode() === "balatro-mods");
+    setExportSaveMode(getJokerforgeExportSaveMode());
     setExportJokerforgeAsJson(getJokerforgeExportAsJsonEnabled());
-    setAutoSaveToDownloads(getJokerforgeAutoSaveDownloadsEnabled());
+    setLaunchOnExport(window.localStorage.getItem(LAUNCH_GAME_ON_EXPORT_KEY) === "true");
     setAutoOpenNewItemDialog(getAutoOpenNewItemDialogEnabled());
+    setBypassUnsupportedRulesDialog(getBypassUnsupportedRulesDialogEnabled());
     setRuleBuilderSettingsState(getRuleBuilderSettings());
     setThemeMode(getThemePreference());
     setThemeEditorMode(getThemePreference());
@@ -373,15 +442,27 @@ export default function SettingsPage() {
     [selectedThemeId, themes],
   );
 
-  const handleBrowseBalatroPath = async () => {
+  const handleBrowseBalatroAppdataPath = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: "Select Balatro Install Folder",
+      title: "Select Balatro AppData Folder",
     });
     if (typeof selected === "string") {
-      setBalatroPath(selected);
-      setBalatroInstallPath(selected);
+      setBalatroAppdataPathState(selected);
+      setBalatroAppdataPath(selected);
+    }
+  };
+
+  const handleBrowseBalatroGamePath = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "Select Balatro Game Folder",
+    });
+    if (typeof selected === "string") {
+      setBalatroGamePathState(selected);
+      setBalatroGamePath(selected);
     }
   };
 
@@ -591,6 +672,43 @@ export default function SettingsPage() {
     });
   };
 
+  const handleCopyModDataToClipboard = async () => {
+    const modDataSnapshot = {
+      metadata: data.metadata,
+      jokers: data.jokers,
+      consumables: data.consumables,
+      decks: data.decks,
+      vouchers: data.vouchers,
+      boosters: data.boosters,
+      enhancements: data.enhancements,
+      seals: data.seals,
+      editions: data.editions,
+      sounds: data.sounds,
+      rarities: data.rarities,
+      consumableSets: data.consumableSets,
+    };
+
+    const sanitized = sanitizeModDataForClipboard(modDataSnapshot) ?? {};
+    const formatted = JSON.stringify(sanitized, null, 2);
+
+    try {
+      await navigator.clipboard.writeText(formatted);
+      pushGlobalAlert({
+        type: "success",
+        title: "Mod Data Copied",
+        message:
+          "Formatted mod JSON has been copied to the clipboard (base64 images omitted).",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      pushGlobalAlert({
+        type: "danger",
+        title: "Copy Failed",
+        message: `Could not copy mod data to clipboard.\n${message}`,
+      });
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
       <header className="space-y-1 border-b border-border/60 pb-4">
@@ -705,25 +823,35 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between py-2">
+                <div className="flex items-center justify-between py-2 gap-3">
                   <div>
-                    <Label htmlFor="auto-save-downloads">
-                      Auto-save Exports To Downloads
-                    </Label>
+                    <Label htmlFor="export-save-mode">Export Save Location</Label>
                     <p className="text-[11px] text-muted-foreground">
-                      Off: ask where to save each export. On: save directly to
-                      Downloads.
+                      Ask every export, save to Downloads, or save to Balatro Mods.
                     </p>
                   </div>
-                  <Switch
-                    id="auto-save-downloads"
-                    checked={autoSaveToDownloads}
-                    onCheckedChange={(value) => {
-                      setAutoSaveToDownloads(value);
-                      setJokerforgeAutoSaveDownloadsEnabled(value);
+                  <Select
+                    value={exportSaveMode}
+                    onValueChange={(value) => {
+                      const next = value as JokerforgeExportSaveMode;
+                      setExportSaveMode(next);
+                      setJokerforgeExportSaveMode(next);
                     }}
-                    className="cursor-pointer"
-                  />
+                  >
+                    <SelectTrigger id="export-save-mode" className="h-9 w-[220px]">
+                      <SelectValue placeholder="Select save location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ask">Ask</SelectItem>
+                      <SelectItem value="downloads">Downloads</SelectItem>
+                      <SelectItem
+                        value="balatro-mods"
+                        disabled={!balatroAppdataPath.trim()}
+                      >
+                        Balatro Mods Folder
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
@@ -734,20 +862,20 @@ export default function SettingsPage() {
               <div className="px-1 py-2 border-b border-border/60">
                 <h3 className="font-semibold flex items-center gap-2">
                   <Folder className="h-4 w-4" />
-                  Balatro Path
+                  Balatro Paths
                 </h3>
               </div>
 
               <div className="space-y-4 px-1 py-1">
                 <div className="flex items-center gap-2">
                   <Input
-                    value={balatroPath}
+                    value={balatroAppdataPath}
                     onChange={(event) => {
                       const next = event.target.value;
-                      setBalatroPath(next);
-                      setBalatroInstallPath(next);
+                      setBalatroAppdataPathState(next);
+                      setBalatroAppdataPath(next);
                     }}
-                    placeholder="C:\\Users\\Jayd\\AppData\\Roaming\\Balatro\\mods"
+                    placeholder="C:\\Users\\<you>\\AppData\\Roaming\\Balatro"
                     className="h-9 font-mono text-xs"
                   />
                   <Button
@@ -755,28 +883,58 @@ export default function SettingsPage() {
                     variant="outline"
                     size="icon"
                     className="h-9 w-9 cursor-pointer"
-                    onClick={handleBrowseBalatroPath}
+                    onClick={handleBrowseBalatroAppdataPath}
                   >
                     <FolderOpen className="h-4 w-4" />
                   </Button>
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Balatro AppData folder. Mods are exported to `Mods` inside this folder.
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={balatroGamePath}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setBalatroGamePathState(next);
+                      setBalatroGamePath(next);
+                    }}
+                    placeholder="D:\\SteamLibrary\\steamapps\\common\\Balatro"
+                    className="h-9 font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 cursor-pointer"
+                    onClick={handleBrowseBalatroGamePath}
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Balatro game folder (contains `Balatro.exe`). Lovely `version.dll` is installed here.
+                </p>
 
                 <div className="flex items-center justify-between py-2">
                   <div>
-                    <Label htmlFor="export-destination-toggle">
-                      Export To Balatro Mods Folder
+                    <Label htmlFor="launch-on-export">
+                      Launch/Relaunch Game On Export
                     </Label>
                     <p className="text-[11px] text-muted-foreground">
-                      Off: Downloads folder. On: Balatro mods folder above.
+                      Closes Balatro if running, then starts `Balatro.exe`.
                     </p>
                   </div>
                   <Switch
-                    id="export-destination-toggle"
-                    checked={exportToBalatroMods}
+                    id="launch-on-export"
+                    checked={launchOnExport}
+                    disabled={!balatroGamePath.trim()}
                     onCheckedChange={(value) => {
-                      setExportToBalatroMods(value);
-                      setExportDestinationMode(
-                        value ? "balatro-mods" : "downloads",
+                      setLaunchOnExport(value);
+                      window.localStorage.setItem(
+                        LAUNCH_GAME_ON_EXPORT_KEY,
+                        value ? "true" : "false",
                       );
                     }}
                     className="cursor-pointer"
@@ -799,6 +957,32 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2 px-1 py-1">
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-confirm-delete-rule">
+                    Confirm Deleting A Rule
+                  </Label>
+                  <Switch
+                    id="rb-confirm-delete-rule"
+                    checked={ruleBuilderSettings.confirmDeleteRule}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ confirmDeleteRule: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-confirm-delete-block">
+                    Confirm Deleting A Rule Block
+                  </Label>
+                  <Switch
+                    id="rb-confirm-delete-block"
+                    checked={ruleBuilderSettings.confirmDeleteBlock}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ confirmDeleteBlock: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
                 <div className="flex items-center justify-between py-2">
                   <Label htmlFor="rb-default-grid-snap">
                     Default Grid Snap
@@ -1125,6 +1309,40 @@ export default function SettingsPage() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   Internal utilities and debugging features.
                 </p>
+              </div>
+
+              <div className="space-y-2 px-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Project Data
+                </h4>
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <Label htmlFor="dev-bypass-unsupported-rules">
+                      Bypass Unsupported Rules Dialog
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Allows Export Mod even when unsupported rules are present.
+                    </p>
+                  </div>
+                  <Switch
+                    id="dev-bypass-unsupported-rules"
+                    checked={bypassUnsupportedRulesDialog}
+                    onCheckedChange={(value) => {
+                      setBypassUnsupportedRulesDialog(value);
+                      setBypassUnsupportedRulesDialogEnabled(value);
+                    }}
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="grid gap-3 py-1 sm:grid-cols-2 md:grid-cols-3">
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    onClick={() => void handleCopyModDataToClipboard()}
+                  >
+                    Copy Mod Data to Clipboard
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2 px-1">

@@ -7,15 +7,15 @@
 //! updating Rust, not both the TypeScript mapper and the Rust codegen.
 
 use balatro_codegen::types::{
-    AppearanceDef, AtlasPos, ConditionDef, ConditionGroupDef, ConsumableDef, DeckDef, DisplaySize,
-    EditionDef, EffectDef, EnhancementDef, JokerDef, LogicOp, LoopGroupDef, ParamValue,
-    RandomGroupDef, RuleDef, SealDef, TypedValue, UnlockDef, UserVarType, UserVariableDef,
-    VoucherDef,
+    AppearanceDef, AtlasPos, ConditionDef, ConditionGroupDef, ConsumableDef, ConsumableTypeDef,
+    DeckDef, DisplaySize, EditionDef, EffectDef, EnhancementDef, JokerDef, LogicOp, LoopGroupDef,
+    ParamValue, RandomGroupDef, RarityDef, RuleDef, SealDef, TypedValue, UnlockDef, UserVarType,
+    UserVariableDef, VoucherDef,
 };
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 // ---------------------------------------------------------------------------
 // Input types, match the TypeScript `JokerData` / `Rule` shapes exactly
@@ -276,6 +276,29 @@ pub struct DeckDataInput {
     pub atlas: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RarityDataInput {
+    pub key: String,
+    pub name: String,
+    pub badge_colour: String,
+    #[serde(default)]
+    pub default_weight: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConsumableSetDataInput {
+    pub key: String,
+    pub name: String,
+    pub primary_colour: String,
+    pub secondary_colour: String,
+    #[serde(default)]
+    pub shop_rate: Option<f64>,
+    pub collection_rows: [i32; 2],
+    pub collection_name: String,
+    #[serde(default)]
+    pub default_card: Option<Value>,
+}
+
 /// Mirrors the TypeScript `Rule` interface.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -388,6 +411,8 @@ pub struct UserVariableInput {
     pub name: String,
     #[serde(rename = "type", default)]
     pub var_type: String,
+    #[serde(default)]
+    pub is_global: bool,
     pub initial_value: Option<f64>,
     pub initial_suit: Option<String>,
     pub initial_rank: Option<String>,
@@ -503,6 +528,7 @@ pub struct ModMetadataInput {
 /// `JokerDef` suitable for `balatro_codegen::compile_joker_with_options`.
 pub fn joker_data_to_def(
     input: &JokerDataInput,
+    mod_prefix: &str,
     pos: AtlasPosInput,
     soul_pos: Option<AtlasPosInput>,
 ) -> JokerDef {
@@ -514,7 +540,7 @@ pub fn joker_data_to_def(
         name: input.name.clone(),
         description: split_description(&input.description),
         cost: input.cost,
-        rarity: normalize_rarity(&input.rarity),
+        rarity: normalize_rarity(&input.rarity, mod_prefix),
         blueprint_compat: input.blueprint_compat.unwrap_or(false),
         eternal_compat: input.eternal_compat.unwrap_or(false),
         perishable_compat: input.perishable_compat.unwrap_or(true),
@@ -571,7 +597,10 @@ pub fn enhancement_data_to_def(input: &EnhancementDataInput, pos: AtlasPosInput)
         key: input.object_key.clone(),
         name: input.name.clone(),
         description: split_description(&input.description),
-        atlas: input.atlas.clone().unwrap_or_else(|| "centers".to_string()),
+        atlas: input
+            .atlas
+            .clone()
+            .unwrap_or_else(|| "CustomEnhancements".to_string()),
         pos: AtlasPos { x: pos.x, y: pos.y },
         rules: input.rules.iter().map(map_rule).collect(),
         user_variables: input.user_variables.iter().map(map_user_variable).collect(),
@@ -592,7 +621,10 @@ pub fn seal_data_to_def(input: &SealDataInput, pos: AtlasPosInput) -> SealDef {
         key: input.object_key.clone(),
         name: input.name.clone(),
         description: split_description(&input.description),
-        atlas: input.atlas.clone().unwrap_or_else(|| "centers".to_string()),
+        atlas: input
+            .atlas
+            .clone()
+            .unwrap_or_else(|| "CustomSeals".to_string()),
         pos: AtlasPos { x: pos.x, y: pos.y },
         rules: input.rules.iter().map(map_rule).collect(),
         user_variables: input.user_variables.iter().map(map_user_variable).collect(),
@@ -678,6 +710,28 @@ pub fn deck_data_to_def(input: &DeckDataInput, pos: AtlasPosInput) -> DeckDef {
         no_interest: input.no_interest,
         no_faces: input.no_faces,
         erratic_deck: input.erratic_deck,
+    }
+}
+
+pub fn rarity_data_to_def(input: &RarityDataInput) -> RarityDef {
+    RarityDef {
+        key: input.key.trim().to_ascii_lowercase(),
+        name: input.name.clone(),
+        badge_colour: input.badge_colour.clone(),
+        default_weight: input.default_weight.unwrap_or(1.0),
+    }
+}
+
+pub fn consumable_set_data_to_def(input: &ConsumableSetDataInput) -> ConsumableTypeDef {
+    ConsumableTypeDef {
+        key: input.key.trim().to_ascii_lowercase(),
+        name: input.name.clone(),
+        collection_name: Some(input.collection_name.clone()),
+        primary_colour: input.primary_colour.clone(),
+        secondary_colour: input.secondary_colour.clone(),
+        collection_rows: (input.collection_rows[0], input.collection_rows[1]),
+        default_card: option_value_to_string(input.default_card.as_ref()),
+        shop_rate: input.shop_rate,
     }
 }
 
@@ -786,7 +840,12 @@ fn map_user_variable(v: &UserVariableInput) -> UserVariableDef {
         name: v.name.clone(),
         var_type,
         initial_value,
+        is_global: v.is_global,
     }
+}
+
+pub fn map_user_variable_inputs(values: &[UserVariableInput]) -> Vec<UserVariableDef> {
+    values.iter().map(map_user_variable).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -826,9 +885,28 @@ fn option_value_to_string(v: Option<&Value>) -> Option<String> {
 
 /// Map a rarity value that is either a number (1–4) or a string to the
 /// canonical lowercase string used by `balatro_codegen`.
-fn normalize_rarity(rarity: &Value) -> String {
+///
+/// Custom rarity strings are normalized to include the mod prefix so the
+/// generated joker rarity key matches the pool created by `SMODS.Rarity`.
+fn normalize_rarity(rarity: &Value, mod_prefix: &str) -> String {
     match rarity {
-        Value::String(s) => s.to_lowercase(),
+        Value::String(s) => {
+            let normalized = s.trim().to_ascii_lowercase();
+            if normalized.is_empty() {
+                return "common".to_string();
+            }
+
+            if is_vanilla_rarity_key(&normalized) {
+                return normalized;
+            }
+
+            let prefix = mod_prefix.trim().to_ascii_lowercase();
+            if prefix.is_empty() || normalized.starts_with(&format!("{}_", prefix)) {
+                normalized
+            } else {
+                format!("{}_{}", prefix, normalized)
+            }
+        }
         Value::Number(n) => match n.as_u64().unwrap_or(1) {
             2 => "uncommon",
             3 => "rare",
@@ -838,6 +916,10 @@ fn normalize_rarity(rarity: &Value) -> String {
         .to_string(),
         _ => "common".to_string(),
     }
+}
+
+fn is_vanilla_rarity_key(value: &str) -> bool {
+    matches!(value, "common" | "uncommon" | "rare" | "legendary")
 }
 
 /// Split an HTML-formatted description string into individual lines.
@@ -1038,6 +1120,103 @@ pub fn build_localization_lua(mod_prefix: &str, jokers: &[BatchJokerEntry]) -> S
     )
 }
 
+fn param_value_to_lua_literal(value: &ParamValue) -> String {
+    match value {
+        ParamValue::Int(n) => n.to_string(),
+        ParamValue::Float(n) => n.to_string(),
+        ParamValue::Bool(b) => {
+            if *b {
+                "true".to_string()
+            } else {
+                "false".to_string()
+            }
+        }
+        ParamValue::Str(s) => format!("'{}'", escape_lua_string(s)),
+        ParamValue::Typed(t) => {
+            if let Some(n) = t.value.as_i64() {
+                return n.to_string();
+            }
+            if let Some(n) = t.value.as_f64() {
+                return n.to_string();
+            }
+            if let Some(b) = t.value.as_bool() {
+                return if b { "true" } else { "false" }.to_string();
+            }
+            if let Some(s) = t.value.as_str() {
+                return format!("'{}'", escape_lua_string(s));
+            }
+            "nil".to_string()
+        }
+    }
+}
+
+fn register_globals_from_input(
+    vars: &[UserVariableInput],
+    out: &mut BTreeMap<String, UserVariableDef>,
+) {
+    for var in vars {
+        if !var.is_global || var.name.trim().is_empty() {
+            continue;
+        }
+        let normalized = var.name.trim().to_ascii_lowercase();
+        out.entry(normalized)
+            .or_insert_with(|| map_user_variable(var));
+    }
+}
+
+pub fn collect_global_user_variables(
+    jokers: &[BatchJokerEntry],
+    consumables: &[BatchConsumableEntry],
+    vouchers: &[BatchVoucherEntry],
+    decks: &[BatchDeckEntry],
+    enhancements: &[BatchEnhancementEntry],
+    seals: &[BatchSealEntry],
+    editions: &[BatchEditionEntry],
+) -> Vec<UserVariableDef> {
+    let mut by_name: BTreeMap<String, UserVariableDef> = BTreeMap::new();
+
+    for entry in jokers {
+        register_globals_from_input(&entry.joker_data.user_variables, &mut by_name);
+    }
+    for entry in consumables {
+        register_globals_from_input(&entry.consumable_data.user_variables, &mut by_name);
+    }
+    for entry in vouchers {
+        register_globals_from_input(&entry.voucher_data.user_variables, &mut by_name);
+    }
+    for entry in decks {
+        register_globals_from_input(&entry.deck_data.user_variables, &mut by_name);
+    }
+    for entry in enhancements {
+        register_globals_from_input(&entry.enhancement_data.user_variables, &mut by_name);
+    }
+    for entry in seals {
+        register_globals_from_input(&entry.seal_data.user_variables, &mut by_name);
+    }
+    for entry in editions {
+        register_globals_from_input(&entry.edition_data.user_variables, &mut by_name);
+    }
+
+    by_name.into_values().collect()
+}
+
+pub fn build_globals_lua(global_vars: &[UserVariableDef]) -> String {
+    if global_vars.is_empty() {
+        return "return {}\n".to_string();
+    }
+
+    let mut lines = Vec::new();
+    for var in global_vars {
+        lines.push(format!(
+            "  ['{}'] = {}",
+            escape_lua_string(&var.name),
+            param_value_to_lua_literal(&var.initial_value)
+        ));
+    }
+
+    format!("return {{\n{}\n}}\n", lines.join(",\n"))
+}
+
 pub fn build_main_lua(
     jokers: &[BatchJokerEntry],
     consumables: &[BatchConsumableEntry],
@@ -1046,12 +1225,19 @@ pub fn build_main_lua(
     enhancements: &[BatchEnhancementEntry],
     seals: &[BatchSealEntry],
     editions: &[BatchEditionEntry],
+    load_rarities: bool,
+    load_consumable_sets: bool,
+    load_globals: bool,
 ) -> String {
     let mut sorted_jokers: Vec<&BatchJokerEntry> = jokers.iter().collect();
     sorted_jokers.sort_by(|a, b| a.joker_data.object_key.cmp(&b.joker_data.object_key));
 
     let mut sorted_consumables: Vec<&BatchConsumableEntry> = consumables.iter().collect();
-    sorted_consumables.sort_by(|a, b| a.consumable_data.object_key.cmp(&b.consumable_data.object_key));
+    sorted_consumables.sort_by(|a, b| {
+        a.consumable_data
+            .object_key
+            .cmp(&b.consumable_data.object_key)
+    });
 
     let mut sorted_vouchers: Vec<&BatchVoucherEntry> = vouchers.iter().collect();
     sorted_vouchers.sort_by(|a, b| a.voucher_data.object_key.cmp(&b.voucher_data.object_key));
@@ -1060,7 +1246,11 @@ pub fn build_main_lua(
     sorted_decks.sort_by(|a, b| a.deck_data.object_key.cmp(&b.deck_data.object_key));
 
     let mut sorted_enhancements: Vec<&BatchEnhancementEntry> = enhancements.iter().collect();
-    sorted_enhancements.sort_by(|a, b| a.enhancement_data.object_key.cmp(&b.enhancement_data.object_key));
+    sorted_enhancements.sort_by(|a, b| {
+        a.enhancement_data
+            .object_key
+            .cmp(&b.enhancement_data.object_key)
+    });
 
     let mut sorted_seals: Vec<&BatchSealEntry> = seals.iter().collect();
     sorted_seals.sort_by(|a, b| a.seal_data.object_key.cmp(&b.seal_data.object_key));
@@ -1089,31 +1279,64 @@ pub fn build_main_lua(
     }
 
     let mut requires = String::new();
+    if load_rarities {
+        requires.push_str("assert(SMODS.load_file(\"rarities.lua\"))()\n");
+    }
+    if load_consumable_sets {
+        requires.push_str("assert(SMODS.load_file(\"consumables/sets.lua\"))()\n");
+    }
     for j in &sorted_jokers {
-        requires.push_str(&format!("assert(SMODS.load_file(\"jokers/{}\"))()\n", j.file_name));
+        requires.push_str(&format!(
+            "assert(SMODS.load_file(\"jokers/{}\"))()\n",
+            j.file_name
+        ));
     }
     for c in &sorted_consumables {
-        requires.push_str(&format!("assert(SMODS.load_file(\"consumables/{}\"))()\n", c.file_name));
+        requires.push_str(&format!(
+            "assert(SMODS.load_file(\"consumables/{}\"))()\n",
+            c.file_name
+        ));
     }
     for e in &sorted_enhancements {
-        requires.push_str(&format!("assert(SMODS.load_file(\"enhancements/{}\"))()\n", e.file_name));
+        requires.push_str(&format!(
+            "assert(SMODS.load_file(\"enhancements/{}\"))()\n",
+            e.file_name
+        ));
     }
     for s in &sorted_seals {
-        requires.push_str(&format!("assert(SMODS.load_file(\"seals/{}\"))()\n", s.file_name));
+        requires.push_str(&format!(
+            "assert(SMODS.load_file(\"seals/{}\"))()\n",
+            s.file_name
+        ));
     }
     for ed in &sorted_editions {
-        requires.push_str(&format!("assert(SMODS.load_file(\"editions/{}\"))()\n", ed.file_name));
+        requires.push_str(&format!(
+            "assert(SMODS.load_file(\"editions/{}\"))()\n",
+            ed.file_name
+        ));
     }
     for v in &sorted_vouchers {
-        requires.push_str(&format!("assert(SMODS.load_file(\"vouchers/{}\"))()\n", v.file_name));
+        requires.push_str(&format!(
+            "assert(SMODS.load_file(\"vouchers/{}\"))()\n",
+            v.file_name
+        ));
     }
     for d in &sorted_decks {
-        requires.push_str(&format!("assert(SMODS.load_file(\"decks/{}\"))()\n", d.file_name));
+        requires.push_str(&format!(
+            "assert(SMODS.load_file(\"decks/{}\"))()\n",
+            d.file_name
+        ));
     }
 
+    let globals_load = if load_globals {
+        "JF_GLOBALS = assert(SMODS.load_file(\"globals.lua\"))()\n"
+    } else {
+        "JF_GLOBALS = JF_GLOBALS or {}\n"
+    };
+
     format!(
-        "{}local NFS = require(\"nativefs\")\nto_big = to_big or function(a) return a end\nlenient_bignum = lenient_bignum or function(a) return a end\n\n{}\n",
-        atlas_decls, requires
+        "{}local NFS = require(\"nativefs\")\nto_big = to_big or function(a) return a end\nlenient_bignum = lenient_bignum or function(a) return a end\n{}\n{}\n",
+        atlas_decls, globals_load, requires
     )
 }
 
@@ -1220,5 +1443,23 @@ mod tests {
             }
             other => panic!("expected wrapped_typed Typed(...), got {other:?}"),
         }
+    }
+
+    #[test]
+    fn normalize_rarity_preserves_vanilla_string_rarity() {
+        let rarity = normalize_rarity(&serde_json::json!("rare"), "jkr");
+        assert_eq!(rarity, "rare");
+    }
+
+    #[test]
+    fn normalize_rarity_prefixes_custom_rarity() {
+        let rarity = normalize_rarity(&serde_json::json!("superrare"), "jkr");
+        assert_eq!(rarity, "jkr_superrare");
+    }
+
+    #[test]
+    fn normalize_rarity_does_not_double_prefix_custom_rarity() {
+        let rarity = normalize_rarity(&serde_json::json!("jkr_superrare"), "jkr");
+        assert_eq!(rarity, "jkr_superrare");
     }
 }

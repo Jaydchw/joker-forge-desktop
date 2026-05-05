@@ -18,12 +18,16 @@ import { ExportSuccessDialog } from "@/components/layout/export-success-dialog";
 import { UnsupportedRulesDialog } from "@/components/layout/unsupported-rules-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-  getBalatroInstallPath,
+  getBalatroAppdataPath,
+  getBalatroGamePath,
   getExportDestinationMode,
-  getJokerforgeAutoSaveDownloadsEnabled,
+  getBypassUnsupportedRulesDialogEnabled,
+  getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
   getSplitLocalizationExportEnabled,
   getThemePreference,
+  setBalatroAppdataPath,
+  setBalatroGamePath,
   setThemePreference,
   useProjectData,
   type ProjectData,
@@ -31,11 +35,11 @@ import {
 import { exportJokerforgeV2, serializeJokerforgeV2 } from "@/lib/jokerforge/exporter";
 import { importJokerforgeFromText } from "@/lib/jokerforge/importer";
 import {
-  exportModRust,
-  type ExportModRustResult,
+  exportModRust, type ExportModRustResult
 } from "@/lib/rust-codegen-export";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 import { getUnsupportedRuleParts } from "@/lib/export-compiler-support";
 import {
   applyThemeFromStorage,
@@ -43,6 +47,7 @@ import {
 } from "../../lib/theme-manager";
 import { AnimatePresence, motion } from "framer-motion";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { ensureBalatroModSetup } from "@/lib/balatro-mod-setup";
 import type { PreExportIssue } from "@/lib/pre-export-checks";
 import type { NavigationTarget } from "@/lib/navigation-target";
 import { toast } from "sonner";
@@ -52,6 +57,7 @@ import { TemplateLibraryDialog } from "@/components/templates/template-library-d
 interface HeaderProps {
   title?: string;
 }
+const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";
 
 type DeletableIssueTarget = {
   path: string;
@@ -220,15 +226,26 @@ export function Header({ title }: HeaderProps) {
         ? "json"
         : "jokerforge";
       const result = await exportJokerforgeV2(data, undefined, extension, {
-        autoSaveToDownloads: getJokerforgeAutoSaveDownloadsEnabled(),
+        saveMode: getJokerforgeExportSaveMode(),
+        balatroAppdataPath: getBalatroAppdataPath(),
       });
       if (result === "cancelled") return;
+      if (
+        window.localStorage.getItem(LAUNCH_GAME_ON_EXPORT_KEY) === "true" &&
+        getBalatroGamePath().trim()
+      ) {
+        await invoke("launch_or_relaunch_balatro", {
+          gamePath: getBalatroGamePath(),
+        });
+      }
       pushGlobalAlert({
         type: "success",
         title: "Export Complete",
         message:
           result === "downloaded"
             ? `Downloaded .${extension} file.`
+            : result === "saved-mods"
+              ? `Saved .${extension} file to Balatro Mods folder.`
             : `Saved .${extension} file.`,
       });
     } catch (error) {
@@ -245,8 +262,27 @@ export function Header({ title }: HeaderProps) {
   const doExport = async () => {
     try {
       setIsExporting(true);
+
+      const configuredAppdataPath = getBalatroAppdataPath().trim();
+      const configuredGamePath = getBalatroGamePath().trim();
+      let destinationMode = getExportDestinationMode();
+      let balatroModsPath = "";
+
+      if (destinationMode === "balatro-mods") {
+        const setupResult = await ensureBalatroModSetup({
+          appdataPath: configuredAppdataPath,
+          gamePath: configuredGamePath,
+          legacyPath: configuredAppdataPath,
+        });
+        setBalatroAppdataPath(setupResult.appdataPath);
+        setBalatroGamePath(setupResult.gamePath);
+        balatroModsPath = setupResult.modsPath;
+      }
+
       const result = await exportModRust(
         data.metadata as any,
+        data.rarities as any,
+        data.consumableSets as any,
         data.jokers as any,
         data.consumables as any,
         data.vouchers as any,
@@ -256,8 +292,9 @@ export function Header({ title }: HeaderProps) {
         data.editions as any,
         {
           useLocalizationFile: getSplitLocalizationExportEnabled(),
-          destinationMode: getExportDestinationMode(),
-          balatroModsPath: getBalatroInstallPath(),
+          destinationMode,
+          balatroModsPath,
+          overwriteExistingModFolder: true,
         },
       );
 
@@ -266,6 +303,15 @@ export function Header({ title }: HeaderProps) {
         `${data.metadata.id || "jokerforge-export"}.jokerforge`,
       );
       await writeTextFile(jokerforgeBundlePath, serializeJokerforgeV2(data));
+
+      if (
+        window.localStorage.getItem(LAUNCH_GAME_ON_EXPORT_KEY) === "true" &&
+        getBalatroGamePath().trim()
+      ) {
+        await invoke("launch_or_relaunch_balatro", {
+          gamePath: getBalatroGamePath(),
+        });
+      }
 
       setExportResult(result);
     } catch (error) {
@@ -510,7 +556,7 @@ export function Header({ title }: HeaderProps) {
       ),
     ]);
 
-    if (unsupported.size > 0) {
+    if (unsupported.size > 0 && !getBypassUnsupportedRulesDialogEnabled()) {
       setUnsupportedParts(Array.from(unsupported));
       setShowUnsupportedDialog(true);
       return;

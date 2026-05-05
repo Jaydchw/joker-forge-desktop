@@ -21,6 +21,11 @@ import {
   addKeyVariablesToOptions,
   addTextVariablesToOptions,
 } from "@/lib/rules/user-variable-utils";
+import { useProjectData } from "@/lib/storage";
+import {
+  collectGlobalVariables,
+  mergeItemVariablesWithGlobals,
+} from "@/lib/global-user-variables";
 
 import {
   getTriggerById,
@@ -720,7 +725,9 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
       if (param.id === "variable_name" && joker && param.label) {
         if (param.variableTypes?.includes("number")) {
           const numberVariables =
-            joker.userVariables?.filter((v) => v.type === "number") || [];
+            joker.userVariables?.filter(
+              (v) => v.type === "number" || v.isGlobal,
+            ) || [];
           options.push(
             ...numberVariables.map((variable) => ({
               value: variable.name,
@@ -731,7 +738,9 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         }
         if (param.variableTypes?.includes("suit")) {
           const suitVariables =
-            joker.userVariables?.filter((v) => v.type === "suit") || [];
+            joker.userVariables?.filter(
+              (v) => v.type === "suit" || v.isGlobal,
+            ) || [];
           options.push(
             ...suitVariables.map((variable) => ({
               value: variable.name,
@@ -742,7 +751,9 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         }
         if (param.variableTypes?.includes("rank")) {
           const rankVariables =
-            joker.userVariables?.filter((v) => v.type === "rank") || [];
+            joker.userVariables?.filter(
+              (v) => v.type === "rank" || v.isGlobal,
+            ) || [];
           options.push(
             ...rankVariables.map((variable) => ({
               value: variable.name,
@@ -753,7 +764,9 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         }
         if (param.variableTypes?.includes("pokerhand")) {
           const pokerHandVariables =
-            joker.userVariables?.filter((v) => v.type === "pokerhand") || [];
+            joker.userVariables?.filter(
+              (v) => v.type === "pokerhand" || v.isGlobal,
+            ) || [];
           options.push(
             ...pokerHandVariables.map((variable) => ({
               value: variable.name,
@@ -764,7 +777,9 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         }
         if (param.variableTypes?.includes("key")) {
           const keyVariables =
-            joker.userVariables?.filter((v) => v.type === "key") || [];
+            joker.userVariables?.filter(
+              (v) => v.type === "key" || v.isGlobal,
+            ) || [];
           options.push(
             ...keyVariables.map((variable) => ({
               value: variable.name,
@@ -775,7 +790,9 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         }
         if (param.variableTypes?.includes("text")) {
           const textVariables =
-            joker.userVariables?.filter((v) => v.type === "text") || [];
+            joker.userVariables?.filter(
+              (v) => v.type === "text" || v.isGlobal,
+            ) || [];
           options.push(
             ...textVariables.map((variable) => ({
               value: variable.name,
@@ -810,7 +827,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         }
       }
 
-      options.filter((option) => !option.exempt?.includes(itemType));
+      options = options.filter((option) => !option.exempt?.includes(itemType));
 
       return (
         <div className="space-y-1">
@@ -1299,10 +1316,22 @@ const Inspector: React.FC<InspectorProps> = ({
   selectedItem,
   itemType,
 }) => {
+  const { data } = useProjectData();
   const [customMessageValidationError, setCustomMessageValidationError] =
     useState<string>("");
+  const globalVariables = React.useMemo(
+    () =>
+      collectGlobalVariables(data, { excludeItemId: joker?.id }).map(
+        (entry) => entry.variable,
+      ),
+    [data, joker?.id],
+  );
+  const scopedJoker = React.useMemo(
+    () => mergeItemVariablesWithGlobals(joker, globalVariables),
+    [joker, globalVariables],
+  );
 
-  const availableVariables = getNumberVariables(joker).map(
+  const availableVariables = getNumberVariables(scopedJoker).map(
     (variable: { name: string }) => ({
       value: variable.name,
       label: variable.name,
@@ -1318,7 +1347,7 @@ const Inspector: React.FC<InspectorProps> = ({
       return;
     }
 
-    const existingNames = getAllVariables(joker).map((v) =>
+    const existingNames = getAllVariables(scopedJoker).map((v) =>
       v.name.toLowerCase(),
     );
     if (existingNames.includes(name.toLowerCase())) {
@@ -1599,7 +1628,7 @@ const Inspector: React.FC<InspectorProps> = ({
                     selectedGameVariable={selectedGameVariable}
                     onGameVariableApplied={onGameVariableApplied}
                     isEffect={false}
-                    joker={joker}
+                    joker={scopedJoker}
                     itemType={itemType}
                   />
                 </div>
@@ -2003,7 +2032,7 @@ const Inspector: React.FC<InspectorProps> = ({
                     selectedGameVariable={selectedGameVariable}
                     onGameVariableApplied={onGameVariableApplied}
                     isEffect={true}
-                    joker={joker}
+                    joker={scopedJoker}
                     itemType={itemType}
                   />
                 </div>

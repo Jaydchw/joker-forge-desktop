@@ -20,11 +20,13 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   getExportDestinationMode,
   getConfirmDeleteEnabled,
-  getBalatroInstallPath,
+  getBalatroAppdataPath,
+  getBalatroGamePath,
   getJokerforgeExportAsJsonEnabled,
   getSplitLocalizationExportEnabled,
   resetProjectData,
-  setBalatroInstallPath,
+  setBalatroAppdataPath,
+  setBalatroGamePath,
   setConfirmDeleteEnabled,
   setExportDestinationMode,
   setJokerforgeExportAsJsonEnabled,
@@ -36,7 +38,8 @@ export function SettingsPopover() {
   const [scale, setScale] = useState("1");
   const [confirmDeletes, setConfirmDeletes] = useState(true);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
-  const [balatroPath, setBalatroPath] = useState("");
+  const [balatroAppdataPath, setBalatroAppdataPathState] = useState("");
+  const [balatroGamePath, setBalatroGamePathState] = useState("");
   const [splitLocalizationExport, setSplitLocalizationExport] = useState(false);
   const [exportToBalatroMods, setExportToBalatroMods] = useState(false);
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
@@ -46,7 +49,8 @@ export function SettingsPopover() {
     setScale(storedScale);
     applyScale(storedScale);
     setConfirmDeletes(getConfirmDeleteEnabled());
-    setBalatroPath(getBalatroInstallPath());
+    setBalatroAppdataPathState(getBalatroAppdataPath());
+    setBalatroGamePathState(getBalatroGamePath());
     setSplitLocalizationExport(getSplitLocalizationExportEnabled());
     setExportToBalatroMods(getExportDestinationMode() === "balatro-mods");
     setExportJokerforgeAsJson(getJokerforgeExportAsJsonEnabled());
@@ -72,9 +76,14 @@ export function SettingsPopover() {
     setConfirmDeleteEnabled(value);
   };
 
-  const handleBalatroPathChange = (value: string) => {
-    setBalatroPath(value);
-    setBalatroInstallPath(value);
+  const handleBalatroAppdataPathChange = (value: string) => {
+    setBalatroAppdataPathState(value);
+    setBalatroAppdataPath(value);
+  };
+
+  const handleBalatroGamePathChange = (value: string) => {
+    setBalatroGamePathState(value);
+    setBalatroGamePath(value);
   };
 
   const handleSplitLocalizationToggle = (value: boolean) => {
@@ -92,14 +101,25 @@ export function SettingsPopover() {
     setJokerforgeExportAsJsonEnabled(value);
   };
 
-  const handleBrowseBalatroPath = async () => {
+  const handleBrowseBalatroAppdataPath = async () => {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: "Select Balatro Install Folder",
+      title: "Select Balatro AppData Folder",
     });
     if (typeof selected === "string") {
-      handleBalatroPathChange(selected);
+      handleBalatroAppdataPathChange(selected);
+    }
+  };
+
+  const handleBrowseBalatroGamePath = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "Select Balatro Game Folder",
+    });
+    if (typeof selected === "string") {
+      handleBalatroGamePathChange(selected);
     }
   };
 
@@ -211,23 +231,42 @@ export function SettingsPopover() {
                 Paths
               </p>
               <p className="text-xs text-muted-foreground">
-                This is the Balatro mods folder.
+                AppData stores Mods; game folder stores Lovely `version.dll`.
               </p>
               <div className="flex items-center gap-2">
                 <Input
-                  id="balatro-path"
-                  value={balatroPath}
+                  id="balatro-appdata-path"
+                  value={balatroAppdataPath}
                   onChange={(event) =>
-                    handleBalatroPathChange(event.target.value)
+                    handleBalatroAppdataPathChange(event.target.value)
                   }
-                  placeholder="C:\\Users\\Jayd\\AppData\\Roaming\\Balatro\\mods"
+                  placeholder="C:\\Users\\<you>\\AppData\\Roaming\\Balatro"
                   className="h-9 text-xs font-mono"
                 />
                 <Button
                   variant="outline"
                   size="icon"
                   className="h-9 w-9 cursor-pointer"
-                  onClick={handleBrowseBalatroPath}
+                  onClick={handleBrowseBalatroAppdataPath}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="balatro-game-path"
+                  value={balatroGamePath}
+                  onChange={(event) =>
+                    handleBalatroGamePathChange(event.target.value)
+                  }
+                  placeholder="D:\\SteamLibrary\\steamapps\\common\\Balatro"
+                  className="h-9 text-xs font-mono"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 cursor-pointer"
+                  onClick={handleBrowseBalatroGamePath}
                 >
                   <FolderOpen className="h-4 w-4" />
                 </Button>
@@ -255,7 +294,7 @@ export function SettingsPopover() {
                     Export To Balatro Mods Folder
                   </Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Off: Downloads folder. On: Balatro mods folder above.
+                    Off: Downloads folder. On: AppData Mods folder above.
                   </p>
                 </div>
                 <Switch

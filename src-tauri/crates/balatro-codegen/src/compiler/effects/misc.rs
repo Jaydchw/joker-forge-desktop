@@ -23,7 +23,7 @@ fn get_str_opt(effect: &EffectDef, key: &str) -> Option<String> {
 }
 
 /// Show Message effect: displays a status message.
-pub fn show_message(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
+pub fn show_message(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
     let msg_type = effect
         .params
         .get("type")
@@ -43,7 +43,7 @@ pub fn show_message(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
                 .get("textVariable")
                 .and_then(|v| v.as_str())
                 .unwrap_or("message");
-            lua_field(lua_raw_expr("card.ability.extra"), var_name)
+            ctx.user_var_expr(var_name)
         }
         _ => {
             let text = effect
@@ -541,13 +541,13 @@ pub fn flip_joker(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
             },
         },
         "variable" => format!(
-            "local joker_to_flip_key = card.ability.extra.{}\n\
+            "local joker_to_flip_key = {}\n\
             for i = 1, #G.jokers.cards do\n\
                 if G.jokers.cards[i].config.center.key == joker_to_flip_key then\n\
                     G.jokers.cards[i]:flip()\n\
                 end\n\
             end",
-            joker_variable
+            ctx.user_var_path(joker_variable)
         ),
         _ => "if #G.jokers.cards > 0 then\n\
                 local available_jokers = {}\n\
@@ -983,7 +983,7 @@ pub fn emit_flag(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
 }
 
 /// Add Booster Into Shop: adds a booster pack to the current shop.
-pub fn add_booster_into_shop(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
+pub fn add_booster_into_shop(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
     let method = effect
         .params
         .get("method_type")
@@ -1001,10 +1001,7 @@ pub fn add_booster_into_shop(effect: &EffectDef, _ctx: &mut CompileContext) -> E
         .unwrap_or("");
 
     let booster_code = match method {
-        "key_var" => format!(
-            "SMODS.add_booster_to_shop(card.ability.extra.{})",
-            booster_variable
-        ),
+        "key_var" => format!("SMODS.add_booster_to_shop({})", ctx.user_var_path(booster_variable)),
         "random" => "SMODS.add_booster_to_shop()".to_string(),
         _ => format!("SMODS.add_booster_to_shop('{}')", specific_booster),
     };
@@ -1019,7 +1016,7 @@ pub fn add_booster_into_shop(effect: &EffectDef, _ctx: &mut CompileContext) -> E
 }
 
 /// Add Voucher Into Shop: adds a voucher to the current shop.
-pub fn add_voucher_into_shop(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
+pub fn add_voucher_into_shop(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
     let method = effect
         .params
         .get("method_type")
@@ -1043,8 +1040,9 @@ pub fn add_voucher_into_shop(effect: &EffectDef, _ctx: &mut CompileContext) -> E
 
     let voucher_code = match method {
         "key_var" => format!(
-            "SMODS.add_voucher_to_shop(card.ability.extra.{}, {})",
-            voucher_variable, duration
+            "SMODS.add_voucher_to_shop({}, {})",
+            ctx.user_var_path(voucher_variable),
+            duration
         ),
         "random" => format!("SMODS.add_voucher_to_shop(nil, {})", duration),
         _ => format!(
@@ -1355,7 +1353,7 @@ pub fn permanent_bonus(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
 // ---------------------------------------------------------------------------
 
 /// Redeem Voucher: creates and redeems a voucher card.
-pub fn redeem_voucher(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
+pub fn redeem_voucher(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
     let voucher_type = get_str_default(effect, "voucher_type", "random");
     let voucher_key = get_str_default(effect, "specific_voucher", "v_overstock_norm");
     let key_var = get_str_default(effect, "variable", "keyVar");
@@ -1371,7 +1369,7 @@ pub fn redeem_voucher(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOu
             "local voucher_key = pseudorandom_element(G.P_CENTER_POOLS.Voucher, '{}').key",
             &effect_id[..8.min(effect_id.len())]
         ),
-        "keyvar" => format!("local voucher_key = card.ability.extra.{}", key_var),
+        "keyvar" => format!("local voucher_key = {}", ctx.user_var_path(&key_var)),
         _ => format!("local voucher_key = '{}'", voucher_key),
     };
 
@@ -1408,7 +1406,7 @@ pub fn redeem_voucher(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOu
 // ---------------------------------------------------------------------------
 
 /// Unlock Joker: unlocks and optionally discovers a joker.
-pub fn unlock_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
+pub fn unlock_joker(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
     let selection_method = get_str_default(effect, "selection_method", "key");
     let joker_key = get_str_default(effect, "joker_key", "j_joker");
     let discover = get_str_default(effect, "discover", "false") == "true";
@@ -1440,7 +1438,7 @@ pub fn unlock_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
     let key_expr = if selection_method == "key" {
         format!("G.P_CENTERS[\"{}\"]", normalized_key)
     } else {
-        format!("G.P_CENTERS[card.ability.extra.{}]", key_variable)
+        format!("G.P_CENTERS[{}]", ctx.user_var_path(&key_variable))
     };
 
     let code = format!(

@@ -1,4 +1,5 @@
 use crate::compiler::values::comparison_op;
+use crate::compiler::context::CompileContext;
 use crate::lua_ast::*;
 use crate::types::ConditionDef;
 
@@ -14,7 +15,7 @@ fn get_param<'a>(
     None
 }
 
-pub fn internal_variable(condition: &ConditionDef) -> Option<Expr> {
+pub fn internal_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
     let variable_name = get_param(condition, &["variable_name", "variableName", "variable"])
         .and_then(|v| v.as_str())
         .unwrap_or("var1");
@@ -27,12 +28,12 @@ pub fn internal_variable(condition: &ConditionDef) -> Option<Expr> {
 
     Some(comparison_op(
         operator,
-        lua_field(lua_raw_expr("card.ability.extra"), variable_name),
+        ctx.user_var_expr(variable_name),
         rhs,
     ))
 }
 
-pub fn key_variable(condition: &ConditionDef) -> Option<Expr> {
+pub fn key_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
     let variable_name = get_param(condition, &["variable_name", "variableName", "variable"])
         .and_then(|v| v.as_str())
         .unwrap_or("keyvar");
@@ -41,12 +42,12 @@ pub fn key_variable(condition: &ConditionDef) -> Option<Expr> {
         .unwrap_or_else(|| "none".to_string());
 
     Some(lua_eq(
-        lua_field(lua_raw_expr("card.ability.extra"), variable_name),
+        ctx.user_var_expr(variable_name),
         lua_str(specific_key),
     ))
 }
 
-pub fn text_variable(condition: &ConditionDef) -> Option<Expr> {
+pub fn text_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
     let variable_name = get_param(condition, &["variable_name", "variableName", "variable"])
         .and_then(|v| v.as_str())
         .unwrap_or("textvar");
@@ -55,12 +56,12 @@ pub fn text_variable(condition: &ConditionDef) -> Option<Expr> {
         .unwrap_or_default();
 
     Some(lua_eq(
-        lua_field(lua_raw_expr("card.ability.extra"), variable_name),
+        ctx.user_var_expr(variable_name),
         lua_str(text),
     ))
 }
 
-pub fn poker_hand_variable(condition: &ConditionDef) -> Option<Expr> {
+pub fn poker_hand_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
     let variable_name = get_param(condition, &["variable_name", "variableName", "variable"])
         .and_then(|v| v.as_str())
         .unwrap_or("handvar");
@@ -69,12 +70,12 @@ pub fn poker_hand_variable(condition: &ConditionDef) -> Option<Expr> {
         .unwrap_or_default();
 
     Some(lua_eq(
-        lua_field(lua_raw_expr("card.ability.extra"), variable_name),
+        ctx.user_var_expr(variable_name),
         lua_str(hand_name),
     ))
 }
 
-pub fn rank_variable(condition: &ConditionDef) -> Option<Expr> {
+pub fn rank_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
     let variable_name = get_param(condition, &["variable_name", "variableName", "variable"])
         .and_then(|v| v.as_str())
         .unwrap_or("rankvar");
@@ -83,12 +84,12 @@ pub fn rank_variable(condition: &ConditionDef) -> Option<Expr> {
         .unwrap_or_default();
 
     Some(lua_eq(
-        lua_field(lua_raw_expr("card.ability.extra"), variable_name),
+        ctx.user_var_expr(variable_name),
         lua_str(rank),
     ))
 }
 
-pub fn suit_variable(condition: &ConditionDef) -> Option<Expr> {
+pub fn suit_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
     let variable_name = get_param(condition, &["variable_name", "variableName", "variable"])
         .and_then(|v| v.as_str())
         .unwrap_or("suitvar");
@@ -97,7 +98,7 @@ pub fn suit_variable(condition: &ConditionDef) -> Option<Expr> {
         .unwrap_or_default();
 
     Some(lua_eq(
-        lua_field(lua_raw_expr("card.ability.extra"), variable_name),
+        ctx.user_var_expr(variable_name),
         lua_str(suit),
     ))
 }

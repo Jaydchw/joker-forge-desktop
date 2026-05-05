@@ -88,6 +88,7 @@ import {
   getSelectedRule,
 } from "./selection-utils";
 import IconButton from "@/components/ui/icon-button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import ItemTypeBadge from "./item-type-badge";
 import { CustomContextMenu, type ContextMenuGroupConfig } from "@/components/ui/custom-context-menu";
 import { cn } from "@/lib/utils";
@@ -95,7 +96,9 @@ import {
   getRuleBuilderSettings,
   setRuleBuilderSettings,
   type RuleBuilderSettings,
+  useProjectData,
 } from "@/lib/storage";
+import { collectGlobalVariables } from "@/lib/global-user-variables";
 import {
   instantiateRuleFromTemplate,
   useTemplateStore,
@@ -205,11 +208,38 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 }) => {
   const isReadOnly = reforged;
   const { userConfig } = useContext(UserConfigContext);
+  const { data } = useProjectData();
   const { createRuleTemplate, getRuleTemplatesForType } = useTemplateStore();
   const [ruleBuilderSettings, setRuleBuilderSettingsState] =
     useState<RuleBuilderSettings>(() => getRuleBuilderSettings());
   const [isRuleTemplatePickerOpen, setIsRuleTemplatePickerOpen] =
     useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmTitle, setDeleteConfirmTitle] = useState("Confirm Delete");
+  const [deleteConfirmDescription, setDeleteConfirmDescription] =
+    useState<string>("This action cannot be undone.");
+  const [pendingDeleteAction, setPendingDeleteAction] = useState<
+    (() => void) | null
+  >(null);
+
+  const requestDeleteConfirmation = useCallback(
+    (title: string, description: string, action: () => void) => {
+      setDeleteConfirmTitle(title);
+      setDeleteConfirmDescription(description);
+      setPendingDeleteAction(() => action);
+      setIsDeleteConfirmOpen(true);
+    },
+    [],
+  );
+
+  const confirmPendingDelete = useCallback(() => {
+    const action = pendingDeleteAction;
+    setIsDeleteConfirmOpen(false);
+    setPendingDeleteAction(null);
+    if (action) {
+      action();
+    }
+  }, [pendingDeleteAction]);
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -292,6 +322,10 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   );
   const customCodeRef = useRef(customCode);
   customCodeRef.current = customCode;
+  const globalUserVariables = useMemo(
+    () => collectGlobalVariables(data).map((entry) => entry.variable),
+    [data],
+  );
 
   // Stable item reference that excludes customCode to prevent regeneration loops.
   // When onUpdateItem({ customCode }) fires, the parent rerenders with a new item
@@ -1751,7 +1785,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     });
   };
 
-  const deleteConditionGroup = (ruleId: string, groupId: string) => {
+  const performDeleteConditionGroup = (ruleId: string, groupId: string) => {
     setRules((prev) =>
       prev.map((rule) => {
         if (rule.id === ruleId) {
@@ -1768,6 +1802,17 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     if (selectedItem && selectedItem.groupId === groupId) {
       setSelectedItem({ type: "trigger", ruleId });
     }
+  };
+  const deleteConditionGroup = (ruleId: string, groupId: string) => {
+    if (ruleBuilderSettings.confirmDeleteBlock) {
+      requestDeleteConfirmation(
+        "Delete this condition group?",
+        "This block will be removed from the rule.",
+        () => performDeleteConditionGroup(ruleId, groupId),
+      );
+      return;
+    }
+    performDeleteConditionGroup(ruleId, groupId);
   };
 
   const toggleGroupOperator = (ruleId: string, groupId: string) => {
@@ -1857,7 +1902,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     );
   };
 
-  const deleteRandomGroup = (ruleId: string, randomGroupId: string) => {
+  const performDeleteRandomGroup = (ruleId: string, randomGroupId: string) => {
     setRules((prev) =>
       prev.map((rule) => {
         if (rule.id === ruleId) {
@@ -1881,8 +1926,19 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       setSelectedItem({ type: "trigger", ruleId });
     }
   };
+  const deleteRandomGroup = (ruleId: string, randomGroupId: string) => {
+    if (ruleBuilderSettings.confirmDeleteBlock) {
+      requestDeleteConfirmation(
+        "Delete this random group?",
+        "This block will be removed from the rule.",
+        () => performDeleteRandomGroup(ruleId, randomGroupId),
+      );
+      return;
+    }
+    performDeleteRandomGroup(ruleId, randomGroupId);
+  };
 
-  const deleteLoopGroup = (ruleId: string, loopGroupId: string) => {
+  const performDeleteLoopGroup = (ruleId: string, loopGroupId: string) => {
     setRules((prev) =>
       prev.map((rule) => {
         if (rule.id === ruleId) {
@@ -1901,6 +1957,17 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     if (selectedItem && selectedItem.loopGroupId === loopGroupId) {
       setSelectedItem({ type: "trigger", ruleId });
     }
+  };
+  const deleteLoopGroup = (ruleId: string, loopGroupId: string) => {
+    if (ruleBuilderSettings.confirmDeleteBlock) {
+      requestDeleteConfirmation(
+        "Delete this loop group?",
+        "This block will be removed from the rule.",
+        () => performDeleteLoopGroup(ruleId, loopGroupId),
+      );
+      return;
+    }
+    performDeleteLoopGroup(ruleId, loopGroupId);
   };
 
   const updateRandomGroup = (
@@ -2140,9 +2207,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     );
   };
 
-  const deleteRule = (ruleId: string) => {
+  const performDeleteRule = (ruleId: string) => {
     if (selectedRuleIds.length > 1 && selectedRuleIdSet.has(ruleId)) {
-      deleteSelectedRules();
+      performDeleteSelectedRules();
       return;
     }
 
@@ -2152,8 +2219,20 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       setSelectedItem(null);
     }
   };
+  const deleteRule = (ruleId: string) => {
+    if (ruleBuilderSettings.confirmDeleteRule) {
+      const isMulti = selectedRuleIds.length > 1 && selectedRuleIdSet.has(ruleId);
+      requestDeleteConfirmation(
+        isMulti ? `Delete ${selectedRuleIds.length} selected rules?` : "Delete this rule?",
+        "This action cannot be undone.",
+        () => performDeleteRule(ruleId),
+      );
+      return;
+    }
+    performDeleteRule(ruleId);
+  };
 
-  const deleteCondition = (ruleId: string, conditionId: string) => {
+  const performDeleteCondition = (ruleId: string, conditionId: string) => {
     setRules((prev) =>
       prev.map((rule) => {
         if (rule.id === ruleId) {
@@ -2176,8 +2255,19 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       setSelectedItem({ type: "trigger", ruleId });
     }
   };
+  const deleteCondition = (ruleId: string, conditionId: string) => {
+    if (ruleBuilderSettings.confirmDeleteBlock) {
+      requestDeleteConfirmation(
+        "Delete this condition block?",
+        "This block will be removed from the rule.",
+        () => performDeleteCondition(ruleId, conditionId),
+      );
+      return;
+    }
+    performDeleteCondition(ruleId, conditionId);
+  };
 
-  const deleteEffect = (ruleId: string, effectId: string) => {
+  const performDeleteEffect = (ruleId: string, effectId: string) => {
     setRules((prev) =>
       prev.map((rule) => {
         if (rule.id === ruleId) {
@@ -2200,6 +2290,17 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     if (selectedItem && selectedItem.itemId === effectId) {
       setSelectedItem({ type: "trigger", ruleId });
     }
+  };
+  const deleteEffect = (ruleId: string, effectId: string) => {
+    if (ruleBuilderSettings.confirmDeleteBlock) {
+      requestDeleteConfirmation(
+        "Delete this effect block?",
+        "This block will be removed from the rule.",
+        () => performDeleteEffect(ruleId, effectId),
+      );
+      return;
+    }
+    performDeleteEffect(ruleId, effectId);
   };
 
   const updateConditionOperator = (
@@ -2640,13 +2741,31 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     pasteOffsetStepRef.current += 1;
   }, []);
 
-  const deleteSelectedRules = useCallback(() => {
+  const performDeleteSelectedRules = useCallback(() => {
     if (selectedRuleIds.length === 0) return;
     const selectedSet = new Set(selectedRuleIds);
     setRules((prev) => prev.filter((rule) => !selectedSet.has(rule.id)));
     setSelectedRuleIds([]);
     setSelectedItem(null);
   }, [selectedRuleIds]);
+
+  const deleteSelectedRules = useCallback(() => {
+    if (selectedRuleIds.length === 0) return;
+    if (ruleBuilderSettings.confirmDeleteRule) {
+      requestDeleteConfirmation(
+        `Delete ${selectedRuleIds.length} selected rules?`,
+        "This action cannot be undone.",
+        performDeleteSelectedRules,
+      );
+      return;
+    }
+    performDeleteSelectedRules();
+  }, [
+    performDeleteSelectedRules,
+    requestDeleteConfirmation,
+    ruleBuilderSettings.confirmDeleteRule,
+    selectedRuleIds.length,
+  ]);
 
   const moveSelectedRulesToContextPoint = useCallback(() => {
     if (selectedRuleIds.length === 0 || !lastContextWorldPoint) return;
@@ -3389,7 +3508,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           { ...(itemWithoutCustomCode as any), rules },
           previewItemType,
           "mod",
-          { includeLocTxt: true },
+          { includeLocTxt: true, globalUserVariables },
         );
 
         if (cancelled) {
@@ -3524,6 +3643,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     getEffectType,
     itemWithoutCustomCode,
     previewItemType,
+    globalUserVariables,
     formatLiveCodeErrorDetails,
     isOpen,
     liveCodeIsVisible,
@@ -4214,6 +4334,20 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         </div>
       </div>
     </CustomContextMenu>
+    <ConfirmDialog
+      open={isDeleteConfirmOpen}
+      onOpenChange={(open) => {
+        setIsDeleteConfirmOpen(open);
+        if (!open) {
+          setPendingDeleteAction(null);
+        }
+      }}
+      title={deleteConfirmTitle}
+      description={deleteConfirmDescription}
+      confirmLabel="Delete"
+      confirmVariant="destructive"
+      onConfirm={confirmPendingDelete}
+    />
     <TemplatePickerDialog
       open={isRuleTemplatePickerOpen}
       onOpenChange={setIsRuleTemplatePickerOpen}

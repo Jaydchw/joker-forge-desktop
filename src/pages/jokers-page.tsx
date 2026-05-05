@@ -42,11 +42,12 @@ import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
 import { exportSingleJokerRust } from "@/lib/rust-codegen-export";
+import { collectGlobalVariables } from "@/lib/global-user-variables";
 import {
   formatUnsupportedRulesError,
   getUnsupportedRuleParts,
 } from "@/lib/export-compiler-support";
-import { getAllVariables } from "@/lib/user-variable-utils";
+import { getAllVariables } from "@/lib/rules/user-variable-utils";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import {
@@ -199,7 +200,11 @@ export default function JokersPage() {
       }
 
       try {
-        await exportSingleJokerRust(joker as any, data.metadata.prefix);
+        await exportSingleJokerRust(joker as any, data.metadata.prefix, {
+          globalUserVariables: collectGlobalVariables(data).map(
+            (entry) => entry.variable,
+          ),
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/not\s+implemented/i.test(message)) {
@@ -211,7 +216,7 @@ export default function JokersPage() {
         window.alert(`Joker export failed: ${message}`);
       }
     },
-    [data.metadata.prefix],
+    [data],
   );
 
   const {

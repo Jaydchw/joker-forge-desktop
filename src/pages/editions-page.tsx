@@ -31,6 +31,7 @@ import { BalatroCard } from "@/components/balatro/balatro-card";
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
+import { collectGlobalVariables } from "@/lib/global-user-variables";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import {
   instantiateItemFromTemplate,
@@ -164,13 +165,18 @@ export default function EditionsPage() {
           item as any,
           "edition",
           data.metadata.prefix,
+          {
+            globalUserVariables: collectGlobalVariables(data).map(
+              (entry) => entry.variable,
+            ),
+          },
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         window.alert(`Edition export failed: ${message}`);
       }
     },
-    [data.metadata.prefix],
+    [data],
   );
 
   const {

@@ -1,6 +1,8 @@
 use crate::compiler::context::CompileContext;
 use crate::compiler::effects::EffectOutput;
-use crate::compiler::values::{ability_path_expr, resolve_value};
+use crate::compiler::values::{
+    ability_path_expr, is_game_variable_type, is_range_type, is_user_variable_type, resolve_value,
+};
 use crate::lua_ast::*;
 use crate::types::{ConfigValue, ConfigVar, EffectDef, ParamValue};
 
@@ -98,6 +100,21 @@ fn resolve_scoring_value(
         );
     }
 
+    if let ParamValue::Str(s) = val {
+        if ctx.has_user_var(s) {
+            return (ctx.user_var_expr(s), None);
+        }
+    }
+
+    if let ParamValue::Typed(t) = val {
+        if is_user_variable_type(&t.value_type) {
+            if let Some(name) = t.value.as_str() {
+                return (ctx.user_var_expr(name), None);
+            }
+            return (lua_int(0), None);
+        }
+    }
+
     // Game variable, range, or user variable, resolve directly
     let expr = resolve_value(val, ctx.object_type, None);
     (expr, None)
@@ -114,10 +131,10 @@ fn scoring_literal_config_value(value: &ParamValue) -> Option<ConfigValue> {
         ParamValue::Float(n) => Some(ConfigValue::Number(*n)),
         ParamValue::Str(s) => parse_numeric_config_value(s),
         ParamValue::Typed(t) => {
-            if matches!(
-                t.value_type.as_str(),
-                "gameVariable" | "range" | "userVariable"
-            ) {
+            if is_game_variable_type(&t.value_type)
+                || is_range_type(&t.value_type)
+                || is_user_variable_type(&t.value_type)
+            {
                 return None;
             }
 

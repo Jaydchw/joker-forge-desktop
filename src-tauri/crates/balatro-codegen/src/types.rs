@@ -431,6 +431,8 @@ pub struct UserVariableDef {
     pub name: String,
     pub var_type: UserVarType,
     pub initial_value: ParamValue,
+    #[serde(default)]
+    pub is_global: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

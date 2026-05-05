@@ -1,6 +1,7 @@
 use crate::lua_ast::*;
 use crate::types::*;
 use super::context::CompileContext;
+use super::colors::normalize_hex_colour;
 use super::{compile_rules, build_shared_loc_vars, RuleOutput};
 use super::enhancement::build_card_calculate_function;
 
@@ -77,9 +78,10 @@ fn build_seal_table(
 
     // Badge colour
     if let Some(colour) = &seal.badge_colour {
-        if colour != "#FFFFFF" {
-            let hex = colour.trim_start_matches('#');
-            entries.push(kv("badge_colour", lua_call("HEX", vec![lua_str(hex)])));
+        if let Some(hex) = normalize_hex_colour(colour) {
+            if hex != "FFFFFF" {
+                entries.push(kv("badge_colour", lua_call("HEX", vec![lua_str(hex)])));
+            }
         }
     }
 

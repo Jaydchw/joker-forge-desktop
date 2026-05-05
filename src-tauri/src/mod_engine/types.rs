@@ -90,6 +90,8 @@ pub struct EntityUserVariable {
     #[serde(rename = "type")]
     pub var_type: String,
     #[serde(default)]
+    pub is_global: bool,
+    #[serde(default)]
     pub initial_value: Option<f64>,
     #[serde(default)]
     pub initial_suit: Option<String>,

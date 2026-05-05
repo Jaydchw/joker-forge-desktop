@@ -1,6 +1,18 @@
 use crate::lua_ast::*;
 use crate::types::{ObjectType, ParamValue};
 
+pub fn is_user_variable_type(value_type: &str) -> bool {
+    matches!(value_type, "userVariable" | "user_var")
+}
+
+pub fn is_game_variable_type(value_type: &str) -> bool {
+    matches!(value_type, "gameVariable" | "game_var")
+}
+
+pub fn is_range_type(value_type: &str) -> bool {
+    matches!(value_type, "range" | "range_var")
+}
+
 /// Parsed game variable reference.
 /// Format in params: `"GAMEVAR:varId|multiplier|startsFrom"`
 pub struct GameVarRef {
@@ -93,16 +105,14 @@ pub fn resolve_value(
         ParamValue::Bool(b) => lua_bool(*b),
         ParamValue::Str(s) => resolve_string_value(s, object_type, config_var_name),
         ParamValue::Typed(typed) => {
-            match typed.value_type.as_str() {
-                "gameVariable" => {
+            if is_game_variable_type(&typed.value_type) {
                     if let Some(s) = typed.value.as_str() {
                         if let Some(gv) = parse_game_var(s) {
                             return build_game_var_expr(&gv);
                         }
                     }
                     lua_nil()
-                }
-                "range" => {
+            } else if is_range_type(&typed.value_type) {
                     if let Some(s) = typed.value.as_str() {
                         if let Some(rv) = parse_range_var(s) {
                             return lua_call("pseudorandom", vec![
@@ -113,14 +123,12 @@ pub fn resolve_value(
                         }
                     }
                     lua_nil()
-                }
-                "userVariable" => {
+            } else if is_user_variable_type(&typed.value_type) {
                     if let Some(name) = typed.value.as_str() {
                         return ability_path_expr(object_type, name);
                     }
                     lua_nil()
-                }
-                _ => {
+            } else {
                     // Fall through to string/number resolution
                     if let Some(n) = typed.value.as_f64() {
                         if let Some(name) = config_var_name {
@@ -136,7 +144,6 @@ pub fn resolve_value(
                     } else {
                         lua_nil()
                     }
-                }
             }
         }
     }
@@ -270,6 +277,14 @@ pub fn resolve_config_value(
                     lua_str: path,
                 };
             }
+            // User variable reference by name (legacy raw-string encoding)
+            if ctx.has_user_var(s) {
+                let path = ctx.user_var_path(s);
+                return ResolvedValue {
+                    expr: ctx.user_var_expr(s),
+                    lua_str: path,
+                };
+            }
             // Game variable reference
             if let Some(gv) = parse_game_var(s) {
                 let expr = build_game_var_expr(&gv);
@@ -287,8 +302,8 @@ pub fn resolve_config_value(
                 lua_str: format!("\"{}\"", s),
             }
         }
-        Some(ParamValue::Typed(t)) => match t.value_type.as_str() {
-            "gameVariable" => {
+        Some(ParamValue::Typed(t)) => {
+            if is_game_variable_type(&t.value_type) {
                 if let Some(s) = t.value.as_str() {
                     if let Some(gv) = parse_game_var(s) {
                         let expr = build_game_var_expr(&gv);
@@ -302,8 +317,7 @@ pub fn resolve_config_value(
                     expr: lua_int(0),
                     lua_str: "0".to_string(),
                 }
-            }
-            "range" => {
+            } else if is_range_type(&t.value_type) {
                 if let Some(s) = t.value.as_str() {
                     if let Some(rv) = parse_range_var(s) {
                         let expr = lua_call(
@@ -321,12 +335,11 @@ pub fn resolve_config_value(
                     expr: lua_int(0),
                     lua_str: "0".to_string(),
                 }
-            }
-            "userVariable" => {
+            } else if is_user_variable_type(&t.value_type) {
                 if let Some(name) = t.value.as_str() {
-                    let path = format!("{}.{}", ctx.ability_path(), name);
+                    let path = ctx.user_var_path(name);
                     return ResolvedValue {
-                        expr: ability_path_expr(ctx.object_type, name),
+                        expr: ctx.user_var_expr(name),
                         lua_str: path,
                     };
                 }
@@ -334,8 +347,7 @@ pub fn resolve_config_value(
                     expr: lua_int(0),
                     lua_str: "0".to_string(),
                 }
-            }
-            _ => {
+            } else {
                 // Try numeric
                 if let Some(n) = t.value.as_f64() {
                     if n.fract() == 0.0 {
@@ -362,6 +374,13 @@ pub fn resolve_config_value(
                             lua_str: path,
                         };
                     }
+                    if ctx.has_user_var(s) {
+                        let path = ctx.user_var_path(s);
+                        return ResolvedValue {
+                            expr: ctx.user_var_expr(s),
+                            lua_str: path,
+                        };
+                    }
                     // Try game var
                     if let Some(code) = game_var_lua_code(s) {
                         return ResolvedValue {
@@ -379,7 +398,7 @@ pub fn resolve_config_value(
                     lua_str: "1".to_string(),
                 }
             }
-        },
+        }
         Some(ParamValue::Bool(b)) => ResolvedValue {
             expr: lua_bool(*b),
             lua_str: if *b { "true" } else { "false" }.to_string(),
@@ -431,27 +450,27 @@ pub fn resolve_condition_value(
                     ctx.add_config_num(&var_name, n);
                 }
                 Some(ability_path_expr(ctx.object_type, &var_name))
+            } else if ctx.has_user_var(s) {
+                Some(ctx.user_var_expr(s))
             } else {
                 // Non-numeric string, return as literal
                 Some(lua_raw_expr(s))
             }
         }
-        ParamValue::Typed(t) => match t.value_type.as_str() {
-            "gameVariable" => {
+        ParamValue::Typed(t) => {
+            if is_game_variable_type(&t.value_type) {
                 if let Some(s) = t.value.as_str() {
                     if let Some(gv) = parse_game_var(s) {
                         return Some(build_game_var_expr(&gv));
                     }
                 }
                 None
-            }
-            "userVariable" => {
+            } else if is_user_variable_type(&t.value_type) {
                 if let Some(name) = t.value.as_str() {
-                    return Some(ability_path_expr(ctx.object_type, name));
+                    return Some(ctx.user_var_expr(name));
                 }
                 None
-            }
-            _ => {
+            } else {
                 if let Some(n) = t.value.as_i64() {
                     let count = ctx.next_effect_count(&var_base);
                     let var_name = ctx.unique_var_name(&var_base, count);
@@ -464,9 +483,14 @@ pub fn resolve_condition_value(
                     ctx.add_config_num(&var_name, n);
                     return Some(ability_path_expr(ctx.object_type, &var_name));
                 }
+                if let Some(s) = t.value.as_str() {
+                    if ctx.has_user_var(s) {
+                        return Some(ctx.user_var_expr(s));
+                    }
+                }
                 None
             }
-        },
+        }
         _ => None,
     }
 }

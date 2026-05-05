@@ -1,4 +1,4 @@
-import type { Rule } from "@/components/rule-builder/types";
+import type { Effect, Rule } from "@/components/rule-builder/types";
 import { GAME_VARIABLE_CATEGORIES } from "@/lib/game-vars";
 import type { UserVariable } from "@/lib/types";
 
@@ -53,26 +53,49 @@ const CONFIG_VAR_BASES_BY_EFFECT: Record<string, string> = {
 
 const forEachRuleEffect = (
   rules: Rule[] | undefined,
-  cb: (effectType: string) => void,
+  cb: (effectType: string, effect?: Effect) => void,
 ) => {
   if (!Array.isArray(rules)) return;
 
-  for (const rule of rules) {
-    for (const effect of rule.effects || []) {
-      cb(effect.type);
-    }
-    for (const group of rule.randomGroups || []) {
-      cb("random_group_odds");
-      for (const effect of group.effects || []) {
-        cb(effect.type);
+    for (const rule of rules) {
+      for (const effect of rule.effects || []) {
+        cb(effect.type, effect);
+      }
+      for (const group of rule.randomGroups || []) {
+        cb("random_group_odds");
+        for (const effect of group.effects || []) {
+          cb(effect.type, effect);
+        }
+      }
+      for (const loop of rule.loops || []) {
+        for (const effect of loop.effects || []) {
+          cb(effect.type, effect);
+        }
       }
     }
-    for (const loop of rule.loops || []) {
-      for (const effect of loop.effects || []) {
-        cb(effect.type);
-      }
-    }
+};
+
+const readEffectParamString = (effect: Effect | undefined, key: string): string => {
+  if (!effect?.params) return "";
+  const payload = effect.params[key];
+  if (!payload) return "";
+  const value = payload.value;
+  return typeof value === "string" ? value.trim() : "";
+};
+
+const dynamicConfigBaseForEffect = (effect: Effect | undefined): string | null => {
+  if (!effect) return null;
+
+  if (effect.type === "modify_internal_variable") {
+    const variableName =
+      readEffectParamString(effect, "variable_name") ||
+      readEffectParamString(effect, "variableName") ||
+      readEffectParamString(effect, "variable");
+    if (!variableName) return null;
+    return `var_${variableName}`;
   }
+
+  return null;
 };
 
 const inferConfigExtraNames = (rules: Rule[] | undefined): string[] => {
@@ -85,12 +108,13 @@ const inferConfigExtraNames = (rules: Rule[] | undefined): string[] => {
     counts.set(base, count + 1);
   };
 
-  forEachRuleEffect(rules, (effectType) => {
+  forEachRuleEffect(rules, (effectType, effect) => {
     if (effectType === "random_group_odds") {
       pushName("odds");
       return;
     }
-    const base = CONFIG_VAR_BASES_BY_EFFECT[effectType];
+    const base =
+      dynamicConfigBaseForEffect(effect) ?? CONFIG_VAR_BASES_BY_EFFECT[effectType];
     if (base) {
       pushName(base);
     }
@@ -187,16 +211,16 @@ export const buildDescriptionVariableTokens = (
     return tokens;
   }
 
-  for (const configName of inferConfigExtraNames(item.rules)) {
-    const source = `card.ability.extra.${configName}`;
-    push({ label: configName, source, category: "config" });
-  }
-
   for (const userVar of Array.isArray(item.userVariables)
     ? item.userVariables
     : []) {
     const source = `card.ability.extra.${userVar.name}`;
     push({ label: userVar.name, source, category: "user" });
+  }
+
+  for (const configName of inferConfigExtraNames(item.rules)) {
+    const source = `card.ability.extra.${configName}`;
+    push({ label: configName, source, category: "config" });
   }
 
   for (const gameVarId of extractGameVariableIds(item.rules)) {

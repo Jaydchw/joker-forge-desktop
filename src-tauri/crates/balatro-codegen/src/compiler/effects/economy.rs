@@ -1,5 +1,6 @@
 use crate::compiler::context::CompileContext;
 use crate::compiler::effects::EffectOutput;
+use crate::compiler::values::is_user_variable_type;
 use crate::lua_ast::*;
 use crate::types::{EffectDef, ParamValue};
 
@@ -39,15 +40,14 @@ fn value_to_lua_str(
             ctx.add_config_num(&var_name, *n);
             format!("{}.{}", ctx.ability_path(), var_name)
         }
-        Some(ParamValue::Typed(t)) => match t.value_type.as_str() {
-            "userVariable" => {
+        Some(ParamValue::Typed(t)) => {
+            if is_user_variable_type(&t.value_type) {
                 if let Some(name) = t.value.as_str() {
-                    format!("{}.{}", ctx.ability_path(), name)
+                    ctx.user_var_path(name)
                 } else {
                     "1".to_string()
                 }
-            }
-            _ => {
+            } else {
                 if let Some(n) = t.value.as_f64() {
                     if n.fract() == 0.0 {
                         ctx.add_config_int(&var_name, n as i64);
@@ -59,7 +59,8 @@ fn value_to_lua_str(
                     "1".to_string()
                 }
             }
-        },
+        }
+        Some(ParamValue::Str(s)) if ctx.has_user_var(s) => ctx.user_var_path(s),
         _ => "1".to_string(),
     }
 }

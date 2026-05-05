@@ -30,9 +30,12 @@ pub fn run() {
             commands::compile_joker_from_data,
             commands::batch_export_jokers,
             commands::export_mod_package,
+            commands::auto_find_balatro_paths,
+            commands::ensure_balatro_mod_setup,
             commands::download_release_asset,
             commands::install_update_and_restart,
             commands::open_devtools,
+            commands::launch_or_relaunch_balatro,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

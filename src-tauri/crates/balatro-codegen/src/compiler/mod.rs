@@ -1,5 +1,6 @@
 pub mod conditions;
 pub mod context;
+pub mod colors;
 pub mod effects;
 pub mod triggers;
 pub mod values;
@@ -719,12 +720,7 @@ fn build_loc_vars(
         )));
     }
 
-    let mut var_refs: Vec<TableEntry> = vars
-        .iter()
-        .filter(|v| !v.name.starts_with("odds_") && !v.name.starts_with("numerator_"))
-        .map(|v| TableEntry::Value(lua_field(lua_raw_expr("self.config.extra"), &v.name)))
-        .collect();
-
+    let mut var_refs: Vec<TableEntry> = Vec::new();
     let mut colour_refs: Vec<TableEntry> = Vec::new();
     for uv in ctx.user_vars() {
         match uv.var_type {
@@ -754,13 +750,26 @@ fn build_loc_vars(
                 ))));
             }
             _ => {
-                var_refs.push(TableEntry::Value(lua_field(
-                    lua_raw_expr("self.config.extra"),
-                    &uv.name,
-                )));
+                if uv.is_global {
+                    var_refs.push(TableEntry::Value(lua_field(
+                        lua_raw_expr("JF_GLOBALS"),
+                        &uv.name,
+                    )));
+                } else {
+                    var_refs.push(TableEntry::Value(lua_field(
+                        lua_raw_expr("self.config.extra"),
+                        &uv.name,
+                    )));
+                }
             }
         }
     }
+
+    var_refs.extend(
+        vars.iter()
+            .filter(|v| !v.name.starts_with("odds_") && !v.name.starts_with("numerator_"))
+            .map(|v| TableEntry::Value(lua_field(lua_raw_expr("self.config.extra"), &v.name))),
+    );
 
     let mut probability_pairs: Vec<(String, String)> = vars
         .iter()
@@ -1348,12 +1357,7 @@ pub(crate) fn build_shared_loc_vars(
 
     let mut body: Vec<Stmt> = Vec::new();
 
-    let mut var_refs: Vec<TableEntry> = vars
-        .iter()
-        .filter(|v| !v.name.starts_with("odds_") && !v.name.starts_with("numerator_"))
-        .map(|v| TableEntry::Value(lua_field(lua_raw_expr("self.config.extra"), &v.name)))
-        .collect();
-
+    let mut var_refs: Vec<TableEntry> = Vec::new();
     // User variables
     for uv in ctx.user_vars() {
         match uv.var_type {
@@ -1379,13 +1383,26 @@ pub(crate) fn build_shared_loc_vars(
                 ))));
             }
             _ => {
-                var_refs.push(TableEntry::Value(lua_field(
-                    lua_raw_expr("self.config.extra"),
-                    &uv.name,
-                )));
+                if uv.is_global {
+                    var_refs.push(TableEntry::Value(lua_field(
+                        lua_raw_expr("JF_GLOBALS"),
+                        &uv.name,
+                    )));
+                } else {
+                    var_refs.push(TableEntry::Value(lua_field(
+                        lua_raw_expr("self.config.extra"),
+                        &uv.name,
+                    )));
+                }
             }
         }
     }
+
+    var_refs.extend(
+        vars.iter()
+            .filter(|v| !v.name.starts_with("odds_") && !v.name.starts_with("numerator_"))
+            .map(|v| TableEntry::Value(lua_field(lua_raw_expr("self.config.extra"), &v.name))),
+    );
 
     // Probability variables
     let mut probability_pairs: Vec<(String, String)> = vars

@@ -1,101 +1,56 @@
-import { dataDir, homeDir, join } from "@tauri-apps/api/path";
-import { exists } from "@tauri-apps/plugin-fs";
 import {
+  getBalatroAppdataPath,
+  getBalatroGamePath,
   getBalatroInstallPath,
+  setExportDestinationMode,
   setBalatroAutofindResult,
-  setBalatroInstallPath,
+  setBalatroAppdataPath,
+  setBalatroGamePath,
 } from "@/lib/storage";
+import { autoFindBalatroPaths } from "@/lib/balatro-mod-setup";
 import type { GlobalAlert } from "@/components/layout/global-alerts";
-
-const normalizeWindowsSeparators = (value: string) => {
-  if (!/^[a-zA-Z]:\\+/.test(value)) return value;
-  return value.replace(/\\{2,}/g, "\\");
-};
 
 const createAlertId = () =>
   `balatro-autofind-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-const verifyCandidate = async (candidate: string): Promise<string | null> => {
-  const normalized = normalizeWindowsSeparators(candidate);
-  if (!normalized) return null;
-  if (await exists(normalized)) return normalized;
-  return null;
-};
-
-const resolveModsPathFromStoredPath = async (
-  storedPath: string,
-): Promise<string | null> => {
-  const normalizedStoredPath = normalizeWindowsSeparators(storedPath);
-  const lowerPath = normalizedStoredPath.toLowerCase();
-
-  const candidates: string[] = [normalizedStoredPath];
-  if (!lowerPath.endsWith("\\mods")) {
-    candidates.push(await join(normalizedStoredPath, "mods"));
-    candidates.push(await join(normalizedStoredPath, "Mods"));
-  }
-
-  for (const candidate of candidates) {
-    const verified = await verifyCandidate(candidate);
-    if (verified) return verified;
-  }
-
-  return null;
-};
-
 export const runBalatroAutofind = async (): Promise<GlobalAlert[]> => {
-  const storedPath = getBalatroInstallPath();
-
-  if (storedPath) {
-    const verifiedStoredPath = await resolveModsPathFromStoredPath(storedPath);
-    if (verifiedStoredPath) {
-      setBalatroInstallPath(verifiedStoredPath);
-      setBalatroAutofindResult("success");
-      return [];
-    }
-  }
-
   try {
-    const data = await dataDir();
-    const basePath = data || (await homeDir());
-    const balatroRootPath = normalizeWindowsSeparators(
-      data
-        ? await join(basePath, "Balatro")
-        : await join(basePath, "AppData", "Roaming", "Balatro"),
-    );
+    const storedAppdata = getBalatroAppdataPath().trim();
+    const storedGame = getBalatroGamePath().trim();
+    const legacyPath = getBalatroInstallPath().trim();
+    const detected = await autoFindBalatroPaths({
+      configuredAppdataPath: storedAppdata,
+      configuredGamePath: storedGame,
+      legacyPath,
+    });
 
-    const candidates = [
-      await join(balatroRootPath, "mods"),
-      await join(balatroRootPath, "Mods"),
-    ];
+    if (detected.appdataPath) {
+      setBalatroAppdataPath(detected.appdataPath);
+    }
+    if (detected.gamePath) {
+      setBalatroGamePath(detected.gamePath);
+    }
 
-    for (const candidate of candidates) {
-      const verified = await verifyCandidate(candidate);
-      if (!verified) continue;
+    const hasAppdata = Boolean(detected.appdataPath);
+    const hasGame = Boolean(detected.gamePath);
+    setExportDestinationMode(hasAppdata ? "balatro-mods" : "downloads");
 
-      console.debug("[balatro-autofind] resolved path", {
-        basePath,
-        usedDataDir: Boolean(data),
-        verified,
-      });
-
-      setBalatroInstallPath(verified);
+    if (hasAppdata && hasGame) {
       setBalatroAutofindResult("success");
       return [];
     }
 
-    console.debug("[balatro-autofind] default path missing", {
-      basePath,
-      usedDataDir: Boolean(data),
-      candidates,
-    });
     setBalatroAutofindResult("failure");
+    const missingParts: string[] = [];
+    if (!hasAppdata) missingParts.push("AppData folder");
+    if (!hasGame) missingParts.push("game folder");
+
     return [
       {
         id: createAlertId(),
         type: "danger",
-        title: "Balatro mods path not found",
-        message:
-          "Could not find the Balatro mods folder on launch.\nExpected a path like C:\\Users\\<you>\\AppData\\Roaming\\Balatro\\mods.",
+        title: "Balatro paths not fully configured",
+        message: `Could not auto-find: ${missingParts.join(" and ")}.\nSet both paths in Settings -> Paths.`,
       },
     ];
   } catch {
@@ -104,9 +59,8 @@ export const runBalatroAutofind = async (): Promise<GlobalAlert[]> => {
       {
         id: createAlertId(),
         type: "danger",
-        title: "Balatro mods path not found",
-        message:
-          "Unable to determine or verify the Balatro mods folder on launch.",
+        title: "Balatro path auto-find failed",
+        message: "Unable to determine Balatro AppData and/or game folder.",
       },
     ];
   }

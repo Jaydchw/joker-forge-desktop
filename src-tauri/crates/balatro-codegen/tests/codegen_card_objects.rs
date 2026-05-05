@@ -1,7 +1,7 @@
 mod common;
 
-use balatro_codegen::{compile_edition, compile_enhancement, compile_seal, Emitter};
-use balatro_codegen::types::ParamValue;
+use balatro_codegen::{compile_edition, compile_enhancement, compile_rarity, compile_seal, Emitter};
+use balatro_codegen::types::{ParamValue, RarityDef};
 
 use common::{and_group, base_edition, base_enhancement, base_seal, condition, effect, rule_with_conditions, rule_with_effects};
 
@@ -81,4 +81,41 @@ fn enhancement_same_trigger_conditional_precedes_unconditional_fallback() {
         .expect("expected fallback payload in calculate");
 
     assert!(cond_idx < fallback_idx);
+}
+
+#[test]
+fn seal_invalid_badge_colour_is_omitted() {
+    let mut seal = base_seal();
+    seal.badge_colour = Some("HEX".to_string());
+
+    let chunk = compile_seal(&seal, "modprefix");
+    let output = Emitter::new().emit_chunk(&chunk);
+
+    assert!(!output.contains("badge_colour = HEX("));
+}
+
+#[test]
+fn edition_invalid_badge_colour_is_omitted() {
+    let mut edition = base_edition();
+    edition.badge_colour = Some("HEX".to_string());
+
+    let chunk = compile_edition(&edition, "modprefix");
+    let output = Emitter::new().emit_chunk(&chunk);
+
+    assert!(!output.contains("badge_colour = HEX("));
+}
+
+#[test]
+fn rarity_invalid_badge_colour_falls_back_to_default() {
+    let rarity = RarityDef {
+        key: "superrare".to_string(),
+        name: "Super Rare".to_string(),
+        badge_colour: "HEX".to_string(),
+        default_weight: 0.1,
+    };
+
+    let chunk = compile_rarity(&rarity, "modprefix");
+    let output = Emitter::new().emit_chunk(&chunk);
+
+    assert!(output.contains("badge_colour = HEX('6A7A8B')"));
 }

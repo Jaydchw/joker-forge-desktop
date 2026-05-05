@@ -25,6 +25,7 @@ const SUPPORTED_EFFECTS = new Set<string>([
   "set_sell_value",
   "retrigger",
   "show_message",
+  "modify_internal_variable",
   "play_sound",
   "juice_up_joker",
   "level_up_hand",

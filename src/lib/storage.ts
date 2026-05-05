@@ -76,6 +76,9 @@ const STORAGE_FILE_NAME = "joker_forge_project_data.json";
 const EVENT_KEY = "joker_forge_update";
 const CONFIRM_DELETE_KEY = "joker_forge_confirm_delete";
 const UI_SCALE_KEY = "app-ui-scale";
+const BALATRO_APPDATA_PATH_KEY = "joker_forge_balatro_appdata_path";
+const BALATRO_GAME_PATH_KEY = "joker_forge_balatro_game_path";
+// Legacy key kept for migration compatibility.
 const BALATRO_PATH_KEY = "joker_forge_balatro_path";
 const BALATRO_AUTOFIND_KEY = "joker_forge_balatro_autofind";
 const BALATRO_AUTOFIND_ALERT_KEY = "joker_forge_balatro_autofind_alert";
@@ -84,7 +87,10 @@ const EXPORT_DESTINATION_MODE_KEY = "joker_forge_export_destination_mode";
 const JOKERFORGE_EXPORT_AS_JSON_KEY = "joker_forge_export_as_json";
 const JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY =
   "joker_forge_auto_save_downloads";
+const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";
 const AUTO_OPEN_NEW_ITEM_DIALOG_KEY = "joker_forge_auto_open_new_item_dialog";
+const BYPASS_UNSUPPORTED_RULES_DIALOG_KEY =
+  "joker_forge_bypass_unsupported_rules_dialog";
 const RULE_BUILDER_SETTINGS_KEY = "joker_forge_rule_builder_settings";
 const THEME_PREFERENCE_KEY = "joker_forge_theme_preference";
 const THEME_CHANGE_EVENT = "joker_forge_theme_change";
@@ -156,6 +162,7 @@ const maybeShowStorageErrorAlert = (error: unknown) => {
 };
 
 export type ExportDestinationMode = "downloads" | "balatro-mods";
+export type JokerforgeExportSaveMode = "ask" | "downloads" | "balatro-mods";
 export type ThemePreference = "light" | "dark";
 export type RuleBuilderShortcutId =
   | "undo"
@@ -181,6 +188,8 @@ export type RuleBuilderShortcutMap = Record<RuleBuilderShortcutId, string>;
 
 export interface RuleBuilderSettings {
   defaultGridSnap: boolean;
+  confirmDeleteRule: boolean;
+  confirmDeleteBlock: boolean;
   enableDragBoxSelection: boolean;
   enableLeftMousePan: boolean;
   enableRightMousePan: boolean;
@@ -193,6 +202,8 @@ export interface RuleBuilderSettings {
 
 export const DEFAULT_RULE_BUILDER_SETTINGS: RuleBuilderSettings = {
   defaultGridSnap: false,
+  confirmDeleteRule: false,
+  confirmDeleteBlock: false,
   enableDragBoxSelection: true,
   enableLeftMousePan: false,
   enableRightMousePan: false,
@@ -1211,6 +1222,8 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(STORAGE_KEY);
   window.localStorage.removeItem(CONFIRM_DELETE_KEY);
   window.localStorage.removeItem(UI_SCALE_KEY);
+  window.localStorage.removeItem(BALATRO_APPDATA_PATH_KEY);
+  window.localStorage.removeItem(BALATRO_GAME_PATH_KEY);
   window.localStorage.removeItem(BALATRO_PATH_KEY);
   window.localStorage.removeItem(BALATRO_AUTOFIND_KEY);
   window.localStorage.removeItem(BALATRO_AUTOFIND_ALERT_KEY);
@@ -1218,6 +1231,8 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(EXPORT_DESTINATION_MODE_KEY);
   window.localStorage.removeItem(JOKERFORGE_EXPORT_AS_JSON_KEY);
   window.localStorage.removeItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY);
+  window.localStorage.removeItem(LAUNCH_GAME_ON_EXPORT_KEY);
+  window.localStorage.removeItem(BYPASS_UNSUPPORTED_RULES_DIALOG_KEY);
   window.localStorage.removeItem(RULE_BUILDER_SETTINGS_KEY);
   window.localStorage.removeItem(THEME_PREFERENCE_KEY);
   clearThemeStorage();
@@ -1288,17 +1303,66 @@ export const setConfirmDeleteEnabled = (value: boolean) => {
   window.localStorage.setItem(CONFIRM_DELETE_KEY, value ? "true" : "false");
 };
 
-export const getBalatroInstallPath = (): string => {
+const normalizeWindowsSeparators = (value: string): string =>
+  /^[a-zA-Z]:\\+/.test(value) ? value.replace(/\\{2,}/g, "\\") : value;
+
+const deriveBalatroAppdataRoot = (rawValue: string): string => {
+  const normalized = normalizeWindowsSeparators(rawValue.trim());
+  if (!normalized) return "";
+
+  const segments = normalized.split(/[/\\]+/).filter(Boolean);
+  if (segments.length === 0) return "";
+
+  const balatroIndex = segments.findIndex(
+    (segment) => segment.toLowerCase() === "balatro",
+  );
+  if (balatroIndex === -1) return normalized;
+
+  return segments.slice(0, balatroIndex + 1).join("\\");
+};
+
+const getLegacyBalatroPath = (): string => {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(BALATRO_PATH_KEY) || "";
 };
 
-export const setBalatroInstallPath = (value: string) => {
+export const getBalatroAppdataPath = (): string => {
+  if (typeof window === "undefined") return "";
+  const stored = window.localStorage.getItem(BALATRO_APPDATA_PATH_KEY);
+  if (stored && stored.trim()) return normalizeWindowsSeparators(stored);
+  const legacy = getLegacyBalatroPath();
+  if (!legacy.trim()) return "";
+  return deriveBalatroAppdataRoot(legacy);
+};
+
+export const setBalatroAppdataPath = (value: string) => {
   if (typeof window === "undefined") return;
-  const normalizedValue = /^[a-zA-Z]:\\+/.test(value)
-    ? value.replace(/\\{2,}/g, "\\")
-    : value;
+  const normalizedValue = deriveBalatroAppdataRoot(value);
+  window.localStorage.setItem(BALATRO_APPDATA_PATH_KEY, normalizedValue);
+  // Keep legacy key in sync for older paths/migrations.
   window.localStorage.setItem(BALATRO_PATH_KEY, normalizedValue);
+};
+
+export const getBalatroGamePath = (): string => {
+  if (typeof window === "undefined") return "";
+  const stored = window.localStorage.getItem(BALATRO_GAME_PATH_KEY) || "";
+  return normalizeWindowsSeparators(stored);
+};
+
+export const setBalatroGamePath = (value: string) => {
+  if (typeof window === "undefined") return;
+  const normalizedValue = normalizeWindowsSeparators((value || "").trim());
+  window.localStorage.setItem(BALATRO_GAME_PATH_KEY, normalizedValue);
+};
+
+// Backward-compatible alias: "install path" now refers to Balatro AppData folder.
+export const getBalatroInstallPath = (): string => {
+  return getBalatroAppdataPath();
+};
+
+// Backward-compatible alias: maps to AppData folder setter.
+export const setBalatroInstallPath = (value: string) => {
+  setBalatroAppdataPath(value);
 };
 
 export const getBalatroAutofindResult = (): "success" | "failure" | null => {
@@ -1351,6 +1415,34 @@ export const setExportDestinationMode = (mode: ExportDestinationMode) => {
   window.localStorage.setItem(EXPORT_DESTINATION_MODE_KEY, mode);
 };
 
+export const getJokerforgeExportSaveMode = (): JokerforgeExportSaveMode => {
+  if (typeof window === "undefined") return "ask";
+  const stored = window.localStorage.getItem(EXPORT_DESTINATION_MODE_KEY);
+  if (
+    stored === "ask" ||
+    stored === "downloads" ||
+    stored === "balatro-mods"
+  ) {
+    return stored;
+  }
+
+  // Migrate from legacy auto-save downloads toggle.
+  if (window.localStorage.getItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY) === "true") {
+    return "downloads";
+  }
+
+  return "ask";
+};
+
+export const setJokerforgeExportSaveMode = (mode: JokerforgeExportSaveMode) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(EXPORT_DESTINATION_MODE_KEY, mode);
+  window.localStorage.setItem(
+    JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY,
+    mode === "downloads" ? "true" : "false",
+  );
+};
+
 export const getJokerforgeExportAsJsonEnabled = (): boolean => {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(JOKERFORGE_EXPORT_AS_JSON_KEY) === "true";
@@ -1388,6 +1480,14 @@ const sanitizeRuleBuilderSettings = (
       typeof safe.defaultGridSnap === "boolean"
         ? safe.defaultGridSnap
         : DEFAULT_RULE_BUILDER_SETTINGS.defaultGridSnap,
+    confirmDeleteRule:
+      typeof safe.confirmDeleteRule === "boolean"
+        ? safe.confirmDeleteRule
+        : DEFAULT_RULE_BUILDER_SETTINGS.confirmDeleteRule,
+    confirmDeleteBlock:
+      typeof safe.confirmDeleteBlock === "boolean"
+        ? safe.confirmDeleteBlock
+        : DEFAULT_RULE_BUILDER_SETTINGS.confirmDeleteBlock,
     enableDragBoxSelection:
       typeof safe.enableDragBoxSelection === "boolean"
         ? safe.enableDragBoxSelection
@@ -1545,6 +1645,21 @@ export const setAutoOpenNewItemDialogEnabled = (value: boolean) => {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
     AUTO_OPEN_NEW_ITEM_DIALOG_KEY,
+    value ? "true" : "false",
+  );
+};
+
+export const getBypassUnsupportedRulesDialogEnabled = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return (
+    window.localStorage.getItem(BYPASS_UNSUPPORTED_RULES_DIALOG_KEY) === "true"
+  );
+};
+
+export const setBypassUnsupportedRulesDialogEnabled = (value: boolean) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    BYPASS_UNSUPPORTED_RULES_DIALOG_KEY,
     value ? "true" : "false",
   );
 };

@@ -524,6 +524,7 @@ fn map_user_variables(
                 name: v.name.clone(),
                 var_type,
                 initial_value,
+                is_global: v.is_global,
             }
         })
         .collect()

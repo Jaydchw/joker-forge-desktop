@@ -376,8 +376,14 @@ const checkVoucherRequirements = ({ data, issues }: CheckContext) => {
 };
 
 const checkJokerRarityReferences = ({ data, issues }: CheckContext) => {
+  const modPrefix = normalizeIdentifier(data.metadata.prefix);
   const customRarityKeys = new Set(
     data.rarities.map((rarity) => normalizeIdentifier(rarity.key)),
+  );
+  const customRarityExportKeys = new Set(
+    [...customRarityKeys].map((key) =>
+      modPrefix ? `${modPrefix}_${key}` : key,
+    ),
   );
 
   data.jokers.forEach((joker: JokerData) => {
@@ -386,7 +392,28 @@ const checkJokerRarityReferences = ({ data, issues }: CheckContext) => {
     if (!rarity) return;
     const normalized = normalizeIdentifier(rarity);
     if (VANILLA_RARITY_KEYS.has(normalized)) return;
-    if (customRarityKeys.has(normalized)) return;
+    const matchesRawCustomKey = customRarityKeys.has(normalized);
+    const matchesExportedCustomKey = customRarityExportKeys.has(normalized);
+    if (matchesRawCustomKey || matchesExportedCustomKey) {
+      if (
+        modPrefix &&
+        matchesExportedCustomKey &&
+        !matchesRawCustomKey &&
+        normalized.startsWith(`${modPrefix}_`)
+      ) {
+        const baseKey = normalized.slice(modPrefix.length + 1);
+        pushIssue(
+          issues,
+          `Jokers: "${formatItemName(joker, joker.id)}" rarity "${rarity}" already includes "${modPrefix}_". Prefer "${baseKey}" to avoid prefix confusion in exports.`,
+          {
+            path: "/jokers",
+            itemId: joker.id,
+            editor: "info",
+          },
+        );
+      }
+      return;
+    }
 
     pushIssue(
       issues,
@@ -534,6 +561,14 @@ export const runPreExportChecks = (data: ProjectData): PreExportIssue[] => {
       keyLabel: "key",
       getKey: (item) => item.key,
       getValueLabel: (item) => item.name || item.id,
+      checkExtra: (item) => {
+        const modPrefix = normalizeIdentifier(data.metadata.prefix);
+        const key = normalizeIdentifier(item.key);
+        if (modPrefix && key.startsWith(`${modPrefix}_`)) {
+          return `Rarities: "${item.name || item.id}" key "${item.key}" should not start with "${modPrefix}_" because joker rarity references are already prefixed during export.`;
+        }
+        return null;
+      },
     },
     data.rarities,
   );
