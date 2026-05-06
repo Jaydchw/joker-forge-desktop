@@ -14,13 +14,17 @@ import {
 } from "react-zoom-pan-pinch";
 import {
   DndContext,
+  DragOverlay,
   useSensor,
   useSensors,
   PointerSensor,
   KeyboardSensor,
   DragStartEvent,
   DragEndEvent,
+  type CollisionDetection,
   closestCenter,
+  pointerWithin,
+  rectIntersection,
 } from "@dnd-kit/core";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
@@ -37,6 +41,7 @@ import type {
   EffectParameter,
 } from "./types";
 import RuleCard from "./rule-card";
+import BlockComponent from "./block-component";
 import FloatingDock from "./floating-dock";
 import BlockPalette from "./block-palette";
 import Variables from "./variables";
@@ -414,6 +419,49 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     }),
   );
 
+  const draggedPaletteBlockPreview = useMemo(() => {
+    if (!activeId?.startsWith("palette:")) return null;
+    const parts = activeId.split(":");
+    const blockType = parts[1] as "trigger" | "condition" | "effect";
+    const blockId = parts.slice(2).join(":");
+
+    if (blockType === "trigger") {
+      const trigger = getTriggerById(blockId);
+      return {
+        blockType,
+        label: trigger?.label?.[itemType] || blockId,
+      };
+    }
+
+    if (blockType === "condition") {
+      const condition = getConditionType(blockId);
+      return {
+        blockType,
+        label: condition?.label || blockId,
+      };
+    }
+
+    const effect = getEffectType(blockId);
+    return {
+      blockType,
+      label: effect?.label || blockId,
+    };
+  }, [activeId, getConditionType, getEffectType, itemType]);
+
+  const collisionDetectionStrategy = useCallback<CollisionDetection>(
+    (args) => {
+      const activeId = String(args.active.id);
+      if (activeId.startsWith("palette:")) {
+        const pointerHits = pointerWithin(args);
+        if (pointerHits.length > 0) return pointerHits;
+        const intersectionHits = rectIntersection(args);
+        if (intersectionHits.length > 0) return intersectionHits;
+      }
+      return closestCenter(args);
+    },
+    [],
+  );
+
   const formatLiveCodeErrorDetails = useCallback((error: unknown): string => {
     if (error instanceof Error) {
       const lines: string[] = [];
@@ -758,73 +806,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       params: defaultParams,
     };
   };
-
-  const addConditionToRule = useCallback(
-    (ruleId: string, conditionType: string) => {
-      const newCondition = createConditionFromType(conditionType);
-      let targetGroupId = "";
-
-      setRules((prev) =>
-        prev.map((rule) => {
-          if (rule.id !== ruleId) return rule;
-          if (rule.conditionGroups.length === 0) {
-            const newGroupId = crypto.randomUUID();
-            targetGroupId = newGroupId;
-            return {
-              ...rule,
-              conditionGroups: [
-                {
-                  id: newGroupId,
-                  operator: "and",
-                  conditions: [newCondition],
-                },
-              ],
-            };
-          }
-
-          targetGroupId = rule.conditionGroups[0].id;
-          return {
-            ...rule,
-            conditionGroups: rule.conditionGroups.map((group, index) =>
-              index === 0
-                ? {
-                    ...group,
-                    conditions: [...group.conditions, newCondition],
-                  }
-                : group,
-            ),
-          };
-        }),
-      );
-
-      setSelectedItem({
-        type: "condition",
-        ruleId,
-        itemId: newCondition.id,
-        groupId: targetGroupId,
-      });
-    },
-    [getConditionType],
-  );
-
-  const addEffectToRule = useCallback(
-    (ruleId: string, effectType: string) => {
-      const newEffect = createEffectFromType(effectType);
-      setRules((prev) =>
-        prev.map((rule) =>
-          rule.id === ruleId
-            ? { ...rule, effects: [...rule.effects, newEffect] }
-            : rule,
-        ),
-      );
-      setSelectedItem({
-        type: "effect",
-        ruleId,
-        itemId: newEffect.id,
-      });
-    },
-    [getEffectType],
-  );
 
   const getCenterPosition = () => {
     const screenCenterX =
@@ -2359,6 +2340,45 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     setActiveId(event.active.id as string);
   };
 
+  const findRuleIdForDropTarget = useCallback(
+    (overId: string): string | null => {
+      if (!overId) return null;
+      if (overId.startsWith("drop:rule:")) {
+        return overId.split(":")[2] || null;
+      }
+
+      for (const rule of rules) {
+        if (
+          rule.conditionGroups.some((group) =>
+            group.conditions.some((condition) => condition.id === overId),
+          )
+        ) {
+          return rule.id;
+        }
+        if (rule.effects.some((effect) => effect.id === overId)) {
+          return rule.id;
+        }
+        if (
+          rule.randomGroups.some((group) =>
+            group.effects.some((effect) => effect.id === overId),
+          )
+        ) {
+          return rule.id;
+        }
+        if (
+          rule.loops.some((group) =>
+            group.effects.some((effect) => effect.id === overId),
+          )
+        ) {
+          return rule.id;
+        }
+      }
+
+      return null;
+    },
+    [rules],
+  );
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over, delta } = event;
     const activeId = active.id as string;
@@ -2380,12 +2400,12 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     // Dragging from block palette to a rule card drop zone.
     if (activeId.startsWith("palette:")) {
       const overId = (over?.id as string | undefined) || "";
-      if (overId.startsWith("drop:rule:")) {
-        const parts = activeId.split(":");
-        const blockType = parts[1] as "trigger" | "condition" | "effect";
-        const blockId = parts.slice(2).join(":");
-        const ruleId = overId.split(":")[2];
+      const parts = activeId.split(":");
+      const blockType = parts[1] as "trigger" | "condition" | "effect";
+      const blockId = parts.slice(2).join(":");
+      const ruleId = findRuleIdForDropTarget(overId);
 
+      if (ruleId) {
         if (blockType === "trigger") {
           setRules((prev) =>
             prev.map((rule) =>
@@ -2394,9 +2414,107 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           );
           setSelectedItem({ type: "trigger", ruleId });
         } else if (blockType === "condition") {
-          addConditionToRule(ruleId, blockId);
+          const newCondition = createConditionFromType(blockId);
+          let targetGroupId = "";
+
+          setRules((prev) =>
+            prev.map((rule) => {
+              if (rule.id !== ruleId) return rule;
+
+              const targetGroupIndex = rule.conditionGroups.findIndex((group) =>
+                group.conditions.some((condition) => condition.id === overId),
+              );
+
+              if (targetGroupIndex >= 0) {
+                const targetGroup = rule.conditionGroups[targetGroupIndex];
+                const insertAt = Math.max(
+                  0,
+                  targetGroup.conditions.findIndex(
+                    (condition) => condition.id === overId,
+                  ),
+                );
+                targetGroupId = targetGroup.id;
+                return {
+                  ...rule,
+                  conditionGroups: rule.conditionGroups.map((group, index) =>
+                    index === targetGroupIndex
+                      ? {
+                          ...group,
+                          conditions: [
+                            ...group.conditions.slice(0, insertAt),
+                            newCondition,
+                            ...group.conditions.slice(insertAt),
+                          ],
+                        }
+                      : group,
+                  ),
+                };
+              }
+
+              if (rule.conditionGroups.length === 0) {
+                const newGroupId = crypto.randomUUID();
+                targetGroupId = newGroupId;
+                return {
+                  ...rule,
+                  conditionGroups: [
+                    {
+                      id: newGroupId,
+                      operator: "and",
+                      conditions: [newCondition],
+                    },
+                  ],
+                };
+              }
+
+              targetGroupId = rule.conditionGroups[0].id;
+              return {
+                ...rule,
+                conditionGroups: rule.conditionGroups.map((group, index) =>
+                  index === 0
+                    ? { ...group, conditions: [...group.conditions, newCondition] }
+                    : group,
+                ),
+              };
+            }),
+          );
+
+          setSelectedItem({
+            type: "condition",
+            ruleId,
+            itemId: newCondition.id,
+            groupId: targetGroupId,
+          });
         } else if (blockType === "effect") {
-          addEffectToRule(ruleId, blockId);
+          const newEffect = createEffectFromType(blockId);
+          setRules((prev) =>
+            prev.map((rule) => {
+              if (rule.id !== ruleId) return rule;
+
+              const topLevelEffectIndex = rule.effects.findIndex(
+                (effect) => effect.id === overId,
+              );
+              if (topLevelEffectIndex >= 0) {
+                return {
+                  ...rule,
+                  effects: [
+                    ...rule.effects.slice(0, topLevelEffectIndex),
+                    newEffect,
+                    ...rule.effects.slice(topLevelEffectIndex),
+                  ],
+                };
+              }
+
+              return {
+                ...rule,
+                effects: [...rule.effects, newEffect],
+              };
+            }),
+          );
+          setSelectedItem({
+            type: "effect",
+            ruleId,
+            itemId: newEffect.id,
+          });
         }
       }
       setActiveId(null);
@@ -4077,7 +4195,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   )}
                 <DndContext
                   sensors={sensors}
-                  collisionDetection={closestCenter}
+                  collisionDetection={collisionDetectionStrategy}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                   modifiers={
@@ -4088,6 +4206,18 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                       : [restrictToVerticalAxis]
                   }
                 >
+                  <DragOverlay dropAnimation={null}>
+                    {draggedPaletteBlockPreview ? (
+                      <div className="w-71 opacity-95 shadow-2xl">
+                        <BlockComponent
+                          label={draggedPaletteBlockPreview.label}
+                          type={draggedPaletteBlockPreview.blockType}
+                          onClick={() => {}}
+                          variant="palette"
+                        />
+                      </div>
+                    ) : null}
+                  </DragOverlay>
                   <TransformWrapper
                     ref={transformRef}
                     initialScale={1}
