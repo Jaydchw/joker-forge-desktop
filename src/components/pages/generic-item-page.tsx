@@ -40,6 +40,34 @@ const VIRTUAL_OVERSCAN_ROWS = 2;
 
 type ColumnMode = "auto" | "1" | "2" | "3";
 
+const normalizeSearchText = (value: string): string =>
+  value.toLowerCase().replace(/[_\-\s]+/g, "");
+
+const fuzzyMatch = (text: string, term: string): boolean => {
+  const normalizedText = normalizeSearchText(text);
+  const normalizedTerm = normalizeSearchText(term);
+
+  if (!normalizedTerm) return true;
+  if (normalizedText.includes(normalizedTerm)) return true;
+
+  let termIndex = 0;
+  for (let i = 0; i < normalizedText.length && termIndex < normalizedTerm.length; i++) {
+    if (normalizedText[i] === normalizedTerm[termIndex]) {
+      termIndex += 1;
+    }
+  }
+
+  return termIndex === normalizedTerm.length;
+};
+
+const getItemKeyForSearch = (item: unknown): string | null => {
+  if (!item || typeof item !== "object") return null;
+  const candidate =
+    (item as Record<string, unknown>).key ??
+    (item as Record<string, unknown>).objectKey;
+  return typeof candidate === "string" ? candidate : null;
+};
+
 export interface SortOption<T> {
   label: string;
   value: string;
@@ -229,7 +257,11 @@ function GenericItemPageInternal<T extends { id: string }>({
 
     if (deferredSearchTerm && searchProps) {
       const lowerTerm = deferredSearchTerm.toLowerCase();
-      result = result.filter((item) => searchProps.searchFn(item, lowerTerm));
+      result = result.filter((item) => {
+        if (searchProps.searchFn(item, lowerTerm)) return true;
+        const itemKey = getItemKeyForSearch(item);
+        return itemKey ? fuzzyMatch(itemKey, lowerTerm) : false;
+      });
     }
 
     if (filterOptions) {
