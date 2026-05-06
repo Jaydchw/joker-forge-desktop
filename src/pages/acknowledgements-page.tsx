@@ -63,6 +63,17 @@ const nodeLibraries = [
   { label: "Sonner", href: "https://sonner.emilkowal.ski/" },
 ];
 
+const communitySupporters = [
+  "Infinidex",
+  "Amo",
+  "Zan",
+  "Saucequest31",
+  "kierkat10",
+  "cokeblock4043",
+  "h0tp1nkl3monade",
+  "iobozzad",
+];
+
 const floatingHearts = [
   { left: "2%", size: 20, delay: 0, duration: 18, drift: 24 },
   { left: "6%", size: 14, delay: 2, duration: 21, drift: -16 },
@@ -250,6 +261,22 @@ export default function AcknowledgementsPage() {
               </a>{" "}
               for their help and support during development.
             </p>
+            <div className="mt-5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm">
+              <p className="font-semibold text-foreground">
+                Special mention:{" "}
+                <span className="text-primary">Infinidex</span>
+              </p>
+            </div>
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+              {communitySupporters.map((supporter) => (
+                <li
+                  key={supporter}
+                  className="rounded-xl px-2 py-2 text-sm font-medium text-foreground/80"
+                >
+                  {supporter}
+                </li>
+              ))}
+            </ul>
           </motion.section>
 
           <motion.section variants={itemVariants} className="relative pl-6">
