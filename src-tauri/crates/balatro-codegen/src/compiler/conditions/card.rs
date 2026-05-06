@@ -5,24 +5,14 @@ use crate::types::ConditionDef;
 
 /// Card Rank condition: checks the rank of the currently evaluated card.
 pub fn card_rank(condition: &ConditionDef) -> Option<Expr> {
-    let rank = condition.params.get("rank")?.as_str()?;
-    let rank_id = rank_to_id(rank);
-
-    Some(lua_eq(
-        lua_method(lua_path(&["context", "other_card"]), "get_id", vec![]),
-        lua_int(rank_id.parse().unwrap_or(0)),
-    ))
+    let check = rank_check_expr(condition);
+    Some(lua_raw_expr(check))
 }
 
 /// Card Suit condition: checks the suit of the currently evaluated card.
 pub fn card_suit(condition: &ConditionDef) -> Option<Expr> {
-    let suit = condition.params.get("suit")?.as_str()?;
-
-    Some(lua_method(
-        lua_path(&["context", "other_card"]),
-        "is_suit",
-        vec![lua_str(suit)],
-    ))
+    let check = suit_check_expr(condition);
+    Some(lua_raw_expr(check))
 }
 
 /// Card Enhancement condition: checks whether the card has a specific enhancement.
@@ -96,4 +86,126 @@ fn rank_to_id(rank: &str) -> &str {
         "Jack" => "11",
         _ => rank,
     }
+}
+
+fn rank_check_expr(condition: &ConditionDef) -> String {
+    let card_ref = "context.other_card";
+
+    if let Some(var_name) = rank_var_name(condition) {
+        return format!(
+            "{card}:get_id() == ((G.GAME.current_round.{name}_card or {{}}).id or 0)",
+            card = card_ref,
+            name = var_name
+        );
+    }
+
+    let rank_type = condition
+        .params
+        .get("rank_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("specific");
+
+    if rank_type == "group" {
+        let rank_group = condition
+            .params
+            .get("rank_group")
+            .and_then(|v| v.as_str())
+            .unwrap_or("odd");
+        return match rank_group {
+            "face" => format!("{card}:is_face()", card = card_ref),
+            "even" => format!(
+                "({card}:get_id() == 2 or {card}:get_id() == 4 or {card}:get_id() == 6 or {card}:get_id() == 8 or {card}:get_id() == 10)",
+                card = card_ref
+            ),
+            _ => format!(
+                "({card}:get_id() == 14 or {card}:get_id() == 3 or {card}:get_id() == 5 or {card}:get_id() == 7 or {card}:get_id() == 9)",
+                card = card_ref
+            ),
+        };
+    }
+
+    let rank = condition
+        .params
+        .get("specific_rank")
+        .and_then(|v| v.as_str())
+        .or_else(|| condition.params.get("rank").and_then(|v| v.as_str()))
+        .unwrap_or("Ace");
+    let rank_id = rank_to_id(rank);
+    format!("{card}:get_id() == {id}", card = card_ref, id = rank_id)
+}
+
+fn suit_check_expr(condition: &ConditionDef) -> String {
+    let card_ref = "context.other_card";
+
+    if let Some(var_name) = suit_var_name(condition) {
+        return format!(
+            "{card}:is_suit((G.GAME.current_round.{name}_card or {{}}).suit or 'Spades')",
+            card = card_ref,
+            name = var_name
+        );
+    }
+
+    let suit_type = condition
+        .params
+        .get("suit_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("specific");
+
+    if suit_type == "group" {
+        let suit_group = condition
+            .params
+            .get("suit_group")
+            .and_then(|v| v.as_str())
+            .unwrap_or("red");
+        return match suit_group {
+            "black" => format!(
+                "{card}:is_suit('Spades') or {card}:is_suit('Clubs')",
+                card = card_ref
+            ),
+            _ => format!(
+                "{card}:is_suit('Hearts') or {card}:is_suit('Diamonds')",
+                card = card_ref
+            ),
+        };
+    }
+
+    let suit = condition
+        .params
+        .get("specific_suit")
+        .and_then(|v| v.as_str())
+        .or_else(|| condition.params.get("suit").and_then(|v| v.as_str()))
+        .unwrap_or("Hearts");
+    format!("{card}:is_suit('{suit}')", card = card_ref, suit = suit)
+}
+
+fn suit_var_name(condition: &ConditionDef) -> Option<&str> {
+    let suit_type = condition.params.get("suit_type")?;
+    if let crate::types::ParamValue::Typed(typed) = suit_type {
+        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
+            return typed.value.as_str();
+        }
+    }
+    let specific = condition.params.get("specific_suit")?;
+    if let crate::types::ParamValue::Typed(typed) = specific {
+        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
+            return typed.value.as_str();
+        }
+    }
+    None
+}
+
+fn rank_var_name(condition: &ConditionDef) -> Option<&str> {
+    let rank_type = condition.params.get("rank_type")?;
+    if let crate::types::ParamValue::Typed(typed) = rank_type {
+        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
+            return typed.value.as_str();
+        }
+    }
+    let specific = condition.params.get("specific_rank")?;
+    if let crate::types::ParamValue::Typed(typed) = specific {
+        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
+            return typed.value.as_str();
+        }
+    }
+    None
 }

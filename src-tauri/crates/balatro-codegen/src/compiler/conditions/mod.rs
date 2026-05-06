@@ -31,9 +31,9 @@ pub fn compile_condition(
         }
         "discarded_suit_count" => hand::discarded_suit_count(condition, ctx)?,
         "discarded_rank_count" => hand::discarded_rank_count(condition, ctx)?,
-        "hand_enhancement_count" => hand::enhancement_count(condition, ctx)?,
-        "hand_edition_count" => hand::edition_count(condition, ctx)?,
-        "hand_seal_count" => hand::seal_count(condition, ctx)?,
+        "enhancement_count" | "hand_enhancement_count" => hand::enhancement_count(condition, ctx)?,
+        "edition_count" | "hand_edition_count" => hand::edition_count(condition, ctx)?,
+        "seal_count" | "hand_seal_count" => hand::seal_count(condition, ctx)?,
         "poker_hand_been_played" => hand::poker_hand_been_played(condition)?,
         "first_played_hand" => hand::first_played_hand(condition)?,
         "first_discarded_hand" => hand::first_discarded_hand(condition)?,
@@ -50,13 +50,22 @@ pub fn compile_condition(
         "card_index" => card::card_index(condition, ctx)?,
 
         // Joker conditions
-        "specific_joker_owned" | "owned_joker" => joker::specific_joker_owned(condition)?,
+        "specific_joker" | "specific_joker_owned" | "owned_joker" => {
+            joker::specific_joker_owned(condition)?
+        }
         "joker_rarity_count" => joker::joker_rarity_count(condition, ctx)?,
         "joker_position" => joker::joker_position(condition, ctx)?,
+        "joker_index" => joker::joker_index(condition, ctx)?,
+        "this_joker_index" => joker::this_joker_index(condition, ctx)?,
         "joker_flipped" => joker::joker_flipped(condition)?,
+        "this_joker_flipped" => joker::this_joker_flipped(condition)?,
         "joker_selected" => joker::joker_selected(condition)?,
         "joker_sticker" => joker::joker_sticker(condition)?,
+        "this_joker_sticker" => joker::this_joker_sticker(condition)?,
         "joker_edition" => joker::joker_edition(condition)?,
+        "this_joker_edition" => joker::this_joker_edition(condition)?,
+        "joker_key" => joker::joker_key(condition)?,
+        "joker_rarity" => joker::joker_rarity(condition)?,
 
         // Game state conditions
         "ante_level" => game_state::ante_level(condition, ctx)?,
@@ -87,13 +96,15 @@ pub fn compile_condition(
         "probability_identifier" => game_state::probability_identifier(condition)?,
         "probability_part_compare" => game_state::probability_part_compare(condition, ctx)?,
         "probability_succeeded" => game_state::probability_succeeded(condition)?,
-        "booster_pack_type" => game_state::booster_type(condition)?,
+        "booster_pack_type" | "booster_type" => game_state::booster_type(condition)?,
 
         // Variable conditions
         "internal_variable" => variables::internal_variable(condition, ctx)?,
         "key_variable" => variables::key_variable(condition, ctx)?,
         "text_variable" => variables::text_variable(condition, ctx)?,
-        "poker_hand_variable" => variables::poker_hand_variable(condition, ctx)?,
+        "poker_hand_variable" | "pokerhand_variable" => {
+            variables::poker_hand_variable(condition, ctx)?
+        }
         "rank_variable" => variables::rank_variable(condition, ctx)?,
         "suit_variable" => variables::suit_variable(condition, ctx)?,
 

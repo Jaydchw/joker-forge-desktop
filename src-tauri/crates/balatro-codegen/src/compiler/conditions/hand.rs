@@ -100,15 +100,62 @@ pub fn hand_size(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<E
 
 /// Suit Count condition: number of cards of a specific suit in the scoring hand.
 pub fn suit_count(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<Expr> {
-    let suit = condition.params.get("suit")?.as_str()?;
+    // New schema: card_scope + suit_type + specific_suit/suit_group + quantifier + count
+    if condition.params.contains_key("quantifier")
+        || condition.params.contains_key("suit_type")
+        || condition.params.contains_key("card_scope")
+    {
+        let scope = condition
+            .params
+            .get("card_scope")
+            .and_then(|v| v.as_str())
+            .unwrap_or("scoring");
+        let cards_ref = if scope == "all_played" {
+            "context.full_hand"
+        } else {
+            "context.scoring_hand"
+        };
+
+        let suit_check = suit_check_expr(condition);
+        let count_expr = lua_raw_expr(format!(
+            "(function() local c = 0; for _, playing_card in pairs({} or {{}}) do \
+             if {} then c = c + 1 end end return c end)()",
+            cards_ref, suit_check
+        ));
+        let total_expr = lua_len(lua_raw_expr(cards_ref));
+        let quantifier = condition
+            .params
+            .get("quantifier")
+            .and_then(|v| v.as_str())
+            .unwrap_or("all");
+        let required_expr = resolve_condition_value(&condition.params, "count", ctx, "suit_count")
+            .unwrap_or_else(|| lua_int(1));
+
+        return Some(match quantifier {
+            "none" => lua_eq(count_expr, lua_int(0)),
+            "exactly" => lua_eq(count_expr, required_expr),
+            "at_least" => lua_ge(count_expr, required_expr),
+            "at_most" => lua_le(count_expr, required_expr),
+            // "all"
+            _ => lua_eq(count_expr, total_expr),
+        });
+    }
+
+    // Legacy schema fallback: suit + operator + value
+    let suit = condition
+        .params
+        .get("suit")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Hearts");
     let operator = condition
         .params
         .get("operator")
         .and_then(|v| v.as_str())
         .unwrap_or("greater_than");
-    let value_expr = resolve_condition_value(&condition.params, "value", ctx, "suit_count")?;
+    let value_expr = resolve_condition_value(&condition.params, "value", ctx, "suit_count")
+        .or_else(|| resolve_condition_value(&condition.params, "count", ctx, "suit_count"))
+        .unwrap_or_else(|| lua_int(1));
 
-    // Count cards with matching suit in scoring hand
     let count_expr = lua_raw_expr(format!(
         "(function() local c = 0; for _, v in ipairs(context.scoring_hand or {{}}) do \
          if v:is_suit('{}') then c = c + 1 end end return c end)()",
@@ -120,13 +167,67 @@ pub fn suit_count(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
 
 /// Rank Count condition: number of cards of a specific rank in the scoring hand.
 pub fn rank_count(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<Expr> {
-    let rank = condition.params.get("rank")?.as_str()?;
+    // New schema: card_scope + rank_type + specific_rank/rank_group + quantifier + count
+    if condition.params.contains_key("quantifier")
+        || condition.params.contains_key("rank_type")
+        || condition.params.contains_key("card_scope")
+    {
+        let scope = condition
+            .params
+            .get("card_scope")
+            .and_then(|v| v.as_str())
+            .unwrap_or("scoring");
+        let cards_ref = if scope == "all_played" {
+            "context.full_hand"
+        } else {
+            "context.scoring_hand"
+        };
+
+        let rank_check = rank_check_expr(condition);
+        let count_expr = lua_raw_expr(format!(
+            "(function() local c = 0; for _, playing_card in pairs({} or {{}}) do \
+             if {} then c = c + 1 end end return c end)()",
+            cards_ref, rank_check
+        ));
+        let total_expr = lua_len(lua_raw_expr(cards_ref));
+        let quantifier = condition
+            .params
+            .get("quantifier")
+            .and_then(|v| v.as_str())
+            .unwrap_or("all");
+        let required_expr = resolve_condition_value(&condition.params, "count", ctx, "rank_count")
+            .unwrap_or_else(|| lua_int(1));
+
+        return Some(match quantifier {
+            "none" => lua_eq(count_expr, lua_int(0)),
+            "exactly" => lua_eq(count_expr, required_expr),
+            "at_least" => lua_ge(count_expr, required_expr),
+            "at_most" => lua_le(count_expr, required_expr),
+            // "all"
+            _ => lua_eq(count_expr, total_expr),
+        });
+    }
+
+    // Legacy schema fallback: rank + operator + value
+    let rank = condition
+        .params
+        .get("rank")
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            condition
+                .params
+                .get("specific_rank")
+                .and_then(|v| v.as_str())
+        })
+        .unwrap_or("Ace");
     let operator = condition
         .params
         .get("operator")
         .and_then(|v| v.as_str())
         .unwrap_or("greater_than");
-    let value_expr = resolve_condition_value(&condition.params, "value", ctx, "rank_count")?;
+    let value_expr = resolve_condition_value(&condition.params, "value", ctx, "rank_count")
+        .or_else(|| resolve_condition_value(&condition.params, "count", ctx, "rank_count"))
+        .unwrap_or_else(|| lua_int(1));
 
     let rank_id = rank_to_id(rank);
     let count_expr = lua_raw_expr(format!(
@@ -445,6 +546,117 @@ fn rank_to_id(rank: &str) -> &str {
         "2" => "2",
         _ => rank,
     }
+}
+
+fn suit_check_expr(condition: &ConditionDef) -> String {
+    if let Some(var_name) = suit_var_name(condition) {
+        return format!(
+            "playing_card:is_suit((G.GAME.current_round.{0}_card or {{}}).suit or 'Spades')",
+            var_name
+        );
+    }
+
+    let suit_type = condition
+        .params
+        .get("suit_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("specific");
+
+    if suit_type == "group" {
+        let suit_group = condition
+            .params
+            .get("suit_group")
+            .and_then(|v| v.as_str())
+            .unwrap_or("red");
+        return match suit_group {
+            "black" => {
+                "playing_card:is_suit('Spades') or playing_card:is_suit('Clubs')".to_string()
+            }
+            _ => "playing_card:is_suit('Hearts') or playing_card:is_suit('Diamonds')".to_string(),
+        };
+    }
+
+    let specific_suit = condition
+        .params
+        .get("specific_suit")
+        .and_then(|v| v.as_str())
+        .or_else(|| condition.params.get("suit").and_then(|v| v.as_str()))
+        .unwrap_or("Hearts");
+
+    format!("playing_card:is_suit('{}')", specific_suit)
+}
+
+fn rank_check_expr(condition: &ConditionDef) -> String {
+    if let Some(var_name) = rank_var_name(condition) {
+        return format!(
+            "playing_card:get_id() == ((G.GAME.current_round.{0}_card or {{}}).id or 0)",
+            var_name
+        );
+    }
+
+    let rank_type = condition
+        .params
+        .get("rank_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("specific");
+
+    if rank_type == "group" {
+        let rank_group = condition
+            .params
+            .get("rank_group")
+            .and_then(|v| v.as_str())
+            .unwrap_or("odd");
+        return match rank_group {
+            "face" => "playing_card:is_face()".to_string(),
+            "even" => {
+                "(playing_card:get_id() == 2 or playing_card:get_id() == 4 or playing_card:get_id() == 6 or playing_card:get_id() == 8 or playing_card:get_id() == 10)".to_string()
+            }
+            _ => {
+                "(playing_card:get_id() == 14 or playing_card:get_id() == 3 or playing_card:get_id() == 5 or playing_card:get_id() == 7 or playing_card:get_id() == 9)".to_string()
+            }
+        };
+    }
+
+    let specific_rank = condition
+        .params
+        .get("specific_rank")
+        .and_then(|v| v.as_str())
+        .or_else(|| condition.params.get("rank").and_then(|v| v.as_str()))
+        .unwrap_or("Ace");
+    let rank_id = rank_to_id(specific_rank);
+    format!("playing_card:get_id() == {}", rank_id)
+}
+
+fn suit_var_name(condition: &ConditionDef) -> Option<&str> {
+    let suit_type = condition.params.get("suit_type")?;
+    if let crate::types::ParamValue::Typed(typed) = suit_type {
+        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
+            return typed.value.as_str();
+        }
+    }
+    let specific = condition.params.get("specific_suit")?;
+    if let crate::types::ParamValue::Typed(typed) = specific {
+        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
+            return typed.value.as_str();
+        }
+    }
+    None
+}
+
+fn rank_var_name(condition: &ConditionDef) -> Option<&str> {
+    let rank_type = condition.params.get("rank_type")?;
+    if let crate::types::ParamValue::Typed(typed) = rank_type {
+        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
+            return typed.value.as_str();
+        }
+    }
+    let specific = condition.params.get("specific_rank")?;
+    if let crate::types::ParamValue::Typed(typed) = specific {
+        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
+            return typed.value.as_str();
+        }
+    }
+    None
 }
 
 /// Convert quantifier to comparison operator string.

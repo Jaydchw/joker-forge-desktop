@@ -663,3 +663,177 @@ pub fn edit_item_size_passive_typed(
         ..Default::default()
     }
 }
+
+// ---------------------------------------------------------------------------
+// edit_hands / edit_discards
+// ---------------------------------------------------------------------------
+
+fn round_counter_data(counter_type: &str) -> (&'static str, &'static str, &'static str) {
+    match counter_type {
+        "discards" => ("discards", "ease_discard", "Discards"),
+        _ => ("hands", "ease_hands_played", "Hands"),
+    }
+}
+
+/// Edit round counters (hands/discards): active version used by effects like
+/// `edit_hands` and `edit_discards`.
+pub fn edit_round_counter_typed(
+    effect: &EffectDef,
+    ctx: &mut CompileContext,
+    counter_type: &str,
+) -> EffectOutput {
+    let operation = get_str_default(effect, "operation", "add");
+    let duration = get_str_default(effect, "duration", "permanent");
+    let custom_message = get_str(effect, "customMessage");
+    let (counter_key, ease_fn, label) = round_counter_data(counter_type);
+    let value_str = value_to_lua_str(effect, "value", ctx, counter_key);
+
+    let edit_code = match (operation.as_str(), duration.as_str()) {
+        ("add", "round") => format!(
+            "G.GAME.current_round.{k}_left = G.GAME.current_round.{k}_left + {v}",
+            k = counter_key,
+            v = value_str
+        ),
+        ("subtract", "round") => format!(
+            "G.GAME.current_round.{k}_left = G.GAME.current_round.{k}_left - {v}",
+            k = counter_key,
+            v = value_str
+        ),
+        ("set", "round") => format!(
+            "G.GAME.current_round.{k}_left = {v}",
+            k = counter_key,
+            v = value_str
+        ),
+        ("subtract", _) => format!(
+            "G.GAME.round_resets.{k} = G.GAME.round_resets.{k} - {v}\n\
+            {ease}(-{v})",
+            k = counter_key,
+            v = value_str,
+            ease = ease_fn
+        ),
+        ("set", _) => format!(
+            "G.GAME.round_resets.{k} = {v}\n\
+            {ease}({v} - G.GAME.current_round.{k}_left)",
+            k = counter_key,
+            v = value_str,
+            ease = ease_fn
+        ),
+        _ => format!(
+            "G.GAME.round_resets.{k} = G.GAME.round_resets.{k} + {v}\n\
+            {ease}({v})",
+            k = counter_key,
+            v = value_str,
+            ease = ease_fn
+        ),
+    };
+
+    let (default_message, colour) = match operation.as_str() {
+        "subtract" => (
+            format!("\"-\"..tostring({})..\" {}\"", value_str, label),
+            "G.C.RED",
+        ),
+        "set" => (
+            format!("\"Set to \"..tostring({})..\" {}\"", value_str, label),
+            "G.C.BLUE",
+        ),
+        _ => (
+            format!("\"+\"..tostring({})..\" {}\"", value_str, label),
+            "G.C.GREEN",
+        ),
+    };
+    let msg_lua = custom_message
+        .map(|m| format!("\"{}\"", m))
+        .unwrap_or(default_message);
+
+    let func_body = vec![lua_raw_stmt(format!(
+        "card_eval_status_text(context.blueprint_card or card, 'extra', nil, nil, nil, {{message = {}, colour = {}}})\n\
+        {}\n\
+        return true",
+        msg_lua, colour, edit_code
+    ))];
+
+    EffectOutput {
+        return_fields: vec![(
+            "func".to_string(),
+            Expr::Function {
+                params: vec![],
+                body: func_body,
+            },
+        )],
+        pre_return: vec![],
+        config_vars: vec![],
+        message: None,
+        colour: Some(lua_raw_expr("G.C.GREEN")),
+    }
+}
+
+/// Edit round counters (hands/discards): passive version for always-on effects.
+pub fn edit_round_counter_passive_typed(
+    effect: &EffectDef,
+    ctx: &mut CompileContext,
+    counter_type: &str,
+) -> PassiveEffectOutput {
+    let operation = get_str_default(effect, "operation", "add");
+    let (counter_key, _, _) = round_counter_data(counter_type);
+    let count = ctx.next_effect_count(counter_key);
+    let var_name = ctx.unique_var_name(&format!("{}_change", counter_key), count);
+
+    let value_str = match effect.params.get("value") {
+        Some(ParamValue::Int(n)) => {
+            ctx.add_config_int(&var_name, *n);
+            format!("{}.{}", ctx.ability_path(), var_name)
+        }
+        Some(ParamValue::Float(n)) => {
+            ctx.add_config_num(&var_name, *n);
+            format!("{}.{}", ctx.ability_path(), var_name)
+        }
+        _ => "1".to_string(),
+    };
+
+    let (add_to_deck, remove_from_deck) = match operation.as_str() {
+        "subtract" => (
+            format!(
+                "G.GAME.round_resets.{k} = math.max(1, G.GAME.round_resets.{k} - {v})",
+                k = counter_key,
+                v = value_str
+            ),
+            format!(
+                "G.GAME.round_resets.{k} = G.GAME.round_resets.{k} + {v}",
+                k = counter_key,
+                v = value_str
+            ),
+        ),
+        "set" => (
+            format!(
+                "card.ability.extra.original_{k} = G.GAME.round_resets.{k}\n\
+                G.GAME.round_resets.{k} = {v}",
+                k = counter_key,
+                v = value_str
+            ),
+            format!(
+                "if card.ability.extra.original_{k} then\n\
+                    G.GAME.round_resets.{k} = card.ability.extra.original_{k}\n\
+                end",
+                k = counter_key
+            ),
+        ),
+        _ => (
+            format!(
+                "G.GAME.round_resets.{k} = G.GAME.round_resets.{k} + {v}",
+                k = counter_key,
+                v = value_str
+            ),
+            format!(
+                "G.GAME.round_resets.{k} = G.GAME.round_resets.{k} - {v}",
+                k = counter_key,
+                v = value_str
+            ),
+        ),
+    };
+
+    PassiveEffectOutput {
+        add_to_deck: vec![lua_raw_stmt(add_to_deck)],
+        remove_from_deck: vec![lua_raw_stmt(remove_from_deck)],
+        ..Default::default()
+    }
+}

@@ -549,6 +549,7 @@ impl ParamValue {
     pub fn as_str(&self) -> Option<&str> {
         match self {
             ParamValue::Str(s) => Some(s),
+            ParamValue::Typed(t) => t.value.as_str(),
             _ => None,
         }
     }
@@ -557,6 +558,17 @@ impl ParamValue {
         match self {
             ParamValue::Int(n) => Some(*n),
             ParamValue::Float(n) => Some(*n as i64),
+            ParamValue::Typed(t) => {
+                if let Some(i) = t.value.as_i64() {
+                    Some(i)
+                } else if let Some(f) = t.value.as_f64() {
+                    Some(f as i64)
+                } else if let Some(s) = t.value.as_str() {
+                    s.trim().parse::<i64>().ok()
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -565,6 +577,17 @@ impl ParamValue {
         match self {
             ParamValue::Float(n) => Some(*n),
             ParamValue::Int(n) => Some(*n as f64),
+            ParamValue::Typed(t) => {
+                if let Some(f) = t.value.as_f64() {
+                    Some(f)
+                } else if let Some(i) = t.value.as_i64() {
+                    Some(i as f64)
+                } else if let Some(s) = t.value.as_str() {
+                    s.trim().parse::<f64>().ok()
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -572,6 +595,19 @@ impl ParamValue {
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             ParamValue::Bool(b) => Some(*b),
+            ParamValue::Typed(t) => {
+                if let Some(b) = t.value.as_bool() {
+                    Some(b)
+                } else if let Some(s) = t.value.as_str() {
+                    match s.trim().to_ascii_lowercase().as_str() {
+                        "true" => Some(true),
+                        "false" => Some(false),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }

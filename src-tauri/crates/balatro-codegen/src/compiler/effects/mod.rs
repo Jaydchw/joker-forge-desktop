@@ -52,8 +52,12 @@ pub fn compile_effect(
         "apply_exp_mult" => scoring::apply_exp_mult(effect, ctx),
         "apply_hyper_chips" => scoring::apply_hyper_chips(effect, ctx),
         "apply_hyper_mult" => scoring::apply_hyper_mult(effect, ctx),
-        "balance_chips_and_mult" | "balance" => scoring::balance_chips_and_mult(effect, ctx),
-        "swap_chips_and_mult" | "swap" => scoring::swap_chips_and_mult(effect, ctx),
+        "balance_chips_and_mult" | "balance_chips_mult" | "balance" => {
+            scoring::balance_chips_and_mult(effect, ctx)
+        }
+        "swap_chips_and_mult" | "swap_chips_mult" | "swap" => {
+            scoring::swap_chips_and_mult(effect, ctx)
+        }
 
         // --------------- Creation ---------------
         "create_joker" => creation::create_joker(effect, ctx),
@@ -88,6 +92,8 @@ pub fn compile_effect(
         "edit_voucher_slots" => slot_management::edit_item_size_typed(effect, ctx, "voucher_slots"),
         "edit_booster_slots" => slot_management::edit_item_size_typed(effect, ctx, "booster_slots"),
         "edit_shop_slots" => slot_management::edit_item_size_typed(effect, ctx, "shop_slots"),
+        "edit_hands" => slot_management::edit_round_counter_typed(effect, ctx, "hands"),
+        "edit_discards" => slot_management::edit_round_counter_typed(effect, ctx, "discards"),
 
         // --------------- Economy ---------------
         "edit_reroll_price" => economy::edit_reroll_price(effect, ctx),
@@ -101,6 +107,7 @@ pub fn compile_effect(
         "edit_discards_money" | "edit_end_round_discard_money" => {
             economy::edit_end_round_discard_money(effect, ctx)
         }
+        "free_rerolls" => misc::free_rerolls(effect, ctx),
 
         // --------------- Economy (dollars) ---------------
         "set_dollars" => misc::set_dollars(effect, ctx),
@@ -111,9 +118,12 @@ pub fn compile_effect(
 
         // --------------- Display ---------------
         "show_message" => misc::show_message(effect, ctx),
-        "show_special_message" | "attention_text" => misc::show_special_message(effect, ctx),
+        "show_special_message" | "special_message" | "attention_text" => {
+            misc::show_special_message(effect, ctx)
+        }
         "play_sound" => misc::play_sound(effect, ctx),
         "juice_up_joker" => misc::juice_up_joker(effect, ctx),
+        "juice_up_card" => misc::juice_up_card(effect, ctx),
 
         // --------------- Game State ---------------
         "level_up_hand" => misc::level_up_hand(effect, ctx),
@@ -131,12 +141,16 @@ pub fn compile_effect(
         "copy_consumable" => misc::copy_consumable(effect, ctx, trigger),
         "draw_cards" => misc::draw_cards(effect, ctx),
         "emit_flag" => misc::emit_flag(effect, ctx),
-        "add_booster_into_shop" | "add_booster_to_shop" => misc::add_booster_into_shop(effect, ctx),
-        "add_voucher_into_shop" | "add_voucher_to_shop" => misc::add_voucher_into_shop(effect, ctx),
+        "add_booster_into_shop" | "add_booster_to_shop" | "add_booster_shop" => {
+            misc::add_booster_into_shop(effect, ctx)
+        }
+        "add_voucher_into_shop" | "add_voucher_to_shop" | "add_voucher_shop" => {
+            misc::add_voucher_into_shop(effect, ctx)
+        }
         "edit_card_appearance" => misc::edit_card_appearance(effect, ctx),
 
         // --------------- New game state effects ---------------
-        "edit_game_speed" => misc::edit_game_speed(effect, ctx),
+        "edit_game_speed" | "change_game_speed" => misc::edit_game_speed(effect, ctx),
         "fix_probability" => misc::fix_probability(effect, ctx),
         "mod_probability" => misc::mod_probability(effect, ctx),
         "modify_blind_requirement" => misc::modify_blind_requirement(effect, ctx),
@@ -144,7 +158,7 @@ pub fn compile_effect(
         "permanent_bonus" | "perma_bonus" => misc::permanent_bonus(effect, ctx),
         "redeem_voucher" => misc::redeem_voucher(effect, ctx),
         "unlock_joker" => misc::unlock_joker(effect, ctx),
-        "saved" | "saved_effect" => misc::saved_effect(effect, ctx),
+        "saved" | "saved_effect" | "prevent_game_over" => misc::saved_effect(effect, ctx),
         "edit_joker" => misc::edit_joker(effect, ctx),
         "edit_booster_packs" => misc::edit_booster_packs(effect, ctx),
         "fool_effect" | "fool" => misc::fool_effect(effect, ctx),
@@ -156,7 +170,9 @@ pub fn compile_effect(
         "change_text_variable" => variables::change_text_variable(effect, ctx),
         "change_rank_variable" => variables::change_rank_variable(effect, ctx),
         "change_suit_variable" => variables::change_suit_variable(effect, ctx),
-        "change_poker_hand_variable" => variables::change_poker_hand_variable(effect, ctx),
+        "change_poker_hand_variable" | "change_pokerhand_variable" => {
+            variables::change_poker_hand_variable(effect, ctx)
+        }
 
         _ => {
             return None;

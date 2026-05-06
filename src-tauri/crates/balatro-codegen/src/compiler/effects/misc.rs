@@ -84,12 +84,66 @@ pub fn play_sound(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput
 }
 
 /// Juice Up Joker: visual juice animation on the joker card.
-pub fn juice_up_joker(_effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
-    let juice = lua_expr_stmt(lua_method(
-        lua_ident("card"),
-        "juice_up",
-        vec![lua_num(0.3), lua_num(0.5)],
-    ));
+pub fn juice_up_joker(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
+    juice_up_target(effect, ctx, "card")
+}
+
+/// Juice Up Card: visual juice animation on the evaluated card.
+pub fn juice_up_card(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
+    juice_up_target(effect, ctx, "context.other_card")
+}
+
+fn juice_up_target(
+    effect: &EffectDef,
+    ctx: &mut CompileContext,
+    target_expr: &str,
+) -> EffectOutput {
+    let mode = get_str_default(effect, "mode", "onetime");
+    let scale = resolve_config_value(&effect.params, "scale", ctx, "juice_scale");
+    let rotation = resolve_config_value(&effect.params, "rotation", ctx, "juice_rotation");
+
+    let statement = if mode == "constant" {
+        format!(
+            "local target_card = {target}\n\
+            if target_card then\n\
+                local function juice_card_until_(juice_target, eval_func, first, delay)\n\
+                    G.E_MANAGER:add_event(Event({{\n\
+                        trigger = 'after',\n\
+                        delay = delay or 0.1,\n\
+                        blocking = false,\n\
+                        blockable = false,\n\
+                        timer = 'REAL',\n\
+                        func = (function()\n\
+                            if eval_func(juice_target) then\n\
+                                if not first or first then\n\
+                                    juice_target:juice_up({scale}, {rotation})\n\
+                                end\n\
+                                juice_card_until_(juice_target, eval_func, nil, 0.8)\n\
+                            end\n\
+                            return true\n\
+                        end)\n\
+                    }}))\n\
+                end\n\
+                local eval = function() return not G.RESET_JIGGLES end\n\
+                juice_card_until_(target_card, eval, true)\n\
+            end",
+            target = target_expr,
+            scale = scale.lua_str,
+            rotation = rotation.lua_str
+        )
+    } else {
+        format!(
+            "local target_card = {target}\n\
+            if target_card then\n\
+                target_card:juice_up({scale}, {rotation})\n\
+            end",
+            target = target_expr,
+            scale = scale.lua_str,
+            rotation = rotation.lua_str
+        )
+    };
+
+    let juice = lua_raw_stmt(statement);
 
     EffectOutput {
         return_fields: vec![],
@@ -97,6 +151,26 @@ pub fn juice_up_joker(_effect: &EffectDef, _ctx: &mut CompileContext) -> EffectO
         config_vars: vec![],
         message: None,
         colour: None,
+    }
+}
+
+/// Free Rerolls: modifies the number of free rerolls in the shop.
+pub fn free_rerolls(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
+    let resolved = resolve_config_value(&effect.params, "value", ctx, "reroll_amount");
+
+    EffectOutput {
+        return_fields: vec![],
+        pre_return: vec![lua_raw_stmt(format!(
+            "SMODS.change_free_rerolls({})",
+            resolved.lua_str
+        ))],
+        config_vars: vec![],
+        message: effect
+            .params
+            .get("customMessage")
+            .and_then(|v| v.as_str())
+            .map(lua_str),
+        colour: Some(lua_raw_expr("G.C.DARK_EDITION")),
     }
 }
 

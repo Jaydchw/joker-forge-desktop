@@ -36,17 +36,19 @@ pub fn splash(_effect: &EffectDef, _ctx: &mut CompileContext) -> PassiveEffectOu
 }
 
 /// Free rerolls: sets reroll cost to 0 while joker is held.
-pub fn free_rerolls(_effect: &EffectDef, _ctx: &mut CompileContext) -> PassiveEffectOutput {
-    // add_to_deck: G.GAME.round_resets.reroll_cost = 0
-    // remove_from_deck: G.GAME.round_resets.reroll_cost = 5
-    let add = lua_assign(
-        lua_path(&["G", "GAME", "round_resets", "reroll_cost"]),
-        lua_int(0),
+pub fn free_rerolls(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
+    let resolved = crate::compiler::values::resolve_config_value(
+        &effect.params,
+        "value",
+        ctx,
+        "reroll_amount",
     );
-    let remove = lua_assign(
-        lua_path(&["G", "GAME", "round_resets", "reroll_cost"]),
-        lua_int(5),
-    );
+
+    let add = lua_raw_stmt(format!("SMODS.change_free_rerolls({})", resolved.lua_str));
+    let remove = lua_raw_stmt(format!(
+        "SMODS.change_free_rerolls(-({}))",
+        resolved.lua_str
+    ));
 
     PassiveEffectOutput {
         add_to_deck: vec![add],
@@ -57,8 +59,11 @@ pub fn free_rerolls(_effect: &EffectDef, _ctx: &mut CompileContext) -> PassiveEf
 
 /// Allow debt: lets player go into negative money.
 pub fn allow_debt(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
-    let resolved =
-        crate::compiler::values::resolve_config_value(&effect.params, "amount", ctx, "debt_amount");
+    let resolved = if effect.params.contains_key("value") {
+        crate::compiler::values::resolve_config_value(&effect.params, "value", ctx, "debt_amount")
+    } else {
+        crate::compiler::values::resolve_config_value(&effect.params, "amount", ctx, "debt_amount")
+    };
 
     let add = lua_raw_stmt(format!(
         "G.GAME.bankrupt_at = G.GAME.bankrupt_at - {}",
@@ -246,7 +251,7 @@ pub fn compile_passive(
     ctx: &mut crate::compiler::context::CompileContext,
 ) -> Option<PassiveEffectOutput> {
     match effect.effect_type.as_str() {
-        "splash" => Some(splash(effect, ctx)),
+        "splash" | "splash_effect" => Some(splash(effect, ctx)),
         "free_rerolls" => Some(free_rerolls(effect, ctx)),
         "allow_debt" => Some(allow_debt(effect, ctx)),
 
@@ -273,6 +278,12 @@ pub fn compile_passive(
                 effect, ctx, size_type,
             ))
         }
+        "edit_hands" => Some(super::slot_management::edit_round_counter_passive_typed(
+            effect, ctx, "hands",
+        )),
+        "edit_discards" => Some(super::slot_management::edit_round_counter_passive_typed(
+            effect, ctx, "discards",
+        )),
 
         // New passive effects
         "shortcut" => Some(shortcut(effect, ctx)),
