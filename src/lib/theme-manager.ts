@@ -1,10 +1,12 @@
 import type { ThemePreference } from "@/lib/storage";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 export const THEME_CHANGE_EVENT = "joker_forge_theme_change";
 
 const THEME_LIBRARY_KEY = "joker_forge_theme_library";
 const ACTIVE_THEME_KEY = "joker_forge_active_theme_id";
 const THEME_PREFERENCE_KEY = "joker_forge_theme_preference";
+const APP_ZOOM_LEVEL_KEY = "joker_forge_app_zoom_level";
 
 const DEFAULT_THEME_ID = "default";
 const BUILT_IN_THEME_IDS = new Set<string>([
@@ -49,6 +51,14 @@ const THEME_VARIABLES = [
 export type ThemeVariable = (typeof THEME_VARIABLES)[number];
 export type ThemePalette = Record<ThemeVariable, string>;
 export type ThemeFontFamily = string;
+export type AppZoomLevel =
+  | "xxs"
+  | "xs"
+  | "small"
+  | "medium"
+  | "large"
+  | "xl"
+  | "xxl";
 
 export interface ThemeUiSettings {
   fontScale: number;
@@ -70,6 +80,20 @@ export interface ThemeFilePayload {
   version: 1;
   theme: Omit<AppThemeDefinition, "id" | "builtIn">;
 }
+
+export const APP_ZOOM_LEVELS: Array<{
+  key: AppZoomLevel;
+  label: string;
+  scale: number;
+}> = [
+  { key: "xxs", label: "XXS", scale: 0.7 },
+  { key: "xs", label: "XS", scale: 0.8 },
+  { key: "small", label: "Small", scale: 0.9 },
+  { key: "medium", label: "Medium", scale: 1 },
+  { key: "large", label: "Large", scale: 1.1 },
+  { key: "xl", label: "XL", scale: 1.2 },
+  { key: "xxl", label: "XXL", scale: 1.3 },
+];
 
 export const THEME_FONT_OPTIONS: Array<{
   key: ThemeFontFamily;
@@ -161,6 +185,48 @@ const ensureGoogleFontLoaded = (familyKey: ThemeFontFamily) => {
   link.rel = "stylesheet";
   link.href = `https://fonts.googleapis.com/css2?family=${option.googleFamily}&display=swap`;
   document.head.appendChild(link);
+};
+
+const isAppZoomLevel = (value: unknown): value is AppZoomLevel =>
+  typeof value === "string" &&
+  APP_ZOOM_LEVELS.some((zoomLevel) => zoomLevel.key === value);
+
+const getAppZoomScale = (zoomLevel: AppZoomLevel): number =>
+  APP_ZOOM_LEVELS.find((item) => item.key === zoomLevel)?.scale ?? 1;
+
+const applyWebviewZoom = async (scale: number) => {
+  if (typeof window === "undefined") return;
+  try {
+    await getCurrentWebview().setZoom(scale);
+  } catch (error) {
+    console.warn("Failed to apply webview zoom", { scale, error });
+  }
+};
+
+export const getAppZoomLevel = (): AppZoomLevel => {
+  if (typeof window === "undefined") return "medium";
+  const raw = window.localStorage.getItem(APP_ZOOM_LEVEL_KEY);
+  return isAppZoomLevel(raw) ? raw : "medium";
+};
+
+export const setAppZoomLevel = (zoomLevel: AppZoomLevel) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(APP_ZOOM_LEVEL_KEY, zoomLevel);
+  void applyWebviewZoom(getAppZoomScale(zoomLevel));
+  applyThemeFromStorage();
+};
+
+export const stepAppZoomLevel = (direction: "in" | "out"): AppZoomLevel => {
+  const current = getAppZoomLevel();
+  const currentIndex = APP_ZOOM_LEVELS.findIndex((item) => item.key === current);
+  const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+  const nextIndex =
+    direction === "in"
+      ? Math.min(APP_ZOOM_LEVELS.length - 1, safeIndex + 1)
+      : Math.max(0, safeIndex - 1);
+  const nextLevel = APP_ZOOM_LEVELS[nextIndex]?.key ?? "medium";
+  setAppZoomLevel(nextLevel);
+  return nextLevel;
 };
 
 export const THEME_VARIABLE_GROUPS: Array<{
@@ -1086,9 +1152,11 @@ export const applyTheme = (
   }
 
   const uiSettings = sanitizeThemeUi(theme.ui);
+  const appZoomScale = getAppZoomScale(getAppZoomLevel());
   const resolvedFontStack = resolveThemeFontStack(uiSettings.fontFamily);
   ensureGoogleFontLoaded(uiSettings.fontFamily);
   document.documentElement.style.fontSize = `${uiSettings.fontScale * 16}px`;
+  void applyWebviewZoom(appZoomScale);
   document.documentElement.style.setProperty(
     "--radius",
     `${uiSettings.radiusPx}px`,

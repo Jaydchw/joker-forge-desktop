@@ -8,6 +8,8 @@
     "core:path:default",
     "core:event:default",
     "core:event:allow-listen",
+    "core:webview:default",
+    "core:webview:allow-set-webview-zoom",
     "core:window:allow-is-fullscreen",
     "core:window:allow-set-fullscreen",
     "core:window:allow-minimize",

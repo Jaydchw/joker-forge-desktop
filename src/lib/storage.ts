@@ -75,7 +75,6 @@ const STORAGE_KEY = "joker_forge_project_data";
 const STORAGE_FILE_NAME = "joker_forge_project_data.json";
 const EVENT_KEY = "joker_forge_update";
 const CONFIRM_DELETE_KEY = "joker_forge_confirm_delete";
-const UI_SCALE_KEY = "app-ui-scale";
 const BALATRO_APPDATA_PATH_KEY = "joker_forge_balatro_appdata_path";
 const BALATRO_GAME_PATH_KEY = "joker_forge_balatro_game_path";
 // Legacy key kept for migration compatibility.
@@ -1225,7 +1224,6 @@ export const resetProjectData = () => {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(STORAGE_KEY);
   window.localStorage.removeItem(CONFIRM_DELETE_KEY);
-  window.localStorage.removeItem(UI_SCALE_KEY);
   window.localStorage.removeItem(BALATRO_APPDATA_PATH_KEY);
   window.localStorage.removeItem(BALATRO_GAME_PATH_KEY);
   window.localStorage.removeItem(BALATRO_PATH_KEY);
@@ -1258,29 +1256,6 @@ export const resetProjectData = () => {
       });
   }
   window.dispatchEvent(new Event(EVENT_KEY));
-};
-
-export const getUiScalePreference = (): string => {
-  if (typeof window === "undefined") return "1";
-  return window.localStorage.getItem(UI_SCALE_KEY) || "1";
-};
-
-export const applyUiScalePreference = (value: string) => {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  const parsed = Number.parseFloat(value);
-  const safeScale = Number.isFinite(parsed) ? parsed : 1;
-  root.style.fontSize = `${safeScale * 16}px`;
-  document.body.style.transform = "";
-  document.body.style.width = "";
-  document.body.style.height = "";
-  document.body.style.transformOrigin = "";
-};
-
-export const setUiScalePreference = (value: string) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(UI_SCALE_KEY, value);
-  applyUiScalePreference(value);
 };
 
 export const getThemePreference = (): ThemePreference => {

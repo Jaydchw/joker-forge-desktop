@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { initializeRuleCatalogFromRust } from "@/components/rule-builder/rule-catalog";
-import { applyThemeFromStorage } from "./lib/theme-manager";
+import { applyThemeFromStorage, stepAppZoomLevel } from "./lib/theme-manager";
 import { initPostHog } from "./lib/posthog";
 
 const root = ReactDOM.createRoot(
@@ -12,6 +12,20 @@ const root = ReactDOM.createRoot(
 
 async function bootstrap() {
   applyThemeFromStorage();
+  let lastZoomStepAt = 0;
+  window.addEventListener(
+    "wheel",
+    (event) => {
+      if (!event.ctrlKey) return;
+      if (event.deltaY === 0) return;
+      const now = Date.now();
+      if (now - lastZoomStepAt < 120) return;
+      lastZoomStepAt = now;
+      event.preventDefault();
+      stepAppZoomLevel(event.deltaY < 0 ? "in" : "out");
+    },
+    { passive: false },
+  );
   initPostHog();
 
   try {

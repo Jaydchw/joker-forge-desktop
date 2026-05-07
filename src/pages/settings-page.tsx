@@ -72,15 +72,18 @@ import {
   type ThemePreference,
 } from "@/lib/storage";
 import {
+  APP_ZOOM_LEVELS,
   applyThemeFromStorage,
   createThemeFromBase,
   createThemeFromImported,
   deleteTheme,
+  getAppZoomLevel,
   getActiveThemeId,
   getBuiltInTheme,
   getThemeLibrary,
   parseThemeFilePayload,
   resetThemeDefaults,
+  setAppZoomLevel,
   setActiveThemeId,
   subscribeThemeChanges,
   THEME_FONT_OPTIONS,
@@ -88,6 +91,7 @@ import {
   THEME_VARIABLE_USAGE,
   toThemeFilePayload,
   updateTheme,
+  type AppZoomLevel,
   type AppThemeDefinition,
   type ThemeFontFamily,
   type ThemeVariable,
@@ -391,6 +395,7 @@ export default function SettingsPage() {
   const [singleManagedModExport, setSingleManagedModExport] = useState(true);
   const [launchOnExport, setLaunchOnExport] = useState(false);
   const [autoOpenNewItemDialog, setAutoOpenNewItemDialog] = useState(true);
+  const [appZoomLevel, setAppZoomLevelState] = useState<AppZoomLevel>("medium");
   const [bypassUnsupportedRulesDialog, setBypassUnsupportedRulesDialog] =
     useState(false);
   const [ruleBuilderSettings, setRuleBuilderSettingsState] =
@@ -432,6 +437,7 @@ export default function SettingsPage() {
     setSingleManagedModExport(getSingleManagedModExportEnabled());
     setLaunchOnExport(window.localStorage.getItem(LAUNCH_GAME_ON_EXPORT_KEY) === "true");
     setAutoOpenNewItemDialog(getAutoOpenNewItemDialogEnabled());
+    setAppZoomLevelState(getAppZoomLevel());
     setBypassUnsupportedRulesDialog(getBypassUnsupportedRulesDialogEnabled());
     setRuleBuilderSettingsState(getRuleBuilderSettings());
     setThemeMode(getThemePreference());
@@ -682,6 +688,7 @@ export default function SettingsPage() {
         "Split Localization On Full Export",
         "Export .jokerforge As .json",
         "Auto-open New Item Dialog",
+        "App Zoom",
         "Export Save Location",
         "Keep Balatro Mods Folder To One Managed Mod",
         "Balatro AppData folder",
@@ -709,6 +716,7 @@ export default function SettingsPage() {
         "Split Localization On Full Export",
         "Export .jokerforge As .json",
         "Auto-open New Item Dialog",
+        "App Zoom",
         "Export Save Location",
         "Keep Balatro Mods Folder To One Managed Mod",
       ],
@@ -954,6 +962,36 @@ export default function SettingsPage() {
                     }}
                     className="cursor-pointer"
                   />
+                </div>
+                )}
+
+                {showSetting("App Zoom") && (
+                <div className="flex items-center justify-between py-2 gap-3">
+                  <div>
+                    <Label htmlFor="app-zoom-level">App Zoom</Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Global UI scale across the entire app.
+                    </p>
+                  </div>
+                  <Select
+                    value={appZoomLevel}
+                    onValueChange={(value) => {
+                      const next = value as AppZoomLevel;
+                      setAppZoomLevelState(next);
+                      setAppZoomLevel(next);
+                    }}
+                  >
+                    <SelectTrigger id="app-zoom-level" className="h-9 w-[220px]">
+                      <SelectValue placeholder="Select zoom level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {APP_ZOOM_LEVELS.map((zoomLevel) => (
+                        <SelectItem key={zoomLevel.key} value={zoomLevel.key}>
+                          {zoomLevel.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 )}
 
