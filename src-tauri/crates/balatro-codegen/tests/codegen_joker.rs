@@ -1,7 +1,9 @@
 mod common;
 
 use balatro_codegen::types::ParamValue;
-use balatro_codegen::types::{ConditionDef, ConditionGroupDef, LogicOp, RuleDef, TypedValue};
+use balatro_codegen::types::{
+    ConditionDef, ConditionGroupDef, LogicOp, RuleDef, TypedValue, UserVarType, UserVariableDef,
+};
 use balatro_codegen::{compile_joker, Emitter};
 use serde_json::json;
 
@@ -285,6 +287,30 @@ fn effect_alias_ids_compile_to_expected_lua() {
     assert!(output.contains("G.SETTINGS.GAMESPEED = 2"));
     assert!(output.contains("SMODS.change_free_rerolls(card.ability.extra.reroll_amount0)"));
     assert!(output.contains("saved = true"));
+}
+
+#[test]
+fn unused_global_user_var_is_not_emitted_in_loc_vars() {
+    let mut joker = base_joker();
+    joker.key = "j_unused_global_user_var".to_string();
+    joker.user_variables = vec![UserVariableDef {
+        name: "globalvariabletest".to_string(),
+        var_type: UserVarType::Number,
+        initial_value: ParamValue::Int(1),
+        is_global: true,
+        is_persistent: false,
+    }];
+    joker.rules = vec![rule_with_effects(
+        "rule1",
+        "hand_played",
+        vec![effect("add_chips", &[("value", ParamValue::Int(10))])],
+    )];
+
+    let chunk = compile_joker(&joker, "modprefix");
+    let output = Emitter::new().emit_chunk(&chunk);
+
+    assert!(!output.contains("jf_global_vars.globalvariabletest"));
+    assert!(!output.contains("JF_GLOBALS.globalvariabletest"));
 }
 
 #[test]

@@ -18,6 +18,7 @@ pub mod voucher;
 use crate::lua_ast::*;
 use crate::types::*;
 use context::CompileContext;
+use std::collections::HashSet;
 
 // Re-export compile functions for each game object type
 pub use booster::compile_booster;
@@ -160,6 +161,77 @@ pub(crate) struct BlindRewardOutput {
     pub(crate) condition_expr: Option<Expr>,
     pub(crate) amount_expr: Expr,
     pub(crate) boss_only: bool,
+}
+
+fn param_value_user_var_name(value: &ParamValue) -> Option<String> {
+    match value {
+        ParamValue::Str(s) => Some(s.clone()),
+        ParamValue::Typed(t) => {
+            if t.value_type == "user_var" || t.value_type == "userVariable" {
+                t.value.as_str().map(|s| s.to_string())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn collect_rule_referenced_user_vars(rule: &RuleDef, refs: &mut HashSet<String>) {
+    for group in &rule.condition_groups {
+        for cond in &group.conditions {
+            for value in cond.params.values() {
+                if let Some(var_name) = param_value_user_var_name(value) {
+                    refs.insert(var_name);
+                }
+            }
+        }
+    }
+
+    for effect in &rule.effects {
+        for value in effect.params.values() {
+            if let Some(var_name) = param_value_user_var_name(value) {
+                refs.insert(var_name);
+            }
+        }
+    }
+
+    for random in &rule.random_groups {
+        if let Some(var_name) = param_value_user_var_name(&random.chance_numerator) {
+            refs.insert(var_name);
+        }
+        if let Some(var_name) = param_value_user_var_name(&random.chance_denominator) {
+            refs.insert(var_name);
+        }
+        for effect in &random.effects {
+            for value in effect.params.values() {
+                if let Some(var_name) = param_value_user_var_name(value) {
+                    refs.insert(var_name);
+                }
+            }
+        }
+    }
+
+    for loop_group in &rule.loop_groups {
+        if let Some(var_name) = param_value_user_var_name(&loop_group.count) {
+            refs.insert(var_name);
+        }
+        for effect in &loop_group.effects {
+            for value in effect.params.values() {
+                if let Some(var_name) = param_value_user_var_name(value) {
+                    refs.insert(var_name);
+                }
+            }
+        }
+    }
+}
+
+fn collect_referenced_user_vars(rules: &[RuleDef]) -> HashSet<String> {
+    let mut refs = HashSet::new();
+    for rule in rules {
+        collect_rule_referenced_user_vars(rule, &mut refs);
+    }
+    refs
 }
 
 pub(crate) enum PassiveHookSpec {
@@ -690,7 +762,11 @@ fn build_loc_vars(
     _rule_outputs: &[RuleOutput],
 ) -> Option<Expr> {
     let vars = ctx.config_vars();
-    let has_user_vars = !ctx.user_vars().is_empty();
+    let referenced_user_vars = collect_referenced_user_vars(&joker.rules);
+    let has_user_vars = ctx
+        .user_vars()
+        .iter()
+        .any(|uv| !uv.is_global || referenced_user_vars.contains(&uv.name));
     let has_info_queue = !joker.info_queues.is_empty();
 
     if vars.is_empty() && !has_user_vars && !has_info_queue {
@@ -726,6 +802,9 @@ fn build_loc_vars(
     let mut var_refs: Vec<TableEntry> = Vec::new();
     let mut colour_refs: Vec<TableEntry> = Vec::new();
     for uv in ctx.user_vars() {
+        if uv.is_global && !referenced_user_vars.contains(&uv.name) {
+            continue;
+        }
         match uv.var_type {
             crate::types::UserVarType::Suit => {
                 let default_suit = uv.initial_value.to_string_lossy();
@@ -1375,7 +1454,7 @@ pub(crate) fn build_shared_loc_vars(
     _rule_outputs: &[RuleOutput],
 ) -> Option<Expr> {
     let vars = ctx.config_vars();
-    let has_user_vars = !ctx.user_vars().is_empty();
+    let has_user_vars = ctx.user_vars().iter().any(|uv| !uv.is_global);
 
     if vars.is_empty() && !has_user_vars {
         return None;
@@ -1386,6 +1465,9 @@ pub(crate) fn build_shared_loc_vars(
     let mut var_refs: Vec<TableEntry> = Vec::new();
     // User variables
     for uv in ctx.user_vars() {
+        if uv.is_global {
+            continue;
+        }
         match uv.var_type {
             crate::types::UserVarType::Suit => {
                 let default_suit = uv.initial_value.to_string_lossy();
