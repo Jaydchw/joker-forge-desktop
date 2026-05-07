@@ -190,6 +190,7 @@ export type RuleBuilderShortcutMap = Record<RuleBuilderShortcutId, string>;
 
 export interface RuleBuilderSettings {
   defaultGridSnap: boolean;
+  showDotsBackground: boolean;
   confirmDeleteRule: boolean;
   confirmDeleteBlock: boolean;
   enableDragBoxSelection: boolean;
@@ -204,6 +205,7 @@ export interface RuleBuilderSettings {
 
 export const DEFAULT_RULE_BUILDER_SETTINGS: RuleBuilderSettings = {
   defaultGridSnap: false,
+  showDotsBackground: true,
   confirmDeleteRule: false,
   confirmDeleteBlock: false,
   enableDragBoxSelection: true,
@@ -1483,6 +1485,10 @@ const sanitizeRuleBuilderSettings = (
       typeof safe.defaultGridSnap === "boolean"
         ? safe.defaultGridSnap
         : DEFAULT_RULE_BUILDER_SETTINGS.defaultGridSnap,
+    showDotsBackground:
+      typeof safe.showDotsBackground === "boolean"
+        ? safe.showDotsBackground
+        : DEFAULT_RULE_BUILDER_SETTINGS.showDotsBackground,
     confirmDeleteRule:
       typeof safe.confirmDeleteRule === "boolean"
         ? safe.confirmDeleteRule

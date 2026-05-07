@@ -4144,7 +4144,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 <div
                   className="absolute inset-0 w-full h-full pointer-events-none"
                   style={{
-                    backgroundImage: createAlternatingDotPattern(),
+                    backgroundImage: ruleBuilderSettings.showDotsBackground
+                      ? createAlternatingDotPattern()
+                      : "none",
                     backgroundSize: `${24 * panState.scale}px ${24 * panState.scale}px`,
                     backgroundPosition: `${panState.x}px ${panState.y}px`,
                     backgroundColor: "hsl(var(--background))",

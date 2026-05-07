@@ -1022,6 +1022,19 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="flex items-center justify-between py-2">
+                  <Label htmlFor="rb-dots-background">
+                    Show Dots Background
+                  </Label>
+                  <Switch
+                    id="rb-dots-background"
+                    checked={ruleBuilderSettings.showDotsBackground}
+                    onCheckedChange={(value) =>
+                      updateRuleBuilderSettings({ showDotsBackground: value })
+                    }
+                    className="cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center justify-between py-2">
                   <Label htmlFor="rb-drag-box-selection">
                     Enable Drag-box Selection
                   </Label>
