@@ -6,6 +6,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { useProjectData } from "@/lib/storage";
 import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
 import { VoucherData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import { slugify } from "@/lib/balatro-utils";
 import {
   Copy,
@@ -48,8 +49,7 @@ export default function VanillaReforgedVouchersPage() {
     () => ({
       placeholder: "Search vanilla vouchers...",
       searchFn: (item: VoucherData, term: string) =>
-        item.name.toLowerCase().includes(term) ||
-        item.description.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name, item.description], term),
     }),
     [],
   );
@@ -188,3 +188,6 @@ export default function VanillaReforgedVouchersPage() {
     </>
   );
 }
+
+
+

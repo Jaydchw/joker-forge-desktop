@@ -11,6 +11,7 @@ import {
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
 import { EnhancementData, Rule } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   Star,
   PencilSimple,
@@ -199,7 +200,7 @@ export default function EnhancementsPage() {
   const searchProps = useMemo(
     () => ({
       searchFn: (item: EnhancementData, term: string) =>
-        item.name.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name], term),
     }),
     [],
   );
@@ -610,3 +611,6 @@ export default function EnhancementsPage() {
     </>
   );
 }
+
+
+

@@ -23,6 +23,7 @@ import {
   getPlaceholderCategoryLabel,
   getPlaceholderEntriesForCategory,
 } from "@/lib/placeholder-assets.ts";
+import { fuzzyMatchAny } from "@/lib/search";
 
 type PlaceholderPickerDialogProps = {
   open: boolean;
@@ -96,9 +97,8 @@ export function PlaceholderPickerDialog({
     if (!term) return source;
 
     return source.filter((entry) => {
-      const credit = entry.credit.toLowerCase();
       const indexText = String(entry.index);
-      return credit.includes(term) || indexText.includes(term);
+      return fuzzyMatchAny([entry.credit, indexText], term);
     });
   }, [activeCategory, entriesByCategory, search]);
 

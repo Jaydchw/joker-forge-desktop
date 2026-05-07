@@ -15,6 +15,8 @@ import {
   Sliders,
   ArrowsCounterClockwise,
   Keyboard,
+  MagnifyingGlass,
+  GridFour,
 } from "@phosphor-icons/react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -92,6 +94,7 @@ import {
 } from "../lib/theme-manager";
 import KeybindInput from "@/components/settings/keybind-input";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { fuzzyMatch } from "@/lib/search";
 
 const cloneTheme = (theme: AppThemeDefinition): AppThemeDefinition => ({
   ...theme,
@@ -163,6 +166,7 @@ const sanitizeModDataForClipboard = (
 };
 
 type SettingsCategory =
+  | "all"
   | "general"
   | "ruleBuilder"
   | "paths"
@@ -375,7 +379,7 @@ function ThemeEditorFields({
 export default function SettingsPage() {
   const { data } = useProjectData();
   const [activeCategory, setActiveCategory] =
-    useState<SettingsCategory>("general");
+    useState<SettingsCategory>("all");
 
   const [confirmDeletes, setConfirmDeletes] = useState(true);
   const [balatroAppdataPath, setBalatroAppdataPathState] = useState("");
@@ -400,6 +404,7 @@ export default function SettingsPage() {
   const [themes, setThemes] = useState<AppThemeDefinition[]>([]);
   const [selectedThemeId, setSelectedThemeId] = useState("");
   const [draftTheme, setDraftTheme] = useState<AppThemeDefinition | null>(null);
+  const [settingsSearch, setSettingsSearch] = useState("");
 
   const refreshThemes = (preferredThemeId?: string) => {
     const available = getThemeLibrary();
@@ -638,6 +643,7 @@ export default function SettingsPage() {
     label: string;
     icon: ComponentType<{ className?: string }>;
   }> = [
+    { id: "all", label: "All", icon: GridFour },
     { id: "general", label: "General", icon: Sliders },
     { id: "ruleBuilder", label: "Rule Builder", icon: Keyboard },
     { id: "paths", label: "Paths", icon: Folder },
@@ -645,6 +651,112 @@ export default function SettingsPage() {
     { id: "dev", label: "Developer", icon: Wrench },
     { id: "data", label: "Data", icon: Database },
   ];
+
+  const hasSearch = settingsSearch.trim().length > 0;
+  const showSetting = (label: string) => !hasSearch || fuzzyMatch(label, settingsSearch);
+
+  const filteredRuleBuilderShortcuts = useMemo(
+    () =>
+      (
+        Object.entries(ruleBuilderSettings.shortcuts) as Array<
+          [RuleBuilderShortcutId, string]
+        >
+      ).filter(([shortcutId]) =>
+        fuzzyMatch(
+          shortcutId
+            .replace(/([A-Z])/g, " $1")
+            .replace(/^./, (char) => char.toUpperCase()),
+          settingsSearch,
+        ),
+      ),
+    [ruleBuilderSettings.shortcuts, settingsSearch],
+  );
+
+  const categoryHasMatches = useMemo(() => {
+    const labelsByCategory: Record<SettingsCategory, string[]> = {
+      all: [
+        "General",
+        "Rule Builder",
+        "Paths",
+        "Confirm Deletes",
+        "Split Localization On Full Export",
+        "Export .jokerforge As .json",
+        "Auto-open New Item Dialog",
+        "Export Save Location",
+        "Keep Balatro Mods Folder To One Managed Mod",
+        "Balatro AppData folder",
+        "Balatro game folder",
+        "Launch/Relaunch Game On Export",
+        "Confirm Deleting A Rule",
+        "Confirm Deleting A Rule Block",
+        "Default Grid Snap",
+        "Show Dots Background",
+        "Enable Drag-box Selection",
+        "Left Click Drags Canvas",
+        "Right Click Drags Canvas",
+        "Middle Click Drags Canvas",
+        "Enable Wheel Zoom",
+        "Enable Pinch Zoom",
+        "Open Inspector On First Selection",
+        ...filteredRuleBuilderShortcuts.map(([shortcutId]) =>
+          shortcutId
+            .replace(/([A-Z])/g, " $1")
+            .replace(/^./, (char) => char.toUpperCase()),
+        ),
+      ],
+      general: [
+        "Confirm Deletes",
+        "Split Localization On Full Export",
+        "Export .jokerforge As .json",
+        "Auto-open New Item Dialog",
+        "Export Save Location",
+        "Keep Balatro Mods Folder To One Managed Mod",
+      ],
+      ruleBuilder: [
+        "Confirm Deleting A Rule",
+        "Confirm Deleting A Rule Block",
+        "Default Grid Snap",
+        "Show Dots Background",
+        "Enable Drag-box Selection",
+        "Left Click Drags Canvas",
+        "Right Click Drags Canvas",
+        "Middle Click Drags Canvas",
+        "Enable Wheel Zoom",
+        "Enable Pinch Zoom",
+        "Open Inspector On First Selection",
+        "Keybind",
+        ...filteredRuleBuilderShortcuts.map(([shortcutId]) =>
+          shortcutId
+            .replace(/([A-Z])/g, " $1")
+            .replace(/^./, (char) => char.toUpperCase()),
+        ),
+      ],
+      paths: [
+        "Balatro AppData folder",
+        "Balatro game folder",
+        "Launch/Relaunch Game On Export",
+      ],
+      theme: ["Theme Studio", "Light", "Dark", "Export", "Import", "Theme"],
+      dev: [
+        "Developer Tools",
+        "Bypass Unsupported Rules Dialog",
+        "Copy Mod Data to Clipboard",
+        "Alert Testing",
+        "Open DevTools",
+      ],
+      data: ["Reset All Project Data", "Data"],
+    };
+
+    const result = {} as Record<SettingsCategory, boolean>;
+    for (const category of categories) {
+      result[category.id] =
+        !hasSearch ||
+        labelsByCategory[category.id].some((label) =>
+          fuzzyMatch(label, settingsSearch),
+        );
+    }
+    return result;
+  }, [categories, filteredRuleBuilderShortcuts, hasSearch, settingsSearch]);
 
   const updateRuleBuilderSettings = (
     next: Omit<Partial<RuleBuilderSettings>, "shortcuts"> & {
@@ -723,6 +835,15 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">
           App behavior, export options, and theme management.
         </p>
+        <div className="relative mt-3 max-w-md">
+          <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={settingsSearch}
+            onChange={(event) => setSettingsSearch(event.target.value)}
+            placeholder="Search settings..."
+            className="h-9 pl-9"
+          />
+        </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
@@ -731,12 +852,13 @@ export default function SettingsPage() {
             {categories.map((category) => {
               const Icon = category.icon;
               const active = category.id === activeCategory;
+              const dimmed = hasSearch && !categoryHasMatches[category.id];
               return (
                 <button
                   key={category.id}
                   type="button"
                   onClick={() => setActiveCategory(category.id)}
-                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-3 text-left transition hover:bg-muted/30"
+                  className={`flex w-full cursor-pointer items-center gap-2 px-3 py-3 text-left transition hover:bg-muted/30 ${dimmed ? "opacity-40" : "opacity-100"}`}
                 >
                   <Icon
                     className={`h-4 w-4 ${active ? "text-foreground" : "text-muted-foreground"}`}
@@ -753,7 +875,7 @@ export default function SettingsPage() {
         </aside>
 
         <section className="min-w-0">
-          {activeCategory === "general" && (
+          {(activeCategory === "general" || activeCategory === "all") && (
             <div className="space-y-4">
               <div className="px-1 py-2 border-b border-border/60">
                 <h3 className="font-semibold flex items-center gap-2">
@@ -763,6 +885,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2 px-1 py-1">
+                {showSetting("Confirm Deletes") && (
                 <div className="flex items-center justify-between py-2">
                   <Label htmlFor="confirm-deletes">Confirm Deletes</Label>
                   <Switch
@@ -775,7 +898,9 @@ export default function SettingsPage() {
                     className="cursor-pointer"
                   />
                 </div>
+                )}
 
+                {showSetting("Split Localization On Full Export") && (
                 <div className="flex items-center justify-between py-2">
                   <Label htmlFor="split-localization-export">
                     Split Localization On Full Export
@@ -790,7 +915,9 @@ export default function SettingsPage() {
                     className="cursor-pointer"
                   />
                 </div>
+                )}
 
+                {showSetting("Export .jokerforge As .json") && (
                 <div className="flex items-center justify-between py-2">
                   <Label htmlFor="export-jokerforge-as-json">
                     Export .jokerforge As .json
@@ -805,7 +932,9 @@ export default function SettingsPage() {
                     className="cursor-pointer"
                   />
                 </div>
+                )}
 
+                {showSetting("Auto-open New Item Dialog") && (
                 <div className="flex items-center justify-between py-2">
                   <div>
                     <Label htmlFor="auto-open-new-item-dialog">
@@ -826,7 +955,9 @@ export default function SettingsPage() {
                     className="cursor-pointer"
                   />
                 </div>
+                )}
 
+                {showSetting("Export Save Location") && (
                 <div className="flex items-center justify-between py-2 gap-3">
                   <div>
                     <Label htmlFor="export-save-mode">Export Save Location</Label>
@@ -857,7 +988,9 @@ export default function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                )}
 
+                {showSetting("Keep Balatro Mods Folder To One Managed Mod") && (
                 <div className="flex items-center justify-between py-2">
                   <div>
                     <Label htmlFor="single-managed-mod-export">
@@ -878,11 +1011,12 @@ export default function SettingsPage() {
                     className="cursor-pointer"
                   />
                 </div>
+                )}
               </div>
             </div>
           )}
 
-          {activeCategory === "paths" && (
+          {(activeCategory === "paths" || activeCategory === "all") && (
             <div className="space-y-4">
               <div className="px-1 py-2 border-b border-border/60">
                 <h3 className="font-semibold flex items-center gap-2">
@@ -892,56 +1026,65 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-4 px-1 py-1">
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={balatroAppdataPath}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setBalatroAppdataPathState(next);
-                      setBalatroAppdataPath(next);
-                    }}
-                    placeholder="C:\\Users\\<you>\\AppData\\Roaming\\Balatro"
-                    className="h-9 font-mono text-xs"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 cursor-pointer"
-                    onClick={handleBrowseBalatroAppdataPath}
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Balatro AppData folder. Mods are exported to `Mods` inside this folder.
-                </p>
+                {showSetting("Balatro AppData folder") && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={balatroAppdataPath}
+                        onChange={(event) => {
+                          const next = event.target.value;
+                          setBalatroAppdataPathState(next);
+                          setBalatroAppdataPath(next);
+                        }}
+                        placeholder="C:\\Users\\<you>\\AppData\\Roaming\\Balatro"
+                        className="h-9 font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 cursor-pointer"
+                        onClick={handleBrowseBalatroAppdataPath}
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Balatro AppData folder. Mods are exported to `Mods` inside this folder.
+                    </p>
+                  </>
+                )}
 
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={balatroGamePath}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setBalatroGamePathState(next);
-                      setBalatroGamePath(next);
-                    }}
-                    placeholder="D:\\SteamLibrary\\steamapps\\common\\Balatro"
-                    className="h-9 font-mono text-xs"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 cursor-pointer"
-                    onClick={handleBrowseBalatroGamePath}
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Balatro game folder (contains `Balatro.exe`). Lovely `version.dll` is installed here.
-                </p>
+                {showSetting("Balatro game folder") && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={balatroGamePath}
+                        onChange={(event) => {
+                          const next = event.target.value;
+                          setBalatroGamePathState(next);
+                          setBalatroGamePath(next);
+                        }}
+                        placeholder="D:\\SteamLibrary\\steamapps\\common\\Balatro"
+                        className="h-9 font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 cursor-pointer"
+                        onClick={handleBrowseBalatroGamePath}
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Balatro game folder (contains `Balatro.exe`). Lovely `version.dll` is installed here.
+                    </p>
+                  </>
+                )}
 
+                {showSetting("Launch/Relaunch Game On Export") && (
                 <div className="flex items-center justify-between py-2">
                   <div>
                     <Label htmlFor="launch-on-export">
@@ -965,11 +1108,12 @@ export default function SettingsPage() {
                     className="cursor-pointer"
                   />
                 </div>
+                )}
               </div>
             </div>
           )}
 
-          {activeCategory === "ruleBuilder" && (
+          {(activeCategory === "ruleBuilder" || activeCategory === "all") && (
             <div className="space-y-4">
               <div className="px-1 py-2 border-b border-border/60">
                 <h3 className="font-semibold flex items-center gap-2">
@@ -981,148 +1125,198 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              <div className="space-y-2 px-1 py-1">
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-confirm-delete-rule">
-                    Confirm Deleting A Rule
-                  </Label>
-                  <Switch
-                    id="rb-confirm-delete-rule"
-                    checked={ruleBuilderSettings.confirmDeleteRule}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ confirmDeleteRule: value })
-                    }
-                    className="cursor-pointer"
-                  />
+              <div className="space-y-4 px-1 py-1">
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Safety
+                  </h4>
+                  {fuzzyMatch("Confirm Deleting A Rule", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-confirm-delete-rule">
+                        Confirm Deleting A Rule
+                      </Label>
+                      <Switch
+                        id="rb-confirm-delete-rule"
+                        checked={ruleBuilderSettings.confirmDeleteRule}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ confirmDeleteRule: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  {fuzzyMatch("Confirm Deleting A Rule Block", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-confirm-delete-block">
+                        Confirm Deleting A Rule Block
+                      </Label>
+                      <Switch
+                        id="rb-confirm-delete-block"
+                        checked={ruleBuilderSettings.confirmDeleteBlock}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ confirmDeleteBlock: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-confirm-delete-block">
-                    Confirm Deleting A Rule Block
-                  </Label>
-                  <Switch
-                    id="rb-confirm-delete-block"
-                    checked={ruleBuilderSettings.confirmDeleteBlock}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ confirmDeleteBlock: value })
-                    }
-                    className="cursor-pointer"
-                  />
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Canvas
+                  </h4>
+                  {fuzzyMatch("Default Grid Snap", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-default-grid-snap">
+                        Default Grid Snap
+                      </Label>
+                      <Switch
+                        id="rb-default-grid-snap"
+                        checked={ruleBuilderSettings.defaultGridSnap}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ defaultGridSnap: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  {fuzzyMatch("Show Dots Background", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-dots-background">
+                        Show Dots Background
+                      </Label>
+                      <Switch
+                        id="rb-dots-background"
+                        checked={ruleBuilderSettings.showDotsBackground}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ showDotsBackground: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  {fuzzyMatch("Enable Drag-box Selection", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-drag-box-selection">
+                        Enable Drag-box Selection
+                      </Label>
+                      <Switch
+                        id="rb-drag-box-selection"
+                        checked={ruleBuilderSettings.enableDragBoxSelection}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({
+                            enableDragBoxSelection: value,
+                          })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-default-grid-snap">
-                    Default Grid Snap
-                  </Label>
-                  <Switch
-                    id="rb-default-grid-snap"
-                    checked={ruleBuilderSettings.defaultGridSnap}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ defaultGridSnap: value })
-                    }
-                    className="cursor-pointer"
-                  />
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Navigation
+                  </h4>
+                  {fuzzyMatch("Left Click Drags Canvas", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-left-pan">Left Click Drags Canvas</Label>
+                      <Switch
+                        id="rb-left-pan"
+                        checked={ruleBuilderSettings.enableLeftMousePan}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ enableLeftMousePan: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  {fuzzyMatch("Right Click Drags Canvas", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-right-pan">
+                        Right Click Drags Canvas
+                      </Label>
+                      <Switch
+                        id="rb-right-pan"
+                        checked={ruleBuilderSettings.enableRightMousePan}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ enableRightMousePan: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  {fuzzyMatch("Middle Click Drags Canvas", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-middle-pan">
+                        Middle Click Drags Canvas
+                      </Label>
+                      <Switch
+                        id="rb-middle-pan"
+                        checked={ruleBuilderSettings.enableMiddleMousePan}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ enableMiddleMousePan: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  {fuzzyMatch("Enable Wheel Zoom", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-wheel-zoom">Enable Wheel Zoom</Label>
+                      <Switch
+                        id="rb-wheel-zoom"
+                        checked={ruleBuilderSettings.enableWheelZoom}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ enableWheelZoom: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
+                  {fuzzyMatch("Enable Pinch Zoom", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-pinch-zoom">Enable Pinch Zoom</Label>
+                      <Switch
+                        id="rb-pinch-zoom"
+                        checked={ruleBuilderSettings.enablePinchZoom}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({ enablePinchZoom: value })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-dots-background">
-                    Show Dots Background
-                  </Label>
-                  <Switch
-                    id="rb-dots-background"
-                    checked={ruleBuilderSettings.showDotsBackground}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ showDotsBackground: value })
-                    }
-                    className="cursor-pointer"
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-drag-box-selection">
-                    Enable Drag-box Selection
-                  </Label>
-                  <Switch
-                    id="rb-drag-box-selection"
-                    checked={ruleBuilderSettings.enableDragBoxSelection}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({
-                        enableDragBoxSelection: value,
-                      })
-                    }
-                    className="cursor-pointer"
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-left-pan">Left Click Drags Canvas</Label>
-                  <Switch
-                    id="rb-left-pan"
-                    checked={ruleBuilderSettings.enableLeftMousePan}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ enableLeftMousePan: value })
-                    }
-                    className="cursor-pointer"
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-right-pan">Right Click Drags Canvas</Label>
-                  <Switch
-                    id="rb-right-pan"
-                    checked={ruleBuilderSettings.enableRightMousePan}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ enableRightMousePan: value })
-                    }
-                    className="cursor-pointer"
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-middle-pan">
-                    Middle Click Drags Canvas
-                  </Label>
-                  <Switch
-                    id="rb-middle-pan"
-                    checked={ruleBuilderSettings.enableMiddleMousePan}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ enableMiddleMousePan: value })
-                    }
-                    className="cursor-pointer"
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-wheel-zoom">Enable Wheel Zoom</Label>
-                  <Switch
-                    id="rb-wheel-zoom"
-                    checked={ruleBuilderSettings.enableWheelZoom}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ enableWheelZoom: value })
-                    }
-                    className="cursor-pointer"
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-pinch-zoom">Enable Pinch Zoom</Label>
-                  <Switch
-                    id="rb-pinch-zoom"
-                    checked={ruleBuilderSettings.enablePinchZoom}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({ enablePinchZoom: value })
-                    }
-                    className="cursor-pointer"
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label htmlFor="rb-open-inspector">
-                    Open Inspector On First Selection
-                  </Label>
-                  <Switch
-                    id="rb-open-inspector"
-                    checked={ruleBuilderSettings.openInspectorOnFirstSelection}
-                    onCheckedChange={(value) =>
-                      updateRuleBuilderSettings({
-                        openInspectorOnFirstSelection: value,
-                      })
-                    }
-                    className="cursor-pointer"
-                  />
+
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Panels
+                  </h4>
+                  {fuzzyMatch("Open Inspector On First Selection", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-open-inspector">
+                        Open Inspector On First Selection
+                      </Label>
+                      <Switch
+                        id="rb-open-inspector"
+                        checked={ruleBuilderSettings.openInspectorOnFirstSelection}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({
+                            openInspectorOnFirstSelection: value,
+                          })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
+              {(!hasSearch ||
+                showSetting("Keybind format") ||
+                filteredRuleBuilderShortcuts.length > 0) && (
               <div className="space-y-3 px-1 py-1">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm text-muted-foreground">
@@ -1148,31 +1342,28 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
-                  {(
-                    Object.entries(ruleBuilderSettings.shortcuts) as Array<
-                      [RuleBuilderShortcutId, string]
-                    >
-                  ).map(([shortcutId, shortcut]) => (
-                    <div key={shortcutId} className="space-y-1">
-                      <Label htmlFor={`rb-shortcut-${shortcutId}`}>
-                        {shortcutId
-                          .replace(/([A-Z])/g, " $1")
-                          .replace(/^./, (char) => char.toUpperCase())}
-                      </Label>
-                      <KeybindInput
-                        value={shortcut}
-                        onChange={(next) =>
-                          updateRuleBuilderSettings({
-                            shortcuts: {
-                              [shortcutId]: next.toLowerCase(),
-                            } as Partial<RuleBuilderSettings["shortcuts"]>,
-                          })
-                        }
-                      />
-                    </div>
-                  ))}
+                  {filteredRuleBuilderShortcuts.map(([shortcutId, shortcut]) => (
+                      <div key={shortcutId} className="space-y-1">
+                        <Label htmlFor={`rb-shortcut-${shortcutId}`}>
+                          {shortcutId
+                            .replace(/([A-Z])/g, " $1")
+                            .replace(/^./, (char) => char.toUpperCase())}
+                        </Label>
+                        <KeybindInput
+                          value={shortcut}
+                          onChange={(next) =>
+                            updateRuleBuilderSettings({
+                              shortcuts: {
+                                [shortcutId]: next.toLowerCase(),
+                              } as Partial<RuleBuilderSettings["shortcuts"]>,
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
                 </div>
               </div>
+              )}
             </div>
           )}
 

@@ -9,6 +9,7 @@ import {
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
 import { Rule, VoucherData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   PencilSimple,
   Sparkle,
@@ -200,7 +201,7 @@ export default function VouchersPage() {
   const searchProps = useMemo(
     () => ({
       searchFn: (item: VoucherData, term: string) =>
-        item.name.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name], term),
     }),
     [],
   );
@@ -575,3 +576,6 @@ export default function VouchersPage() {
     </>
   );
 }
+
+
+

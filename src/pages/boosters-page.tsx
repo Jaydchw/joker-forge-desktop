@@ -11,6 +11,7 @@ import {
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
 import { BoosterData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   PencilSimple,
   Trash,
@@ -150,7 +151,7 @@ export default function BoostersPage() {
   const searchProps = useMemo(
     () => ({
       searchFn: (item: BoosterData, term: string) =>
-        item.name.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name], term),
     }),
     [],
   );
@@ -454,3 +455,6 @@ export default function BoostersPage() {
     </>
   );
 }
+
+
+

@@ -33,32 +33,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
+import { fuzzyMatch } from "@/lib/search";
 import { motion } from "framer-motion";
 
 const ESTIMATED_REGULAR_ROW_HEIGHT = 384;
 const VIRTUAL_OVERSCAN_ROWS = 2;
 
 type ColumnMode = "auto" | "1" | "2" | "3";
-
-const normalizeSearchText = (value: string): string =>
-  value.toLowerCase().replace(/[_\-\s]+/g, "");
-
-const fuzzyMatch = (text: string, term: string): boolean => {
-  const normalizedText = normalizeSearchText(text);
-  const normalizedTerm = normalizeSearchText(term);
-
-  if (!normalizedTerm) return true;
-  if (normalizedText.includes(normalizedTerm)) return true;
-
-  let termIndex = 0;
-  for (let i = 0; i < normalizedText.length && termIndex < normalizedTerm.length; i++) {
-    if (normalizedText[i] === normalizedTerm[termIndex]) {
-      termIndex += 1;
-    }
-  }
-
-  return termIndex === normalizedTerm.length;
-};
 
 const getItemKeyForSearch = (item: unknown): string | null => {
   if (!item || typeof item !== "object") return null;
@@ -166,37 +147,39 @@ function GenericItemPageInternal<T extends { id: string }>({
   const [isXlLayout, setIsXlLayout] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth >= 1280 : true,
   );
-  const storageKeyBase = `jokerforge-${title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+  const storageKeyBase = `jokerforge-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
 
   const [prevTitle, setPrevTitle] = useState(title);
 
-  const [viewMode, setViewMode] = useState<"regular" | "compact">(
-    () => {
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem(`${storageKeyBase}-view-mode`);
-        if (saved === "regular" || saved === "compact") return saved;
-      }
-      return defaultViewMode;
+  const [viewMode, setViewMode] = useState<"regular" | "compact">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKeyBase}-view-mode`);
+      if (saved === "regular" || saved === "compact") return saved;
     }
-  );
+    return defaultViewMode;
+  });
 
-  const [columnMode, setColumnMode] = useState<ColumnMode>(
-    () => {
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem(`${storageKeyBase}-column-mode`);
-        if (saved === "auto" || saved === "1" || saved === "2" || saved === "3") return saved as ColumnMode;
-      }
-      return defaultColumnMode;
+  const [columnMode, setColumnMode] = useState<ColumnMode>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`${storageKeyBase}-column-mode`);
+      if (saved === "auto" || saved === "1" || saved === "2" || saved === "3")
+        return saved as ColumnMode;
     }
-  );
+    return defaultColumnMode;
+  });
 
   const [compactCardSizeIndex, setCompactCardSizeIndex] = useState(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(`${storageKeyBase}-compact-size-index`);
+      const saved = localStorage.getItem(
+        `${storageKeyBase}-compact-size-index`,
+      );
       if (saved) return parseInt(saved, 10);
     }
     // 5 steps: 1=80, 2=120, 3=160, 4=200, 5=240. Default 140 -> maps closely to 3 (160) or 2 (120).
-    return Math.max(1, Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1));
+    return Math.max(
+      1,
+      Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1),
+    );
   });
 
   useEffect(() => {
@@ -212,7 +195,9 @@ function GenericItemPageInternal<T extends { id: string }>({
         : defaultViewMode,
     );
 
-    const savedColumnMode = localStorage.getItem(`${storageKeyBase}-column-mode`);
+    const savedColumnMode = localStorage.getItem(
+      `${storageKeyBase}-column-mode`,
+    );
     setColumnMode(
       savedColumnMode === "auto" ||
         savedColumnMode === "1" ||
@@ -233,7 +218,14 @@ function GenericItemPageInternal<T extends { id: string }>({
             Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1),
           ),
     );
-  }, [defaultColumnMode, defaultCompactSize, defaultViewMode, prevTitle, storageKeyBase, title]);
+  }, [
+    defaultColumnMode,
+    defaultCompactSize,
+    defaultViewMode,
+    prevTitle,
+    storageKeyBase,
+    title,
+  ]);
 
   useEffect(() => {
     localStorage.setItem(`${storageKeyBase}-view-mode`, viewMode);
@@ -244,7 +236,10 @@ function GenericItemPageInternal<T extends { id: string }>({
   }, [columnMode, storageKeyBase]);
 
   useEffect(() => {
-    localStorage.setItem(`${storageKeyBase}-compact-size-index`, compactCardSizeIndex.toString());
+    localStorage.setItem(
+      `${storageKeyBase}-compact-size-index`,
+      compactCardSizeIndex.toString(),
+    );
   }, [compactCardSizeIndex, storageKeyBase]);
 
   const actualCardSize = 80 + (compactCardSizeIndex - 1) * 40;
@@ -362,8 +357,7 @@ function GenericItemPageInternal<T extends { id: string }>({
       );
       const end = Math.min(
         Math.max(0, totalRows - 1),
-        Math.ceil(relativeBottom / estimatedRowHeight) +
-          VIRTUAL_OVERSCAN_ROWS,
+        Math.ceil(relativeBottom / estimatedRowHeight) + VIRTUAL_OVERSCAN_ROWS,
       );
 
       setVirtualRows((prev) =>
@@ -394,7 +388,8 @@ function GenericItemPageInternal<T extends { id: string }>({
     if (!shouldVirtualize) return;
     const initialVisibleRows = Math.max(
       1,
-      Math.ceil(window.innerHeight / estimatedRowHeight) + VIRTUAL_OVERSCAN_ROWS,
+      Math.ceil(window.innerHeight / estimatedRowHeight) +
+        VIRTUAL_OVERSCAN_ROWS,
     );
     setVirtualRows({
       start: 0,
@@ -544,13 +539,6 @@ function GenericItemPageInternal<T extends { id: string }>({
           </div>
         )}
       </div>
-
-      {reforged && (
-        <div className="rounded-2xl bg-card/60 px-4 py-3 text-sm text-muted-foreground">
-          Reference data only. Use the copy button on any card to add it to your
-          project.
-        </div>
-      )}
 
       <div className="border-b border-border w-full" />
 
@@ -708,9 +696,7 @@ function GenericItemPageInternal<T extends { id: string }>({
                 value={viewMode}
                 onValueChange={(v) =>
                   v &&
-                  startTransition(() =>
-                    setViewMode(v as "regular" | "compact"),
-                  )
+                  startTransition(() => setViewMode(v as "regular" | "compact"))
                 }
                 className="rounded-xl border border-border bg-card shadow-sm overflow-hidden h-9"
               >

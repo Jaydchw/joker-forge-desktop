@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useModName, useProjectData } from "@/lib/storage";
 import { slugify } from "@/lib/balatro-utils";
 import { ConsumableSetData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   BookmarksSimple,
   Copy,
@@ -189,8 +190,7 @@ export default function ConsumableSetsPage() {
     () => ({
       placeholder: "Search sets by name or key...",
       searchFn: (item: ConsumableSetData, term: string) =>
-        item.name.toLowerCase().includes(term) ||
-        item.key.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name, item.key], term),
     }),
     [],
   );
@@ -342,3 +342,6 @@ export default function ConsumableSetsPage() {
     </>
   );
 }
+
+
+

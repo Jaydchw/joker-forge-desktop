@@ -11,6 +11,7 @@ import {
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
 import { JokerData, Rule, UserVariable } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   getRarityBadgeColor,
   getRarityDisplayName,
@@ -246,8 +247,7 @@ export default function JokersPage() {
   const searchProps = useMemo(
     () => ({
       searchFn: (item: JokerData, term: string) =>
-        item.name.toLowerCase().includes(term) ||
-        item.description.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name, item.description], term),
     }),
     [],
   );
@@ -754,3 +754,6 @@ export default function JokersPage() {
     </>
   );
 }
+
+
+

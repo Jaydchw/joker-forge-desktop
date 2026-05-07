@@ -9,6 +9,7 @@ import {
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
 import { Rule, SealData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   PencilSimple,
   Sparkle,
@@ -179,7 +180,7 @@ export default function SealsPage() {
   const searchProps = useMemo(
     () => ({
       searchFn: (item: SealData, term: string) =>
-        item.name.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name], term),
     }),
     [],
   );
@@ -535,3 +536,6 @@ export default function SealsPage() {
     </>
   );
 }
+
+
+

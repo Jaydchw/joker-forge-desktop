@@ -9,6 +9,7 @@ import {
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
 import { DeckData, Rule } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   PencilSimple,
   Sparkle,
@@ -182,7 +183,7 @@ export default function DecksPage() {
   const searchProps = useMemo(
     () => ({
       searchFn: (item: DeckData, term: string) =>
-        item.name.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name], term),
     }),
     [],
   );
@@ -566,3 +567,6 @@ export default function DecksPage() {
     </>
   );
 }
+
+
+

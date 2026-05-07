@@ -12,6 +12,7 @@ import {
   CaretDown,
 } from "@phosphor-icons/react";
 import Panel from "./panel";
+import { fuzzyMatchAny, fuzzyMatch } from "@/lib/search";
 
 interface GameVariablesProps {
   position: { x: number; y: number };
@@ -42,10 +43,7 @@ const GameVariables: React.FC<GameVariablesProps> = ({
     const search = searchTerm.toLowerCase();
     return GAME_VARIABLE_CATEGORIES.map((category) => {
       const matchingVariables = category.variables.filter(
-        (variable) =>
-          variable.label.toLowerCase().includes(search) ||
-          variable.description.toLowerCase().includes(search) ||
-          variable.id.toLowerCase().includes(search),
+        (variable) => fuzzyMatchAny([variable.label, variable.description, variable.id], search),
       );
 
       const matchingSubcategories =
@@ -54,14 +52,12 @@ const GameVariables: React.FC<GameVariablesProps> = ({
             ...subcategory,
             variables: subcategory.variables.filter(
               (variable) =>
-                variable.label.toLowerCase().includes(search) ||
-                variable.description.toLowerCase().includes(search) ||
-                variable.id.toLowerCase().includes(search),
+                fuzzyMatchAny([variable.label, variable.description, variable.id], search),
             ),
           }))
           .filter((subcategory) => subcategory.variables.length > 0) || [];
 
-      const categoryMatches = category.label.toLowerCase().includes(search);
+      const categoryMatches = fuzzyMatch(category.label, search);
 
       if (
         categoryMatches ||

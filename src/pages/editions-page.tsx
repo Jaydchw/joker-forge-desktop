@@ -11,6 +11,7 @@ import {
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
 import { EditionData, Rule } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   Palette,
   PencilSimple,
@@ -190,7 +191,7 @@ export default function EditionsPage() {
   const searchProps = useMemo(
     () => ({
       searchFn: (item: EditionData, term: string) =>
-        item.name.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name], term),
     }),
     [],
   );
@@ -543,3 +544,6 @@ export default function EditionsPage() {
     </>
   );
 }
+
+
+

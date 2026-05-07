@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useModName, useProjectData } from "@/lib/storage";
 import { slugify } from "@/lib/balatro-utils";
 import { RarityData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   BookmarksSimple,
   Copy,
@@ -178,8 +179,7 @@ export default function RaritiesPage() {
     () => ({
       placeholder: "Search rarities by name or key...",
       searchFn: (item: RarityData, term: string) =>
-        item.name.toLowerCase().includes(term) ||
-        item.key.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name, item.key], term),
     }),
     [],
   );
@@ -323,3 +323,6 @@ export default function RaritiesPage() {
     </>
   );
 }
+
+
+

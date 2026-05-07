@@ -9,6 +9,7 @@ import {
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
 import { ConsumableData, Rule } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   PencilSimple,
   Sparkle,
@@ -226,7 +227,7 @@ export default function ConsumablesPage() {
   const searchProps = useMemo(
     () => ({
       searchFn: (item: ConsumableData, term: string) =>
-        item.name.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name], term),
     }),
     [],
   );
@@ -617,3 +618,6 @@ export default function ConsumablesPage() {
     </>
   );
 }
+
+
+

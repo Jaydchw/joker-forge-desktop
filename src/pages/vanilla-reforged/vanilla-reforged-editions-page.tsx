@@ -6,6 +6,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { useProjectData } from "@/lib/storage";
 import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
 import { EditionData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import { slugify } from "@/lib/balatro-utils";
 import { Copy, Prohibit, Storefront, Sparkle } from "@phosphor-icons/react";
 
@@ -40,8 +41,7 @@ export default function VanillaReforgedEditionsPage() {
     () => ({
       placeholder: "Search vanilla editions...",
       searchFn: (item: EditionData, term: string) =>
-        item.name.toLowerCase().includes(term) ||
-        item.description.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name, item.description], term),
     }),
     [],
   );
@@ -157,3 +157,6 @@ export default function VanillaReforgedEditionsPage() {
     </>
   );
 }
+
+
+

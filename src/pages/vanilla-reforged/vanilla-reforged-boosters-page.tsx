@@ -5,6 +5,7 @@ import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { useProjectData } from "@/lib/storage";
 import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
 import { BoosterData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import { slugify } from "@/lib/balatro-utils";
 import { Copy, Eye, EyeSlash, Lock, LockOpen } from "@phosphor-icons/react";
 
@@ -36,8 +37,7 @@ export default function VanillaReforgedBoostersPage() {
     () => ({
       placeholder: "Search vanilla boosters...",
       searchFn: (item: BoosterData, term: string) =>
-        item.name.toLowerCase().includes(term) ||
-        item.description.toLowerCase().includes(term),
+        fuzzyMatchAny([item.name, item.description], term),
     }),
     [],
   );
@@ -146,3 +146,6 @@ export default function VanillaReforgedBoostersPage() {
     />
   );
 }
+
+
+

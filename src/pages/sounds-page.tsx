@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { useProjectData, useModName } from "@/lib/storage";
 import { SoundData } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/search";
 import {
   BookmarksSimple,
   PencilSimple,
@@ -82,7 +83,7 @@ export default function SoundsPage() {
         addNewLabel="Create Sound"
         addFromTemplateLabel="Create Sound from Template"
         searchProps={{
-          searchFn: (item, term) => item.key.toLowerCase().includes(term),
+          searchFn: (item, term) => fuzzyMatchAny([item.key], term),
         }}
         sortOptions={[
           {
@@ -165,4 +166,7 @@ export default function SoundsPage() {
     </>
   );
 }
+
+
+
 
