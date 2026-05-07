@@ -30,6 +30,11 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Separator as UiSeparator } from "@/components/ui/separator";
 import {
@@ -42,6 +47,12 @@ import {
   Sparkle,
   Trash,
   Image as ImageIcon,
+  TextT,
+  Palette,
+  Cube,
+  User,
+  List,
+  MagnifyingGlass,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
   ArrowCounterClockwise,
@@ -64,6 +75,7 @@ import {
   sanitizeKeyLikeValue,
   validateFieldValueBasic,
 } from "@/lib/item-field-validation";
+import { fuzzyMatchAny } from "@/lib/search";
 
 export type FieldType =
   | "text"
@@ -250,18 +262,124 @@ const RichTextarea = memo(
     };
   }) => {
     const [autoFormat, setAutoFormat] = useState(true);
+    const [variableSearch, setVariableSearch] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const historyRef = useRef<string[]>([]);
+    const historyIndexRef = useRef(-1);
+    const applyingHistoryRef = useRef(false);
+
     const variableTokens = useMemo(
       () => buildDescriptionVariableTokens(item),
       [item],
     );
-    const placeholderIndexes = useMemo(() => {
-      const matches = Array.from((value || "").matchAll(/#(\d+)#/g));
-      const unique = Array.from(
-        new Set(matches.map((match) => Number(match[1])).filter((n) => n > 0)),
-      );
-      return unique.sort((a, b) => a - b);
+
+    useEffect(() => {
+      if (applyingHistoryRef.current) {
+        applyingHistoryRef.current = false;
+        return;
+      }
+
+      const history = historyRef.current;
+      const currentIndex = historyIndexRef.current;
+      if (currentIndex >= 0 && history[currentIndex] === value) {
+        return;
+      }
+
+      const nextHistory =
+        currentIndex < history.length - 1
+          ? history.slice(0, currentIndex + 1)
+          : history.slice();
+      nextHistory.push(value || "");
+      historyRef.current = nextHistory;
+      historyIndexRef.current = nextHistory.length - 1;
     }, [value]);
+
+    const userVariablesByName = useMemo(() => {
+      const map = new Map<string, UserVariable>();
+      for (const variable of item?.userVariables || []) {
+        if (!variable?.name) continue;
+        map.set(variable.name.trim().toLowerCase(), variable);
+      }
+      return map;
+    }, [item?.userVariables]);
+
+    const groupedVariableEntries = useMemo(() => {
+      const groups: Array<{
+        id:
+          | "user"
+          | "generated"
+          | "game"
+          | "userGlobal"
+          | "userGlobalPersistent";
+        label: string;
+        items: Array<{
+          index: number;
+          token: (typeof variableTokens)[number];
+        }>;
+      }> = [
+        { id: "user", label: "User", items: [] },
+        { id: "userGlobal", label: "User Global", items: [] },
+        {
+          id: "userGlobalPersistent",
+          label: "User Global Persistent",
+          items: [],
+        },
+        { id: "generated", label: "Generated", items: [] },
+        { id: "game", label: "Game", items: [] },
+      ];
+
+      variableTokens.forEach((token, idx) => {
+        if (token.category === "loc") return;
+
+        const index = idx + 1;
+        const labelText = `#${index}# ${token.label}`;
+        const sourceText = token.source;
+        if (
+          variableSearch.trim() &&
+          !fuzzyMatchAny([labelText, sourceText], variableSearch)
+        ) {
+          return;
+        }
+
+        if (token.category === "config") {
+          groups[3].items.push({ index, token });
+          return;
+        }
+
+        if (token.category === "game") {
+          groups[4].items.push({ index, token });
+          return;
+        }
+
+        if (token.category === "user") {
+          const name = token.source.replace("card.ability.extra.", "").trim();
+          const matchedVar = userVariablesByName.get(name.toLowerCase());
+          if (matchedVar?.isGlobal && matchedVar?.isPersistent) {
+            groups[2].items.push({ index, token });
+            return;
+          }
+          if (matchedVar?.isGlobal) {
+            groups[1].items.push({ index, token });
+            return;
+          }
+          groups[0].items.push({ index, token });
+        }
+      });
+
+      return groups.filter((group) => group.items.length > 0);
+    }, [userVariablesByName, variableSearch, variableTokens]);
+
+    const applyValueWithCursor = useCallback(
+      (nextValue: string, cursor: number) => {
+        onChange(nextValue);
+        requestAnimationFrame(() => {
+          if (!textareaRef.current) return;
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(cursor, cursor);
+        });
+      },
+      [onChange],
+    );
 
     const insertTag = useCallback(
       (tag: string, autoClose = true) => {
@@ -297,208 +415,267 @@ const RichTextarea = memo(
         const formattedVal = autoFormat
           ? applyAutoFormatting(newVal, value).formatted
           : newVal;
-        onChange(formattedVal);
-
-        requestAnimationFrame(() => {
-          if (textarea) {
-            textarea.focus();
-            textarea.setSelectionRange(newCursor, newCursor);
-          }
-        });
+        applyValueWithCursor(formattedVal, newCursor);
       },
-      [autoFormat, onChange, value],
+      [applyValueWithCursor, autoFormat, value],
     );
 
     const handleTextChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
-        if (autoFormat) {
-          const { formatted } = applyAutoFormatting(val, value);
-          onChange(formatted);
-        } else {
-          onChange(val);
-        }
+        const formattedVal = autoFormat
+          ? applyAutoFormatting(val, value).formatted
+          : val;
+        onChange(formattedVal);
       },
       [autoFormat, onChange, value],
     );
 
+    const handleUndoRedo = useCallback(
+      (direction: "undo" | "redo") => {
+        const history = historyRef.current;
+        if (history.length === 0) return;
+
+        const currentIndex = historyIndexRef.current;
+        const nextIndex =
+          direction === "undo" ? currentIndex - 1 : currentIndex + 1;
+        if (nextIndex < 0 || nextIndex >= history.length) return;
+
+        historyIndexRef.current = nextIndex;
+        applyingHistoryRef.current = true;
+        onChange(history[nextIndex]);
+      },
+      [onChange],
+    );
+
     const handleTextKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        // Balatro line breaks are encoded as [s], not raw newlines.
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          handleUndoRedo(e.shiftKey ? "redo" : "undo");
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+          e.preventDefault();
+          handleUndoRedo("redo");
+          return;
+        }
+
         if (e.key === "Enter") {
           e.preventDefault();
           insertTag("[s]", false);
         }
       },
-      [insertTag],
+      [handleUndoRedo, insertTag],
     );
 
+    const quickEffects = [
+      {
+        key: "newline",
+        icon: <TextT className="h-3.5 w-3.5" />,
+        label: "New Line",
+        action: () => insertTag("[s]", false),
+      },
+      {
+        key: "scale",
+        icon: <Cube className="h-3.5 w-3.5" />,
+        label: "Scale",
+        action: () => insertTag("{s:1.1}"),
+      },
+      {
+        key: "float",
+        icon: <Sparkle className="h-3.5 w-3.5" />,
+        label: "Float",
+        action: () => insertTag("{E:1}"),
+      },
+      {
+        key: "reset",
+        icon: <ArrowCounterClockwise className="h-3.5 w-3.5" />,
+        label: "Reset",
+        action: () => insertTag("{}", false),
+      },
+    ];
+
     return (
-      <div className="space-y-3">
-        <div className="bg-muted/40 border border-border rounded-md p-3 space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs font-medium text-muted-foreground">
-              Formatting Tools
+      <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+          <aside className="bg-background/20 p-3.5 flex flex-col min-h-0 rounded-lg">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2.5 flex items-center gap-1.5">
+              <List className="h-3.5 w-3.5" />
+              Variables
+            </p>
+            <div className="relative w-full">
+              <MagnifyingGlass className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/80" />
+              <Input
+                value={variableSearch}
+                onChange={(e) => setVariableSearch(e.target.value)}
+                placeholder="ExampleVar1"
+                className="h-8 pl-7 text-[11px] bg-background/60 w-full"
+              />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground hidden sm:inline">
-                Ctrl+Z to undo
-              </span>
-              <Button
-                variant={autoFormat ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setAutoFormat(!autoFormat)}
-                className="h-7 text-[11px] px-2 cursor-pointer"
-              >
-                <Sparkle
-                  className={cn("h-3 w-3 mr-1", autoFormat && "text-primary")}
-                  weight={autoFormat ? "fill" : "regular"}
-                />
-                Auto Format
-              </Button>
-            </div>
-          </div>
+            <UiSeparator className="my-2.5 bg-border/40" />
+            <ScrollArea className="h-[22.5rem] pr-1">
+              <div className="space-y-3.5 pb-1">
+                {groupedVariableEntries.length > 0 ? (
+                  groupedVariableEntries.map((group) => (
+                    <div key={group.id} className="space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/85 flex items-center gap-1.5">
+                        {group.id === "user" && <User className="h-3 w-3" />}
+                        {group.id === "userGlobal" && (
+                          <User className="h-3 w-3" />
+                        )}
+                        {group.id === "userGlobalPersistent" && (
+                          <User className="h-3 w-3" />
+                        )}
+                        {group.id === "generated" && (
+                          <Sparkle className="h-3 w-3" />
+                        )}
+                        {group.id === "game" && <Cube className="h-3 w-3" />}
+                        <span>{group.label}</span>
+                      </p>
+                      <div className="space-y-2">
+                        {group.items.map(({ token, index }) => (
+                          <Tooltip
+                            key={`desc-var-${token.category}-${token.source}-${index}`}
+                          >
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => insertTag(`#${index}#`, false)}
+                                className="w-full text-left px-2.5 py-2 rounded-md bg-background/45 hover:bg-background/80 transition-colors cursor-pointer"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="text-xs font-medium text-foreground truncate">
+                                    {token.label}
+                                  </span>
+                                  <span className="text-[10px] font-semibold text-primary shrink-0">
+                                    #{index}#
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                                  {token.source}
+                                </div>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Insert #{index}#</TooltipContent>
+                          </Tooltip>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    No variables match your search.
+                  </p>
+                )}
+              </div>
+            </ScrollArea>
+          </aside>
 
           <div className="space-y-3">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                Text Colors
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {COLOR_BUTTONS.map((btn) => (
-                  <button
-                    key={btn.name}
-                    type="button"
-                    onClick={() => insertTag(btn.tag)}
-                    className={cn(
-                      "w-6 h-6 rounded border border-border/60 hover:scale-110 transition-transform cursor-pointer",
-                      btn.color,
-                    )}
-                    title={btn.name}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                Backgrounds
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {BG_BUTTONS.map((btn) => (
-                  <button
-                    key={btn.name}
-                    type="button"
-                    onClick={() => insertTag(btn.tag)}
-                    className={cn(
-                      "w-6 h-6 rounded border-2 border-background/80 hover:scale-110 transition-transform cursor-pointer",
-                      btn.color,
-                    )}
-                    title={btn.name}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {(variableTokens.length > 0 || placeholderIndexes.length > 0) && (
+            <div className="space-y-3 rounded-lg bg-background/20 p-3.5">
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">
-                  Variables
+                <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <TextT className="h-3.5 w-3.5" />
+                  Text Colors
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {variableTokens.length > 0
-                    ? variableTokens.map((token, index) => {
-                        const label = token.label;
-                        const compactLabel =
-                          label.length > 32
-                            ? `${label.slice(0, 29)}...`
-                            : label;
-
-                        return (
-                          <button
-                            key={`desc-var-${token.category}-${token.source}-${index}`}
-                            type="button"
-                            onClick={() => insertTag(`#${index + 1}#`, false)}
-                            className="px-2 py-1 text-[11px] rounded-md border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 transition-colors"
-                            title={`Insert #${index + 1}# (${token.source})`}
-                          >
-                            {compactLabel} (#{index + 1}#)
-                          </button>
-                        );
-                      })
-                    : placeholderIndexes.map((index) => (
+                <div className="flex flex-wrap gap-1.5">
+                  {COLOR_BUTTONS.map((btn) => (
+                    <Tooltip key={btn.name}>
+                      <TooltipTrigger asChild>
                         <button
-                          key={`placeholder-var-${index}`}
                           type="button"
-                          onClick={() => insertTag(`#${index}#`, false)}
-                          className="px-2 py-1 text-[11px] rounded-md border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 transition-colors"
-                          title={`Insert #${index}#`}
-                        >
-                          Variable #{index}#
-                        </button>
-                      ))}
+                          onClick={() => insertTag(btn.tag)}
+                          className={cn(
+                            "h-6 w-6 rounded-md hover:scale-105 transition-transform cursor-pointer",
+                            btn.color,
+                          )}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>{btn.name}</TooltipContent>
+                    </Tooltip>
+                  ))}
                 </div>
               </div>
-            )}
 
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                Special Effects
-              </p>
-              <div className="flex flex-wrap gap-2">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Palette className="h-3.5 w-3.5" />
+                  Background Colors
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {BG_BUTTONS.map((btn) => (
+                    <Tooltip key={btn.name}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => insertTag(btn.tag)}
+                          className={cn(
+                            "h-6 w-6 rounded-md hover:scale-105 transition-transform cursor-pointer",
+                            btn.color,
+                          )}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>{btn.name}</TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center mt-4 -mb-4">
+                {quickEffects.map((effect) => (
+                  <Tooltip key={effect.key}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-7 w-7 cursor-pointer"
+                        onClick={effect.action}
+                      >
+                        {effect.icon}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{effect.label}</TooltipContent>
+                  </Tooltip>
+                ))}
                 <Button
-                  size="sm"
                   variant="outline"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => insertTag("[s]", false)}
+                  size="icon"
+                  onClick={() => setAutoFormat(!autoFormat)}
+                  className={cn(
+                    "h-7 w-7 cursor-pointer ml-auto",
+                    autoFormat && "bg-accent text-accent-foreground",
+                  )}
                 >
-                  New Line
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => insertTag("{s:1.1}")}
-                >
-                  Scale
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => insertTag("{E:1}")}
-                >
-                  Float
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => insertTag("{}", false)}
-                >
-                  Reset
+                  <Sparkle
+                    className={cn("h-3.5 w-3.5", autoFormat && "text-primary")}
+                    weight={autoFormat ? "fill" : "regular"}
+                  />
                 </Button>
               </div>
+            </div>
+            <div className="px-3.5">
+              <Textarea
+                ref={textareaRef}
+                value={value || ""}
+                onChange={handleTextChange}
+                onKeyDown={handleTextKeyDown}
+                placeholder={placeholder}
+                className={cn(
+                  "font-mono text-sm min-h-60 resize-y bg-background/40 border-border/40 cursor-text",
+                  error && "border-destructive focus-visible:ring-destructive",
+                )}
+              />
+              {error && (
+                <p className="text-xs text-destructive mt-1">{error}</p>
+              )}
             </div>
           </div>
         </div>
-        <Textarea
-          ref={textareaRef}
-          value={value || ""}
-          onChange={handleTextChange}
-          onKeyDown={handleTextKeyDown}
-          placeholder={placeholder}
-          className={cn(
-            "font-mono text-sm min-h-30 resize-y bg-background border-muted-foreground/20 cursor-text",
-            error && "border-destructive focus-visible:ring-destructive",
-          )}
-        />
-        {error && <p className="text-xs text-destructive mt-1">{error}</p>}
       </div>
     );
   },
 );
-
 const MemoizedField = memo(
   ({
     field,
@@ -891,6 +1068,22 @@ const MemoizedField = memo(
       );
     }
 
+    if (field.type === "rich-textarea") {
+      return (
+        <div className="space-y-2 py-2">
+          <Label className="text-sm font-bold text-foreground/80 block">
+            {field.label}
+          </Label>
+          {content}
+          {field.description && (
+            <p className="text-[0.7rem] text-muted-foreground mt-1 leading-snug">
+              {field.description}
+            </p>
+          )}
+        </div>
+      );
+    }
+
     if (inGrid) {
       return (
         <div className="space-y-2">
@@ -995,13 +1188,16 @@ const PreviewPanel = memo(
       [isPanning],
     );
 
-    const handlePanEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-      setIsPanning(false);
-      panLastRef.current = null;
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      }
-    }, []);
+    const handlePanEnd = useCallback(
+      (e: React.PointerEvent<HTMLDivElement>) => {
+        setIsPanning(false);
+        panLastRef.current = null;
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+      },
+      [],
+    );
 
     if (!item) return null;
 
@@ -1184,46 +1380,49 @@ function GenericItemDialogInternal<T extends { id: string }>({
     };
   }, [open, placeholderCategory, showPlaceholderPicker]);
 
-  const handleChange = useCallback((path: string, value: any) => {
-    const fieldConfig = fieldConfigById.get(path);
-    const nextValue = fieldConfig
-      ? sanitizeFieldValue(fieldConfig.type, path, value)
-      : value;
+  const handleChange = useCallback(
+    (path: string, value: any) => {
+      const fieldConfig = fieldConfigById.get(path);
+      const nextValue = fieldConfig
+        ? sanitizeFieldValue(fieldConfig.type, path, value)
+        : value;
 
-    setFormData((prev: any) => {
-      if (!prev) return null;
-      let newData = setNestedValue(prev, path, nextValue);
+      setFormData((prev: any) => {
+        if (!prev) return null;
+        let newData = setNestedValue(prev, path, nextValue);
 
-      if (path === "name" && typeof nextValue === "string") {
-        const currentName = prev.name || "";
-        const currentKey = prev.objectKey || "";
-        const oldSlug = sanitizeKeyLikeValue(currentName);
+        if (path === "name" && typeof nextValue === "string") {
+          const currentName = prev.name || "";
+          const currentKey = prev.objectKey || "";
+          const oldSlug = sanitizeKeyLikeValue(currentName);
 
-        if (
-          !currentKey ||
-          currentKey === oldSlug ||
-          currentKey.startsWith("new_") ||
-          currentKey === "unnamed_item"
-        ) {
-          newData = setNestedValue(
-            newData,
-            "objectKey",
-            sanitizeKeyLikeValue(nextValue),
-          );
+          if (
+            !currentKey ||
+            currentKey === oldSlug ||
+            currentKey.startsWith("new_") ||
+            currentKey === "unnamed_item"
+          ) {
+            newData = setNestedValue(
+              newData,
+              "objectKey",
+              sanitizeKeyLikeValue(nextValue),
+            );
+          }
         }
-      }
-      return newData;
-    });
+        return newData;
+      });
 
-    setErrors((prev) => {
-      if (prev[path]) {
-        const newErrors = { ...prev };
-        delete newErrors[path];
-        return newErrors;
-      }
-      return prev;
-    });
-  }, [fieldConfigById]);
+      setErrors((prev) => {
+        if (prev[path]) {
+          const newErrors = { ...prev };
+          delete newErrors[path];
+          return newErrors;
+        }
+        return prev;
+      });
+    },
+    [fieldConfigById],
+  );
 
   const handleSave = useCallback(() => {
     if (!formData || !formData.id) return;
