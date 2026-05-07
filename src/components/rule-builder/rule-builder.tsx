@@ -190,6 +190,55 @@ const resolveParameterDefaultValue = (
   return options?.[0]?.value;
 };
 
+const normalizeParamsForDefinition = (
+  params: Record<string, { value: unknown; valueType?: string }> | undefined,
+  definitionParams: Array<ConditionParameter | EffectParameter>,
+): Record<string, { value: unknown; valueType?: string }> => {
+  const sourceParams = params ?? {};
+  const normalizedParams: Record<string, { value: unknown; valueType?: string }> =
+    { ...sourceParams };
+
+  for (const param of definitionParams) {
+    const existing = sourceParams[param.id];
+    if (existing !== undefined) {
+      normalizedParams[param.id] = {
+        ...existing,
+        valueType:
+          existing.valueType !== undefined
+            ? existing.valueType
+            : detectValueType(existing.value),
+      };
+      continue;
+    }
+
+    const defaultValue = resolveParameterDefaultValue(param, normalizedParams);
+    normalizedParams[param.id] = {
+      value: defaultValue,
+      valueType: detectValueType(defaultValue),
+    };
+  }
+
+  return normalizedParams;
+};
+
+const normalizeConditionFromCatalog = (condition: Condition): Condition => {
+  const definition = getConditionTypeById(condition.type);
+  if (!definition) return condition;
+  return {
+    ...condition,
+    params: normalizeParamsForDefinition(condition.params, definition.params),
+  };
+};
+
+const normalizeEffectFromCatalog = (effect: Effect): Effect => {
+  const definition = getEffectTypeById(effect.type);
+  if (!definition) return effect;
+  return {
+    ...effect,
+    params: normalizeParamsForDefinition(effect.params, definition.params),
+  };
+};
+
 interface RuleBuilderProps {
   isOpen: boolean;
   onClose: () => void;
@@ -824,8 +873,27 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     if (isOpen) {
       const normalizedRules = existingRules.map((rule) => ({
         ...rule,
-        randomGroups: rule.randomGroups || [],
-        loops: rule.loops || [],
+        conditionGroups: (rule.conditionGroups || []).map((group: any) => ({
+          ...group,
+          conditions: (group.conditions || []).map((condition: Condition) =>
+            normalizeConditionFromCatalog(condition),
+          ),
+        })),
+        effects: (rule.effects || []).map((effect: Effect) =>
+          normalizeEffectFromCatalog(effect),
+        ),
+        randomGroups: (rule.randomGroups || []).map((group: RandomGroup) => ({
+          ...group,
+          effects: (group.effects || []).map((effect: Effect) =>
+            normalizeEffectFromCatalog(effect),
+          ),
+        })),
+        loops: (rule.loops || []).map((group: LoopGroup) => ({
+          ...group,
+          effects: (group.effects || []).map((effect: Effect) =>
+            normalizeEffectFromCatalog(effect),
+          ),
+        })),
       }));
       const initialSnapshot = cloneRulesSnapshot(normalizedRules);
       historyPastRef.current = [];

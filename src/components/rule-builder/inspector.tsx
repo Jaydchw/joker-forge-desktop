@@ -118,7 +118,7 @@ interface InspectorProps {
 
 interface ParameterFieldProps {
   param: ConditionParameter | EffectParameter;
-  item: { value: unknown; valueType?: string };
+  item?: { value: unknown; valueType?: string };
   selectedRule: Rule;
   onChange: (param: { value: unknown; valueType?: string }) => void;
   selectedCondition?: Condition;
@@ -349,11 +349,7 @@ const ChanceInput: React.FC<ChanceInputProps> = React.memo(
           <div className="space-y-2 w-full">
             {availableVariables.length > 0 ? (
               <Select
-                value={
-                  ((actualValue as string) || "") === ""
-                    ? undefined
-                    : String(actualValue)
-                }
+                value={String(actualValue ?? "")}
                 onValueChange={(selectedValue) => {
                   const selectedOption = availableVariables.find(
                     (opt) => String(opt.value) === selectedValue,
@@ -436,7 +432,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
   joker = null,
   itemType,
 }) => {
-  const value = item.value;
+  const value = item?.value;
   const [isVariableMode, setIsVariableMode] = React.useState(
     typeof value === "string" &&
       !value.startsWith("GAMEVAR:") &&
@@ -866,7 +862,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
             </Button>
           ) : (
             <Select
-              value={((value as string) || "") === "" ? undefined : String(value)}
+              value={String(value ?? "")}
               onValueChange={(selectedValue) => {
                 const selectedOption = options.find(
                   (opt) => String(opt.value) === selectedValue,
@@ -1166,9 +1162,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
             <div className="space-y-2">
               {availableVariables && availableVariables.length > 0 ? (
                 <Select
-                  value={
-                    ((value as string) || "") === "" ? undefined : String(value)
-                  }
+                  value={String(value ?? "")}
                   onValueChange={(selectedValue) => {
                     const selectedOption = availableVariables.find(
                       (opt) => String(opt.value) === selectedValue,
