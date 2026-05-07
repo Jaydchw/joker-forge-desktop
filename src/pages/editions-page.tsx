@@ -33,6 +33,10 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 import { collectGlobalVariables } from "@/lib/global-user-variables";
+import {
+  generateDescriptionFromRules,
+  shouldOverwriteDescriptionOnRuleSave,
+} from "@/lib/rules/auto-description";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import {
   instantiateItemFromTemplate,
@@ -82,7 +86,17 @@ export default function EditionsPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
-      handleUpdate(ruleEditingItem.id, { rules });
+      const updates: Partial<EditionData> = { rules };
+      if (
+        shouldOverwriteDescriptionOnRuleSave(
+          ruleEditingItem.description,
+          ruleEditingItem.rules,
+          "edition",
+        )
+      ) {
+        updates.description = generateDescriptionFromRules(rules, "edition");
+      }
+      handleUpdate(ruleEditingItem.id, updates);
     },
     [handleUpdate, ruleEditingItem],
   );

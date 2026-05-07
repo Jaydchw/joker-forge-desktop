@@ -40,6 +40,10 @@ import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import { exportSingleItemRust } from "@/lib/rust-codegen-export";
 import { collectGlobalVariables } from "@/lib/global-user-variables";
 import {
+  generateDescriptionFromRules,
+  shouldOverwriteDescriptionOnRuleSave,
+} from "@/lib/rules/auto-description";
+import {
   instantiateItemFromTemplate,
   useTemplateStore,
   type ItemTemplateEntry,
@@ -87,7 +91,17 @@ export default function EnhancementsPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
-      handleUpdate(ruleEditingItem.id, { rules });
+      const updates: Partial<EnhancementData> = { rules };
+      if (
+        shouldOverwriteDescriptionOnRuleSave(
+          ruleEditingItem.description,
+          ruleEditingItem.rules,
+          "enhancement",
+        )
+      ) {
+        updates.description = generateDescriptionFromRules(rules, "enhancement");
+      }
+      handleUpdate(ruleEditingItem.id, updates);
     },
     [handleUpdate, ruleEditingItem],
   );

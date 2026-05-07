@@ -70,6 +70,7 @@ import {
 } from "@/lib/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
+import { generateDescriptionFromRules } from "@/lib/rules/auto-description";
 import {
   sanitizeFieldValue,
   sanitizeKeyLikeValue,
@@ -256,6 +257,7 @@ const RichTextarea = memo(
     placeholder?: string;
     error?: string;
     item?: {
+      objectType?: string;
       rules?: Rule[];
       userVariables?: UserVariable[];
       locVars?: { vars?: Array<string | number> };
@@ -272,6 +274,18 @@ const RichTextarea = memo(
       () => buildDescriptionVariableTokens(item),
       [item],
     );
+    const generatedDescription = useMemo(() => {
+      const objectType = (item?.objectType || "joker") as
+        | "joker"
+        | "consumable"
+        | "voucher"
+        | "deck"
+        | "enhancement"
+        | "edition"
+        | "seal"
+        | "card";
+      return generateDescriptionFromRules(item?.rules, objectType);
+    }, [item?.objectType, item?.rules]);
 
     useEffect(() => {
       if (applyingHistoryRef.current) {
@@ -629,7 +643,7 @@ const RichTextarea = memo(
                       <Button
                         size="icon"
                         variant="outline"
-                        className="h-7 w-7 cursor-pointer"
+                        className="h-7 w-7 cursor-pointer mr-1.5"
                         onClick={effect.action}
                       >
                         {effect.icon}
@@ -640,18 +654,34 @@ const RichTextarea = memo(
                 ))}
                 <Button
                   variant="outline"
-                  size="icon"
-                  onClick={() => setAutoFormat(!autoFormat)}
-                  className={cn(
-                    "h-7 w-7 cursor-pointer ml-auto",
-                    autoFormat && "bg-accent text-accent-foreground",
-                  )}
+                  size="sm"
+                  onClick={() => onChange(generatedDescription)}
+                  className="h-7 cursor-pointer ml-auto mr-2 text-xs gap-1.5"
                 >
-                  <Sparkle
-                    className={cn("h-3.5 w-3.5", autoFormat && "text-primary")}
-                    weight={autoFormat ? "fill" : "regular"}
-                  />
+                  <Sparkle className="h-3.5 w-3.5" />
+                  Generate
                 </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setAutoFormat(!autoFormat)}
+                      className={cn(
+                        "h-7 w-7 cursor-pointer",
+                        autoFormat && "bg-accent text-accent-foreground",
+                      )}
+                    >
+                      <Sparkle
+                        className={cn("h-3.5 w-3.5", autoFormat && "text-primary")}
+                        weight={autoFormat ? "fill" : "regular"}
+                      />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="font-bold">
+                    Auto Format {autoFormat ? "On" : "Off"}
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
             <div className="px-3.5">
@@ -1437,6 +1467,9 @@ function GenericItemDialogInternal<T extends { id: string }>({
 
     validationGroups.forEach((group) => {
       group.fields.forEach((field) => {
+        if (field.hidden && field.hidden(nextFormData as T)) {
+          return;
+        }
         const currentValue = getNestedValue(nextFormData, field.id);
         const basicValidation = validateFieldValueBasic(
           field.type,

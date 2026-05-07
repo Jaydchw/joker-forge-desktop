@@ -49,6 +49,10 @@ import {
   getUnsupportedRuleParts,
 } from "@/lib/export-compiler-support";
 import { getAllVariables } from "@/lib/rules/user-variable-utils";
+import {
+  generateDescriptionFromRules,
+  shouldOverwriteDescriptionOnRuleSave,
+} from "@/lib/rules/auto-description";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
 import {
@@ -108,7 +112,17 @@ export default function JokersPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
-      handleUpdate(ruleEditingItem.id, { rules });
+      const updates: Partial<JokerData> = { rules };
+      if (
+        shouldOverwriteDescriptionOnRuleSave(
+          ruleEditingItem.description,
+          ruleEditingItem.rules,
+          "joker",
+        )
+      ) {
+        updates.description = generateDescriptionFromRules(rules, "joker");
+      }
+      handleUpdate(ruleEditingItem.id, updates);
     },
     [handleUpdate, ruleEditingItem],
   );
