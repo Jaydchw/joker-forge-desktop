@@ -33,6 +33,8 @@ import { sanitizeKeyLikeValue } from "@/lib/item-field-validation";
 import type { PixelLayerData } from "@/lib/types";
 import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/storage";
 
+const DESCRIPTION_MAX_LENGTH = 260;
+
 export interface CardProperty {
   id: string;
   icon: ReactNode;
@@ -155,12 +157,22 @@ export const GenericItemCard = memo(function GenericItemCard({
     () => sanitizeDescription(description),
     [description],
   );
+  const clampedDescription = useMemo(() => {
+    if (sanitizedDescription.length <= DESCRIPTION_MAX_LENGTH) {
+      return sanitizedDescription;
+    }
+    return `${sanitizedDescription.slice(0, DESCRIPTION_MAX_LENGTH).trimEnd()}...`;
+  }, [sanitizedDescription]);
   const renderedDescriptionHtml = useMemo(
     () =>
-      formatBalatroText(sanitizedDescription || "No description provided...", locVars, {
-        replaceVariables: showPlaceholders,
-      }),
-    [locVars, sanitizedDescription, showPlaceholders],
+      formatBalatroText(
+        clampedDescription || "No description provided...",
+        locVars,
+        {
+          replaceVariables: showPlaceholders,
+        },
+      ),
+    [clampedDescription, locVars, showPlaceholders],
   );
 
   useEffect(() => {
@@ -209,8 +221,7 @@ export const GenericItemCard = memo(function GenericItemCard({
     e: React.ChangeEvent<HTMLTextAreaElement>,
   ) => {
     const nextValue = e.target.value;
-    const { formatted } = applyAutoFormatting(nextValue, tempValue);
-    setTempValue(formatted);
+    setTempValue(nextValue.slice(0, DESCRIPTION_MAX_LENGTH));
   };
 
   const saveEdit = () => {
@@ -535,12 +546,13 @@ export const GenericItemCard = memo(function GenericItemCard({
                 onChange={handleDescriptionChange}
                 onBlur={saveEdit}
                 onKeyDown={handleKeyDown}
-                className="w-full h-full text-[13px] resize-none font-medium leading-relaxed text-muted-foreground bg-transparent border-none p-0 outline-none focus:outline-none"
+                maxLength={DESCRIPTION_MAX_LENGTH}
+                className="w-full h-full overflow-hidden text-[13px] resize-none font-medium leading-relaxed text-muted-foreground bg-transparent border-none p-0 outline-none focus:outline-none"
               />
             ) : (
               <div
                 className={cn(
-                  "w-full h-full text-[13px] leading-relaxed text-muted-foreground transition-colors wrap-break-word whitespace-pre-wrap overflow-y-auto pr-2",
+                  "w-full h-full overflow-hidden text-[13px] leading-relaxed text-muted-foreground transition-colors wrap-break-word whitespace-pre-wrap pr-2",
                   isReadOnly
                     ? "cursor-default"
                     : "cursor-pointer hover:text-foreground",
