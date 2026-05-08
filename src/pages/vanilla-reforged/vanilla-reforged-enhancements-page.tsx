@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 import { RuleBuilder } from "@/components/rule-builder";
 import { useProjectData } from "@/lib/storage";
 import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
@@ -80,6 +81,7 @@ export default function VanillaReforgedEnhancementsPage() {
         reforged
         name={item.name}
         description={item.description}
+        locVars={getItemLocVarsFromUserVariables(item)}
         idValue={item.orderValue}
         onUpdate={() => {}}
         image={

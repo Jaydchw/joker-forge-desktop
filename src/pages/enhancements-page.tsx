@@ -51,6 +51,7 @@ import {
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { EditEnhancementDialog } from "@/components/edit-dialogs";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 
 export default function EnhancementsPage() {
   const { data, updateEnhancements, isHydrating } = useProjectData();
@@ -237,6 +238,7 @@ export default function EnhancementsPage() {
         key={item.id}
         name={item.name}
         description={item.description}
+        locVars={getItemLocVarsFromUserVariables(item)}
         idValue={item.orderValue}
         imageLayers={item.imageLayers}
         onUpdate={(updates) => handleUpdate(item.id, updates)}

@@ -44,6 +44,7 @@ import {
   getBalatroAppdataPath,
   getBalatroGamePath,
   getAutoOpenNewItemDialogEnabled,
+  getDescriptionVariablePlaceholdersEnabled,
   getBypassUnsupportedRulesDialogEnabled,
   getConfirmDeleteEnabled,
   getJokerforgeExportSaveMode,
@@ -56,6 +57,7 @@ import {
   setBalatroAppdataPath,
   setBalatroGamePath,
   setAutoOpenNewItemDialogEnabled,
+  setDescriptionVariablePlaceholdersEnabled,
   setBypassUnsupportedRulesDialogEnabled,
   setConfirmDeleteEnabled,
   setJokerforgeExportSaveMode,
@@ -395,6 +397,8 @@ export default function SettingsPage() {
   const [singleManagedModExport, setSingleManagedModExport] = useState(true);
   const [launchOnExport, setLaunchOnExport] = useState(false);
   const [autoOpenNewItemDialog, setAutoOpenNewItemDialog] = useState(true);
+  const [showDescriptionVariablePlaceholders, setShowDescriptionVariablePlaceholders] =
+    useState(true);
   const [appZoomLevel, setAppZoomLevelState] = useState<AppZoomLevel>("medium");
   const [bypassUnsupportedRulesDialog, setBypassUnsupportedRulesDialog] =
     useState(false);
@@ -437,6 +441,9 @@ export default function SettingsPage() {
     setSingleManagedModExport(getSingleManagedModExportEnabled());
     setLaunchOnExport(window.localStorage.getItem(LAUNCH_GAME_ON_EXPORT_KEY) === "true");
     setAutoOpenNewItemDialog(getAutoOpenNewItemDialogEnabled());
+    setShowDescriptionVariablePlaceholders(
+      getDescriptionVariablePlaceholdersEnabled(),
+    );
     setAppZoomLevelState(getAppZoomLevel());
     setBypassUnsupportedRulesDialog(getBypassUnsupportedRulesDialogEnabled());
     setRuleBuilderSettingsState(getRuleBuilderSettings());
@@ -688,6 +695,7 @@ export default function SettingsPage() {
         "Split Localization On Full Export",
         "Export .jokerforge As .json",
         "Auto-open New Item Dialog",
+        "Show Description Variable Values",
         "App Zoom",
         "Export Save Location",
         "Keep Balatro Mods Folder To One Managed Mod",
@@ -716,6 +724,7 @@ export default function SettingsPage() {
         "Split Localization On Full Export",
         "Export .jokerforge As .json",
         "Auto-open New Item Dialog",
+        "Show Description Variable Values",
         "App Zoom",
         "Export Save Location",
         "Keep Balatro Mods Folder To One Managed Mod",
@@ -959,6 +968,29 @@ export default function SettingsPage() {
                     onCheckedChange={(value) => {
                       setAutoOpenNewItemDialog(value);
                       setAutoOpenNewItemDialogEnabled(value);
+                    }}
+                    className="cursor-pointer"
+                  />
+                </div>
+                )}
+
+                {showSetting("Show Description Variable Values") && (
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <Label htmlFor="description-variable-placeholders">
+                      Show Description Variable Values
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      When enabled, descriptions preview variable values instead
+                      of placeholders like `#1#`.
+                    </p>
+                  </div>
+                  <Switch
+                    id="description-variable-placeholders"
+                    checked={showDescriptionVariablePlaceholders}
+                    onCheckedChange={(value) => {
+                      setShowDescriptionVariablePlaceholders(value);
+                      setDescriptionVariablePlaceholdersEnabled(value);
                     }}
                     className="cursor-pointer"
                   />

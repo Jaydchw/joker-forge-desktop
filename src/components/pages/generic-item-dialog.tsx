@@ -56,6 +56,7 @@ import {
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
   ArrowCounterClockwise,
+  DiceFive,
 } from "@phosphor-icons/react";
 import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
 import type { UserVariable } from "@/lib/types";
@@ -318,13 +319,14 @@ const RichTextarea = memo(
     }, [item?.userVariables]);
 
     const groupedVariableEntries = useMemo(() => {
-      const groups: Array<{
-        id:
-          | "user"
-          | "generated"
-          | "game"
-          | "userGlobal"
-          | "userGlobalPersistent";
+        const groups: Array<{
+          id:
+            | "user"
+            | "generated"
+            | "probability"
+            | "game"
+            | "userGlobal"
+            | "userGlobalPersistent";
         label: string;
         items: Array<{
           index: number;
@@ -339,6 +341,7 @@ const RichTextarea = memo(
           items: [],
         },
         { id: "generated", label: "Generated", items: [] },
+        { id: "probability", label: "Probability Vars", items: [] },
         { id: "game", label: "Game", items: [] },
       ];
 
@@ -360,8 +363,13 @@ const RichTextarea = memo(
           return;
         }
 
-        if (token.category === "game") {
+        if (token.category === "probability") {
           groups[4].items.push({ index, token });
+          return;
+        }
+
+        if (token.category === "game") {
+          groups[5].items.push({ index, token });
           return;
         }
 
@@ -543,6 +551,9 @@ const RichTextarea = memo(
                         )}
                         {group.id === "generated" && (
                           <Sparkle className="h-3 w-3" />
+                        )}
+                        {group.id === "probability" && (
+                          <DiceFive className="h-3 w-3" />
                         )}
                         {group.id === "game" && <Cube className="h-3 w-3" />}
                         <span>{group.label}</span>
@@ -1186,7 +1197,9 @@ const PreviewPanel = memo(
 
     const handleWheelZoom = useCallback(
       (e: React.WheelEvent<HTMLDivElement>) => {
-        e.preventDefault();
+        if (e.cancelable) {
+          e.preventDefault();
+        }
         e.stopPropagation();
         const delta = -e.deltaY * 0.0015;
         setScale((prev) => {

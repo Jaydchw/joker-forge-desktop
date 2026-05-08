@@ -46,6 +46,7 @@ import {
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { EditEditionDialog } from "@/components/edit-dialogs";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 
 export default function EditionsPage() {
   const { data, updateEditions, isHydrating } = useProjectData();
@@ -228,6 +229,7 @@ export default function EditionsPage() {
         key={item.id}
         name={item.name}
         description={item.description}
+        locVars={getItemLocVarsFromUserVariables(item)}
         idValue={item.orderValue}
         imageLayers={item.imageLayers}
         onUpdate={(updates) => handleUpdate(item.id, updates)}

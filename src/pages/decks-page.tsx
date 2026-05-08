@@ -50,6 +50,7 @@ import {
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { EditDeckDialog } from "@/components/edit-dialogs";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 
 export default function DecksPage() {
   const { data, updateDecks, isHydrating } = useProjectData();
@@ -224,6 +225,7 @@ export default function DecksPage() {
         key={deck.id}
         name={deck.name}
         description={deck.description}
+        locVars={getItemLocVarsFromUserVariables(deck)}
         idValue={deck.orderValue}
         imageLayers={deck.imageLayers}
         onUpdate={(updates) => handleUpdate(deck.id, updates)}

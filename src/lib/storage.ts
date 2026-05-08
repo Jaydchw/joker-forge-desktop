@@ -90,6 +90,8 @@ const JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY =
   "joker_forge_auto_save_downloads";
 const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";
 const AUTO_OPEN_NEW_ITEM_DIALOG_KEY = "joker_forge_auto_open_new_item_dialog";
+const DESCRIPTION_VARIABLE_PLACEHOLDERS_KEY =
+  "joker_forge_description_variable_placeholders";
 const BYPASS_UNSUPPORTED_RULES_DIALOG_KEY =
   "joker_forge_bypass_unsupported_rules_dialog";
 const RULE_BUILDER_SETTINGS_KEY = "joker_forge_rule_builder_settings";
@@ -1236,6 +1238,7 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY);
   window.localStorage.removeItem(LAUNCH_GAME_ON_EXPORT_KEY);
   window.localStorage.removeItem(BYPASS_UNSUPPORTED_RULES_DIALOG_KEY);
+  window.localStorage.removeItem(DESCRIPTION_VARIABLE_PLACEHOLDERS_KEY);
   window.localStorage.removeItem(RULE_BUILDER_SETTINGS_KEY);
   window.localStorage.removeItem(THEME_PREFERENCE_KEY);
   clearThemeStorage();
@@ -1629,6 +1632,21 @@ export const setAutoOpenNewItemDialogEnabled = (value: boolean) => {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
     AUTO_OPEN_NEW_ITEM_DIALOG_KEY,
+    value ? "true" : "false",
+  );
+};
+
+export const getDescriptionVariablePlaceholdersEnabled = (): boolean => {
+  if (typeof window === "undefined") return true;
+  const stored = window.localStorage.getItem(DESCRIPTION_VARIABLE_PLACEHOLDERS_KEY);
+  if (stored === null) return true;
+  return stored === "true";
+};
+
+export const setDescriptionVariablePlaceholdersEnabled = (value: boolean) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    DESCRIPTION_VARIABLE_PLACEHOLDERS_KEY,
     value ? "true" : "false",
   );
 };

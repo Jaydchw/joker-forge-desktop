@@ -31,6 +31,7 @@ import {
 import { sanitizeDescription } from "@/lib/description-sanitizer";
 import { sanitizeKeyLikeValue } from "@/lib/item-field-validation";
 import type { PixelLayerData } from "@/lib/types";
+import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/storage";
 
 export interface CardProperty {
   id: string;
@@ -62,6 +63,7 @@ interface GenericItemCardProps {
   overlayImage?: string;
   name: string;
   description: string;
+  locVars?: { vars?: Array<string | number>; colours?: string[] };
   cost?: number;
   idValue?: number | string;
   badges?: ReactNode;
@@ -117,6 +119,7 @@ export const GenericItemCard = memo(function GenericItemCard({
   overlayImage,
   name,
   description,
+  locVars,
   cost,
   idValue,
   badges,
@@ -145,6 +148,7 @@ export const GenericItemCard = memo(function GenericItemCard({
   const [useTextActionButtons, setUseTextActionButtons] = useState(true);
   const [useCompactIconActions, setUseCompactIconActions] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const showPlaceholders = getDescriptionVariablePlaceholdersEnabled();
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const sanitizedDescription = useMemo(
@@ -153,8 +157,10 @@ export const GenericItemCard = memo(function GenericItemCard({
   );
   const renderedDescriptionHtml = useMemo(
     () =>
-      formatBalatroText(sanitizedDescription || "No description provided..."),
-    [sanitizedDescription],
+      formatBalatroText(sanitizedDescription || "No description provided...", locVars, {
+        replaceVariables: showPlaceholders,
+      }),
+    [locVars, sanitizedDescription, showPlaceholders],
   );
 
   useEffect(() => {

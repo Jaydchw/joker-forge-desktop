@@ -5,7 +5,7 @@ import type { UserVariable } from "@/lib/types";
 export type DescriptionVariableToken = {
   label: string;
   source: string;
-  category: "loc" | "config" | "user" | "game";
+  category: "loc" | "config" | "user" | "game" | "probability";
 };
 
 const GAME_VARIABLE_LABELS = new Map<string, string>();
@@ -110,7 +110,8 @@ const inferConfigExtraNames = (rules: Rule[] | undefined): string[] => {
 
   forEachRuleEffect(rules, (effectType, effect) => {
     if (effectType === "random_group_odds") {
-      pushName("odds");
+      pushName("probability_numerator");
+      pushName("probability_denominator");
       return;
     }
     const base =
@@ -208,7 +209,6 @@ export const buildDescriptionVariableTokens = (
       const source = String(value);
       push({ label: source, source, category: "loc" });
     }
-    return tokens;
   }
 
   for (const userVar of Array.isArray(item.userVariables)
@@ -220,7 +220,11 @@ export const buildDescriptionVariableTokens = (
 
   for (const configName of inferConfigExtraNames(item.rules)) {
     const source = `card.ability.extra.${configName}`;
-    push({ label: configName, source, category: "config" });
+    push({
+      label: configName,
+      source,
+      category: configName.startsWith("probability_") ? "probability" : "config",
+    });
   }
 
   for (const gameVarId of extractGameVariableIds(item.rules)) {

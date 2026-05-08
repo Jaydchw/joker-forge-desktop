@@ -94,10 +94,12 @@ const BG_COLOR_MAP: Record<string, string> = {
 export const parseBalatroText = (
   text: string,
   locVars?: { colours?: string[]; vars?: (string | number)[] },
+  options?: { replaceVariables?: boolean },
 ): ParsedSegment[] => {
   const segments: ParsedSegment[] = [];
+  const replaceVariables = options?.replaceVariables ?? true;
 
-  if (locVars && locVars.vars) {
+  if (replaceVariables && locVars && locVars.vars) {
     text = text.replace(/#(\d+)#/g, (match, varIndex) => {
       const index = parseInt(varIndex, 10) - 1;
       if (locVars.vars && index >= 0 && index < locVars.vars.length) {
@@ -190,9 +192,10 @@ export const parseBalatroText = (
 
 interface BalatroTextProps {
   text: string;
-  locVars?: { colours?: string[] };
+  locVars?: { colours?: string[]; vars?: (string | number)[] };
   className?: string;
   noWrap?: boolean;
+  replaceVariables?: boolean;
 }
 
 export const BalatroText: React.FC<BalatroTextProps> = ({
@@ -200,8 +203,9 @@ export const BalatroText: React.FC<BalatroTextProps> = ({
   locVars,
   className = "",
   noWrap = false,
+  replaceVariables = true,
 }: BalatroTextProps) => {
-  const segments = parseBalatroText(text, locVars);
+  const segments = parseBalatroText(text, locVars, { replaceVariables });
 
   const wrapperClass = noWrap ? "whitespace-nowrap" : "";
 
@@ -270,9 +274,10 @@ export const BalatroText: React.FC<BalatroTextProps> = ({
 
 export const formatBalatroText = (
   text: string,
-  locVars?: { colours?: string[] },
+  locVars?: { colours?: string[]; vars?: (string | number)[] },
+  options?: { replaceVariables?: boolean },
 ): string => {
-  const segments = parseBalatroText(text, locVars);
+  const segments = parseBalatroText(text, locVars, options);
 
   return segments
     .map((segment) => {

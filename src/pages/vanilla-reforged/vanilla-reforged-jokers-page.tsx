@@ -8,6 +8,7 @@ import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
 import { JokerData } from "@/lib/types";
 import { fuzzyMatchAny } from "@/lib/search";
 import { slugify } from "@/lib/balatro-utils";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 import {
   Copy,
   Eye,
@@ -92,6 +93,7 @@ export default function VanillaReforgedJokersPage() {
         reforged
         name={joker.name}
         description={joker.description}
+        locVars={getItemLocVarsFromUserVariables(joker)}
         cost={joker.cost}
         idValue={joker.orderValue}
         rarity={joker.rarity}

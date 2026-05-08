@@ -47,6 +47,7 @@ import {
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { EditVoucherDialog } from "@/components/edit-dialogs";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 
 export default function VouchersPage() {
   const { data, updateVouchers, isHydrating } = useProjectData();
@@ -243,6 +244,7 @@ export default function VouchersPage() {
         key={item.id}
         name={item.name}
         description={item.description}
+        locVars={getItemLocVarsFromUserVariables(item)}
         cost={item.cost}
         idValue={item.orderValue}
         imageLayers={item.imageLayers}

@@ -10,7 +10,7 @@ import {
   useModName,
   getAutoOpenNewItemDialogEnabled,
 } from "@/lib/storage";
-import { JokerData, Rule, UserVariable } from "@/lib/types";
+import { JokerData, Rule } from "@/lib/types";
 import { fuzzyMatchAny } from "@/lib/search";
 import {
   getRarityBadgeColor,
@@ -63,17 +63,10 @@ import {
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { EditJokerDialog } from "@/components/edit-dialogs";
-
-const getVariableDisplayValue = (variable: UserVariable): string => {
-  if (variable.type === "suit") return variable.initialSuit || "Spades";
-  if (variable.type === "rank") return variable.initialRank || "Ace";
-  if (variable.type === "key") return variable.initialKey || "none";
-  if (variable.type === "text") return variable.initialText || "Hello";
-  if (variable.type === "pokerhand") {
-    return variable.initialPokerHand || "High Card";
-  }
-  return variable.initialValue?.toString() || "0";
-};
+import {
+  getItemLocVarsFromUserVariables,
+  getVariableDisplayValue,
+} from "@/lib/description-loc-vars";
 
 export default function JokersPage() {
   const { data, updateJokers, isHydrating } = useProjectData();
@@ -316,6 +309,7 @@ export default function JokersPage() {
         key={joker.id}
         name={joker.name}
         description={joker.description}
+        locVars={getItemLocVarsFromUserVariables(joker)}
         cost={joker.cost}
         idValue={joker.orderValue}
         rarity={joker.rarity}

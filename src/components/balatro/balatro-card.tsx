@@ -1,6 +1,8 @@
 import { useState, useEffect, memo } from "react";
 import { Image as ImageIcon } from "@phosphor-icons/react";
 import { BalatroText } from "@/lib/balatro-text-formatter";
+import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/storage";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 import {
   JokerData,
   ConsumableData,
@@ -102,6 +104,7 @@ export const BalatroCard = memo(
   }: BalatroCardProps) {
     const [imageError, setImageError] = useState(false);
     const [selectedAce, setSelectedAce] = useState("HC_A_hearts");
+    const showPlaceholders = getDescriptionVariablePlaceholdersEnabled();
 
     const aceImageFolder = type === "edition" ? "acesbg" : "aces";
 
@@ -167,16 +170,15 @@ export const BalatroCard = memo(
     };
 
     const getLocVars = () => {
-      if (type === "joker") {
-        const joker = data as Partial<JokerData>;
-        if (joker.locVars && Array.isArray(joker.locVars.vars)) {
-          const colours = joker.locVars.vars.filter(
-            (v) => typeof v === "string" && v.startsWith("#"),
-          );
-          return colours.length > 0 ? { colours } : undefined;
-        }
-      }
-      return undefined;
+      const itemLocVars = getItemLocVarsFromUserVariables(
+        data as Partial<CardData>,
+      );
+      const vars = itemLocVars?.vars ?? [];
+      const colours = vars.filter(
+        (value) => typeof value === "string" && value.startsWith("#"),
+      );
+      if (vars.length === 0 && colours.length === 0) return undefined;
+      return { vars, colours };
     };
 
     const renderCardImage = () => {
@@ -445,6 +447,7 @@ export const BalatroCard = memo(
                         <BalatroText
                           text={data.description || "No description provided."}
                           locVars={getLocVars()}
+                          replaceVariables={showPlaceholders}
                           className="block whitespace-nowrap"
                         />
                       </div>

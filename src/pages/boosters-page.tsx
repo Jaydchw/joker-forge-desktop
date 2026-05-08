@@ -36,6 +36,7 @@ import {
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { EditBoosterDialog } from "@/components/edit-dialogs";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 
 export default function BoostersPage() {
   const { data, updateBoosters, isHydrating } = useProjectData();
@@ -179,6 +180,7 @@ export default function BoostersPage() {
         key={item.id}
         name={item.name}
         description={item.description}
+        locVars={getItemLocVarsFromUserVariables(item)}
         cost={item.cost}
         idValue={item.orderValue}
         imageLayers={item.imageLayers}

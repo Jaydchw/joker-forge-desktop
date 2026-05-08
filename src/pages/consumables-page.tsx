@@ -51,6 +51,7 @@ import {
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { EditConsumableDialog } from "@/components/edit-dialogs";
+import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
 
 export default function ConsumablesPage() {
   const { data, updateConsumables, isHydrating } = useProjectData();
@@ -283,6 +284,7 @@ export default function ConsumablesPage() {
         key={item.id}
         name={item.name}
         description={item.description}
+        locVars={getItemLocVarsFromUserVariables(item)}
         cost={item.cost}
         idValue={item.orderValue}
         consumableSet={item.set}
