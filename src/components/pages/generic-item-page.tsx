@@ -34,6 +34,7 @@ import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { fuzzyMatch } from "@/lib/search";
+import { getRandomEmptyStateFlavor } from "@/lib/empty-state-flavor";
 import { motion } from "framer-motion";
 
 const ESTIMATED_REGULAR_ROW_HEIGHT = 384;
@@ -246,6 +247,7 @@ function GenericItemPageInternal<T extends { id: string }>({
   const [virtualRows, setVirtualRows] = useState({ start: 0, end: 0 });
   const [, startTransition] = useTransition();
   const listContainerRef = useRef<HTMLDivElement | null>(null);
+  const emptyStateFlavor = useMemo(() => getRandomEmptyStateFlavor(), []);
 
   const processedItems = useMemo(() => {
     let result = [...items];
@@ -319,6 +321,8 @@ function GenericItemPageInternal<T extends { id: string }>({
     items.length === 0 &&
     !hasActiveSearch &&
     activeFilterCount === 0;
+  const isTrulyEmptyCollection =
+    items.length === 0 && !hasActiveSearch && activeFilterCount === 0;
   const shouldVirtualize = false;
   const totalRows = Math.ceil(processedItems.length / effectiveColumnCount);
   const estimatedRowHeight =
@@ -775,27 +779,45 @@ function GenericItemPageInternal<T extends { id: string }>({
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col items-center justify-center py-32 text-center border-2 border-dashed border-border rounded-2xl bg-card/30"
         >
-          <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
-            <MagnifyingGlass
-              className="h-10 w-10 text-muted-foreground/50"
-              weight="duotone"
-            />
-          </div>
-          <h3 className="text-xl font-bold text-foreground">No items found</h3>
-          <p className="text-muted-foreground max-w-md mt-2">
-            We couldn't find anything matching your search. Try adjusting your
-            filters or creating a new item.
-          </p>
-          <Button
-            variant="link"
-            onClick={() => {
-              setSearchTerm("");
-              setActiveFilters({});
-            }}
-            className="mt-6 text-primary font-bold cursor-pointer"
-          >
-            Clear all filters
-          </Button>
+          {isTrulyEmptyCollection ? (
+            <>
+              <div className="mb-6 text-3xl text-muted-foreground/70">
+                :(
+              </div>
+              <h3 className="text-xl font-bold text-foreground">
+                No {title.toLowerCase()} yet
+              </h3>
+              <p className="text-muted-foreground max-w-md mt-2">
+                {emptyStateFlavor}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="h-20 w-20 rounded-full bg-muted/50 flex items-center justify-center mb-6">
+                <MagnifyingGlass
+                  className="h-10 w-10 text-muted-foreground/50"
+                  weight="duotone"
+                />
+              </div>
+              <h3 className="text-xl font-bold text-foreground">
+                No items found
+              </h3>
+              <p className="text-muted-foreground max-w-md mt-2">
+                We couldn't find anything matching your search. Try adjusting
+                your filters or creating a new item.
+              </p>
+              <Button
+                variant="link"
+                onClick={() => {
+                  setSearchTerm("");
+                  setActiveFilters({});
+                }}
+                className="mt-6 text-primary font-bold cursor-pointer"
+              >
+                Clear all filters
+              </Button>
+            </>
+          )}
         </motion.div>
       ) : (
         <div ref={listContainerRef}>
