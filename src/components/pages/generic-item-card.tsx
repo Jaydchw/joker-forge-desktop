@@ -14,7 +14,6 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -22,8 +21,7 @@ import {
 } from "@/components/ui/tooltip";
 import { PixelArtEditorDialog } from "@/components/pages/pixel-art-editor-dialog";
 import { cn } from "@/lib/utils";
-import { RaritySelect } from "@/components/balatro/rarity-select";
-import { ConsumableSetSelect } from "@/components/balatro/consumable-set-select";
+import { ItemBadgeSelect } from "@/components/balatro/item-badge-select";
 import {
   formatBalatroText,
   applyAutoFormatting,
@@ -426,37 +424,29 @@ export const GenericItemCard = memo(function GenericItemCard({
           )}
         >
           {rarity !== undefined ? (
-            isReadOnly ? (
-              <Badge variant="secondary" className="font-bold uppercase">
-                Rarity: {rarity}
-              </Badge>
-            ) : (
-              <RaritySelect
-                value={String(rarity)}
-                className={isThin ? "w-[12.5rem] justify-center" : undefined}
-                onChange={(val) =>
-                  onUpdate({
-                    rarity: isNaN(Number(val)) ? val : Number(val),
-                  })
-                }
-              />
-            )
+            <ItemBadgeSelect
+              kind="rarity"
+              value={String(rarity)}
+              interactive={!isReadOnly}
+              className={isThin ? "w-[12.5rem] justify-center" : undefined}
+              onChange={(val) =>
+                onUpdate({
+                  rarity: isNaN(Number(val)) ? val : Number(val),
+                })
+              }
+            />
           ) : consumableSet !== undefined ? (
-            isReadOnly ? (
-              <Badge variant="secondary" className="font-bold uppercase">
-                Set: {consumableSet}
-              </Badge>
-            ) : (
-              <ConsumableSetSelect
-                value={consumableSet}
-                className={isThin ? "w-[12.5rem] justify-center" : undefined}
-                onChange={(val) =>
-                  onUpdate({
-                    set: val,
-                  })
-                }
-              />
-            )
+            <ItemBadgeSelect
+              kind="set"
+              value={consumableSet}
+              interactive={!isReadOnly}
+              className={isThin ? "w-[12.5rem] justify-center" : undefined}
+              onChange={(val) =>
+                onUpdate({
+                  set: val,
+                })
+              }
+            />
           ) : (
             badges
           )}

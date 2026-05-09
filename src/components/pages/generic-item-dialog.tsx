@@ -61,8 +61,7 @@ import {
 import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
 import type { UserVariable } from "@/lib/types";
 import type { Rule } from "@/components/rule-builder/types";
-import { RaritySelect } from "@/components/balatro/rarity-select";
-import { ConsumableSetSelect } from "@/components/balatro/consumable-set-select";
+import { ItemBadgeSelect } from "@/components/balatro/item-badge-select";
 import { ListInput } from "@/components/ui/list-input";
 import {
   PlaceholderEntry,
@@ -872,7 +871,8 @@ const MemoizedField = memo(
         case "select":
           if (field.id === "rarity") {
             return (
-              <RaritySelect
+              <ItemBadgeSelect
+                kind="rarity"
                 value={String(safeValue || "")}
                 onChange={(val) =>
                   onChange(field.id, isNaN(Number(val)) ? val : Number(val))
@@ -882,7 +882,8 @@ const MemoizedField = memo(
           }
           if (field.id === "set") {
             return (
-              <ConsumableSetSelect
+              <ItemBadgeSelect
+                kind="set"
                 value={String(safeValue || "")}
                 onChange={(val) => onChange(field.id, val)}
               />
