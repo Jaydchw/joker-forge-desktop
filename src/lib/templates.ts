@@ -2,6 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { appDataDir, dirname, join } from "@tauri-apps/api/path";
 import { mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Rule } from "@/components/rule-builder/types";
+import {
+  getConsumableSetByKey,
+  getConsumableSetByValue,
+  getRarityByKey,
+  getRarityByValue,
+} from "@/lib/balatro-utils";
 
 export type ItemTemplateItemType =
   | "joker"
@@ -377,15 +383,103 @@ export const instantiateItemFromTemplate = <T extends object>(
   baseItem: T,
   template: ItemTemplateEntry,
 ): T => {
-  const templated = deepClone(template.payload);
+  const baseRecord = baseItem as Record<string, unknown>;
+  const templated = deepClone(template.payload) as Record<string, unknown>;
   delete templated.id;
   delete templated.orderValue;
 
-  const baseRecord = baseItem as Record<string, unknown>;
+  const merged: Record<string, unknown> = { ...baseRecord };
+
+  // Never let null/undefined template fields wipe out valid base defaults.
+  Object.entries(templated).forEach(([key, value]) => {
+    if (value === null || value === undefined) return;
+    merged[key] = value;
+  });
+
+  // Explicit fallback defaults for common dependent/custom fields.
+  const resolveRarityValue = (candidate: unknown): number | string | null => {
+    if (
+      candidate === null ||
+      candidate === undefined ||
+      candidate === ""
+    ) {
+      return null;
+    }
+
+    if (
+      (typeof candidate === "number" || typeof candidate === "string") &&
+      getRarityByValue(candidate as number | string)
+    ) {
+      return candidate as number | string;
+    }
+
+    if (typeof candidate === "string") {
+      if (getRarityByKey(candidate)) {
+        return candidate;
+      }
+
+      // Imported templates may include a different mod prefix (e.g. oldmod_my_rarity).
+      // If the suffix key exists locally, remap to that local rarity key.
+      const underscoreIndex = candidate.indexOf("_");
+      if (underscoreIndex >= 0 && underscoreIndex < candidate.length - 1) {
+        const localKeyCandidate = candidate.slice(underscoreIndex + 1);
+        if (getRarityByKey(localKeyCandidate)) {
+          return localKeyCandidate;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const resolvedRarity =
+    resolveRarityValue(merged.rarity) ?? resolveRarityValue(baseRecord.rarity);
+  if (resolvedRarity !== null) {
+    merged.rarity = resolvedRarity;
+  } else {
+    merged.rarity = 1; // Common
+  }
+
+  const resolveSetValue = (candidate: unknown): string | null => {
+    if (typeof candidate !== "string" || !candidate.trim()) {
+      return null;
+    }
+
+    if (getConsumableSetByValue(candidate)) {
+      return candidate;
+    }
+
+    if (getConsumableSetByKey(candidate)) {
+      return candidate;
+    }
+
+    // Imported templates may include a different mod prefix (e.g. oldmod_custom_set).
+    const underscoreIndex = candidate.indexOf("_");
+    if (underscoreIndex >= 0 && underscoreIndex < candidate.length - 1) {
+      const localKeyCandidate = candidate.slice(underscoreIndex + 1);
+      if (getConsumableSetByKey(localKeyCandidate)) {
+        return localKeyCandidate;
+      }
+    }
+
+    return null;
+  };
+
+  const resolvedSet =
+    resolveSetValue(merged.set) ?? resolveSetValue(baseRecord.set);
+  if (resolvedSet) {
+    merged.set = resolvedSet;
+  } else if ("set" in merged || "set" in baseRecord) {
+    merged.set = "Tarot";
+  }
+
+  if (merged.variable === null || merged.variable === undefined) {
+    merged.variable =
+      typeof baseRecord.variable === "string" ? baseRecord.variable : "";
+  }
 
   return {
-    ...baseRecord,
-    ...templated,
+    ...merged,
     id: baseRecord.id,
     orderValue: baseRecord.orderValue,
     objectType: baseRecord.objectType,
