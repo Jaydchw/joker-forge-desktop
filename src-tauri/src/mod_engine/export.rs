@@ -28,6 +28,15 @@ pub struct AtlasPosInput {
     pub y: i32,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct LocalizationEntryInput {
+    pub language: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+}
+
 /// Mirrors the TypeScript `JokerData` interface.
 ///
 /// Fields use their original TypeScript names (mix of camelCase and snake_case)
@@ -38,6 +47,8 @@ pub struct JokerDataInput {
     pub object_key: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub localizations: Vec<LocalizationEntryInput>,
     pub cost: i32,
     /// Can be a number (1–4) or string ("common" | "uncommon" | "rare" | "legendary").
     pub rarity: Value,
@@ -97,6 +108,8 @@ pub struct ConsumableDataInput {
     pub object_key: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub localizations: Vec<LocalizationEntryInput>,
     pub set: String,
     #[serde(default)]
     pub cost: Option<i32>,
@@ -122,6 +135,8 @@ pub struct EnhancementDataInput {
     pub object_key: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub localizations: Vec<LocalizationEntryInput>,
     #[serde(default)]
     pub rules: Vec<RuleInput>,
     #[serde(rename = "userVariables", default)]
@@ -155,6 +170,8 @@ pub struct SealDataInput {
     pub name: String,
     pub description: String,
     #[serde(default)]
+    pub localizations: Vec<LocalizationEntryInput>,
+    #[serde(default)]
     pub rules: Vec<RuleInput>,
     #[serde(rename = "userVariables", default)]
     pub user_variables: Vec<UserVariableInput>,
@@ -182,6 +199,8 @@ pub struct EditionDataInput {
     pub object_key: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub localizations: Vec<LocalizationEntryInput>,
     #[serde(default)]
     pub rules: Vec<RuleInput>,
     #[serde(rename = "userVariables", default)]
@@ -222,6 +241,8 @@ pub struct VoucherDataInput {
     pub object_key: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub localizations: Vec<LocalizationEntryInput>,
     #[serde(default, rename = "unlockDescription")]
     pub unlock_description: Option<String>,
     #[serde(default)]
@@ -252,6 +273,8 @@ pub struct DeckDataInput {
     pub object_key: String,
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub localizations: Vec<LocalizationEntryInput>,
     #[serde(default)]
     pub rules: Vec<RuleInput>,
     #[serde(rename = "userVariables", default)]
@@ -1067,60 +1090,333 @@ fn escape_lua_string(value: &str) -> String {
     value.replace('\\', "\\\\").replace('\'', "\\'")
 }
 
-fn normalize_joker_loc_key(prefix: &str, object_key: &str) -> String {
-    let raw = object_key.strip_prefix("j_").unwrap_or(object_key);
-    format!("j_{}_{}", prefix, raw)
+fn normalize_mod_prefixed_key(mod_prefix: &str, object_key: &str) -> String {
+    let raw = object_key.trim();
+    let prefix = mod_prefix.trim();
+    if raw.is_empty() {
+        return raw.to_string();
+    }
+    if prefix.is_empty() || raw.starts_with(&format!("{}_", prefix)) {
+        return raw.to_string();
+    }
+    format!("{}_{}", prefix, raw)
 }
 
-fn build_lua_string_array(lines: &[String]) -> String {
+fn normalize_class_prefixed_key(mod_prefix: &str, class_prefix: &str, object_key: &str) -> String {
+    let raw = object_key.trim();
+    let mod_prefix = mod_prefix.trim();
+    let class_prefix = class_prefix.trim();
+    if raw.is_empty() {
+        return raw.to_string();
+    }
+    if class_prefix.is_empty() {
+        return normalize_mod_prefixed_key(mod_prefix, raw);
+    }
+
+    let class_prefix_with_sep = format!("{}_", class_prefix);
+    if let Some(rest) = raw.strip_prefix(&class_prefix_with_sep) {
+        if mod_prefix.is_empty() || rest.starts_with(&format!("{}_", mod_prefix)) {
+            return raw.to_string();
+        }
+        return format!("{}_{}_{}", class_prefix, mod_prefix, rest);
+    }
+
+    if mod_prefix.is_empty() {
+        format!("{}_{}", class_prefix, raw)
+    } else {
+        format!("{}_{}_{}", class_prefix, mod_prefix, raw)
+    }
+}
+
+fn build_lua_string_array(lines: &[String], indent_level: usize) -> String {
     if lines.is_empty() {
         return "{}".to_string();
     }
 
+    let line_indent = "  ".repeat(indent_level + 1);
+    let closing_indent = "  ".repeat(indent_level);
     let mut out = String::from("{\n");
     for (idx, line) in lines.iter().enumerate() {
         let escaped = escape_lua_string(line);
-        out.push_str(&format!("        [{}] = '{}'", idx + 1, escaped));
+        out.push_str(&format!("{}[{}] = '{}'", line_indent, idx + 1, escaped));
         if idx + 1 != lines.len() {
             out.push_str(",\n");
+        } else {
+            out.push('\n');
         }
     }
-    out.push_str("\n      }");
+    out.push_str(&format!("{}}}", closing_indent));
     out
 }
 
-pub fn build_localization_lua(mod_prefix: &str, jokers: &[BatchJokerEntry]) -> String {
-    let mut sorted: Vec<&BatchJokerEntry> = jokers.iter().collect();
-    sorted.sort_by(|a, b| a.joker_data.object_key.cmp(&b.joker_data.object_key));
+fn split_optional_description(desc: Option<&str>) -> Option<Vec<String>> {
+    let raw = desc.unwrap_or("").trim();
+    if raw.is_empty() {
+        None
+    } else {
+        Some(split_description(raw))
+    }
+}
 
-    let mut entries = Vec::new();
-    for entry in sorted {
-        let data = &entry.joker_data;
-        let key = normalize_joker_loc_key(mod_prefix, &data.object_key);
-        let text = split_description(&data.description);
-        let unlock_text = split_description(data.unlock_description.as_deref().unwrap_or(""));
+#[derive(Clone)]
+struct LocalizationDescriptionEntry {
+    name: String,
+    text: Vec<String>,
+    unlock: Option<Vec<String>>,
+}
 
-        let mut block = format!(
-            "    {} = {{\n      name = '{}',\n      text = {}",
-            key,
-            escape_lua_string(&data.name),
-            build_lua_string_array(&text)
-        );
+type LocalizationSetMap = BTreeMap<String, LocalizationDescriptionEntry>;
+type LocalizationDescriptions = BTreeMap<String, LocalizationSetMap>;
+type LocalizationByLocale = BTreeMap<String, LocalizationDescriptions>;
 
-        if !unlock_text.is_empty() {
-            block.push_str(&format!(
-                ",\n      unlock = {}",
-                build_lua_string_array(&unlock_text)
-            ));
-        }
-        block.push_str("\n    }");
-        entries.push(block);
+fn insert_localization_entry(
+    locales: &mut LocalizationByLocale,
+    locale: &str,
+    set: &str,
+    key: &str,
+    name: &str,
+    text: &[String],
+    unlock: Option<&Vec<String>>,
+) {
+    let locale_key = locale.trim();
+    if locale_key.is_empty() {
+        return;
     }
 
-    format!(
-        "return {{\n  descriptions = {{\n    Joker = {{\n{}\n    }}\n  }}\n}}\n",
-        entries.join(",\n")
-    )
+    let set_map = locales
+        .entry(locale_key.to_string())
+        .or_default()
+        .entry(set.to_string())
+        .or_default();
+
+    set_map.insert(
+        key.to_string(),
+        LocalizationDescriptionEntry {
+            name: name.to_string(),
+            text: text.to_vec(),
+            unlock: unlock.cloned(),
+        },
+    );
+}
+
+fn insert_item_localizations(
+    locales: &mut LocalizationByLocale,
+    base_locale: &str,
+    set: &str,
+    key: &str,
+    base_name: &str,
+    base_description: &str,
+    base_unlock: Option<&str>,
+    localizations: &[LocalizationEntryInput],
+) {
+    let base_text = split_description(base_description);
+    let base_unlock_lines = split_optional_description(base_unlock);
+    insert_localization_entry(
+        locales,
+        base_locale,
+        set,
+        key,
+        base_name,
+        &base_text,
+        base_unlock_lines.as_ref(),
+    );
+
+    for localization in localizations {
+        let locale = localization.language.trim();
+        if locale.is_empty() {
+            continue;
+        }
+
+        let localized_name = if localization.name.trim().is_empty() {
+            base_name
+        } else {
+            localization.name.as_str()
+        };
+        let localized_description = if localization.description.trim().is_empty() {
+            base_description
+        } else {
+            localization.description.as_str()
+        };
+        let localized_text = split_description(localized_description);
+
+        insert_localization_entry(
+            locales,
+            locale,
+            set,
+            key,
+            localized_name,
+            &localized_text,
+            base_unlock_lines.as_ref(),
+        );
+    }
+}
+
+fn render_localization_lua(descriptions: &LocalizationDescriptions) -> String {
+    let mut out = String::from("return {\n  descriptions = {\n");
+
+    let mut set_iter = descriptions.iter().peekable();
+    while let Some((set, entries)) = set_iter.next() {
+        out.push_str(&format!("    ['{}'] = {{\n", escape_lua_string(set)));
+
+        let mut entry_iter = entries.iter().peekable();
+        while let Some((key, entry)) = entry_iter.next() {
+            out.push_str(&format!("      ['{}'] = {{\n", escape_lua_string(key)));
+            out.push_str(&format!(
+                "        name = '{}',\n",
+                escape_lua_string(&entry.name)
+            ));
+            out.push_str(&format!(
+                "        text = {}",
+                build_lua_string_array(&entry.text, 4)
+            ));
+
+            if let Some(unlock) = &entry.unlock {
+                out.push_str(&format!(",\n        unlock = {}", build_lua_string_array(unlock, 4)));
+            }
+
+            out.push_str("\n      }");
+            if entry_iter.peek().is_some() {
+                out.push_str(",\n");
+            } else {
+                out.push('\n');
+            }
+        }
+
+        out.push_str("    }");
+        if set_iter.peek().is_some() {
+            out.push_str(",\n");
+        } else {
+            out.push('\n');
+        }
+    }
+
+    out.push_str("  }\n}\n");
+    out
+}
+
+pub fn build_localization_lua_files(
+    mod_prefix: &str,
+    base_locale: &str,
+    jokers: &[BatchJokerEntry],
+    consumables: &[BatchConsumableEntry],
+    vouchers: &[BatchVoucherEntry],
+    decks: &[BatchDeckEntry],
+    enhancements: &[BatchEnhancementEntry],
+    seals: &[BatchSealEntry],
+    editions: &[BatchEditionEntry],
+) -> BTreeMap<String, String> {
+    let mut locales: LocalizationByLocale = BTreeMap::new();
+
+    for entry in jokers {
+        let data = &entry.joker_data;
+        let key = normalize_class_prefixed_key(mod_prefix, "j", &data.object_key);
+        insert_item_localizations(
+            &mut locales,
+            base_locale,
+            "Joker",
+            &key,
+            &data.name,
+            &data.description,
+            data.unlock_description.as_deref(),
+            &data.localizations,
+        );
+    }
+
+    for entry in consumables {
+        let data = &entry.consumable_data;
+        let key = normalize_class_prefixed_key(mod_prefix, "c", &data.object_key);
+        insert_item_localizations(
+            &mut locales,
+            base_locale,
+            &data.set,
+            &key,
+            &data.name,
+            &data.description,
+            None,
+            &data.localizations,
+        );
+    }
+
+    for entry in vouchers {
+        let data = &entry.voucher_data;
+        let key = normalize_class_prefixed_key(mod_prefix, "v", &data.object_key);
+        insert_item_localizations(
+            &mut locales,
+            base_locale,
+            "Voucher",
+            &key,
+            &data.name,
+            &data.description,
+            data.unlock_description.as_deref(),
+            &data.localizations,
+        );
+    }
+
+    for entry in decks {
+        let data = &entry.deck_data;
+        let key = normalize_class_prefixed_key(mod_prefix, "b", &data.object_key);
+        insert_item_localizations(
+            &mut locales,
+            base_locale,
+            "Back",
+            &key,
+            &data.name,
+            &data.description,
+            None,
+            &data.localizations,
+        );
+    }
+
+    for entry in enhancements {
+        let data = &entry.enhancement_data;
+        let key = normalize_class_prefixed_key(mod_prefix, "m", &data.object_key);
+        insert_item_localizations(
+            &mut locales,
+            base_locale,
+            "Enhanced",
+            &key,
+            &data.name,
+            &data.description,
+            None,
+            &data.localizations,
+        );
+    }
+
+    for entry in seals {
+        let data = &entry.seal_data;
+        let normalized_key = normalize_mod_prefixed_key(mod_prefix, &data.object_key);
+        let key = format!("{}_seal", normalized_key.to_ascii_lowercase());
+        insert_item_localizations(
+            &mut locales,
+            base_locale,
+            "Other",
+            &key,
+            &data.name,
+            &data.description,
+            None,
+            &data.localizations,
+        );
+    }
+
+    for entry in editions {
+        let data = &entry.edition_data;
+        let key = normalize_class_prefixed_key(mod_prefix, "e", &data.object_key);
+        insert_item_localizations(
+            &mut locales,
+            base_locale,
+            "Edition",
+            &key,
+            &data.name,
+            &data.description,
+            None,
+            &data.localizations,
+        );
+    }
+
+    locales
+        .into_iter()
+        .map(|(locale, descriptions)| (locale, render_localization_lua(&descriptions)))
+        .collect()
 }
 
 fn param_value_to_lua_literal(value: &ParamValue) -> String {
@@ -1550,6 +1846,7 @@ mod tests {
                 object_key: "j_test".to_string(),
                 name: "Test Joker".to_string(),
                 description: "Test".to_string(),
+                localizations: vec![],
                 cost: 4,
                 rarity: serde_json::json!("common"),
                 blueprint_compat: Some(true),

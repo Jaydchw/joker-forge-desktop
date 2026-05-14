@@ -21,6 +21,7 @@ import {
   getBalatroAppdataPath,
   getBalatroGamePath,
   getExportDestinationMode,
+  getDefaultLocalizationLanguage,
   getBypassUnsupportedRulesDialogEnabled,
   getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
@@ -293,6 +294,7 @@ export function Header({ title }: HeaderProps) {
         data.editions as any,
         {
           useLocalizationFile: getSplitLocalizationExportEnabled(),
+          localizationLocale: getDefaultLocalizationLanguage(),
           destinationMode,
           balatroModsPath,
           overwriteExistingModFolder: true,

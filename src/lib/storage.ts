@@ -15,6 +15,11 @@ import {
   ConsumableSetData,
   ModMetadata,
 } from "@/lib/types";
+import {
+  DEFAULT_LOCALIZATION_LANGUAGE,
+  ensureLocalizableWithLanguage,
+  normalizeLanguageValue,
+} from "@/lib/localization";
 import { updateDataRegistry } from "@/lib/balatro-utils";
 import { pushGlobalAlert } from "@/lib/global-alerts-bus";
 import { clearThemeStorage } from "./theme-manager";
@@ -82,6 +87,8 @@ const BALATRO_PATH_KEY = "joker_forge_balatro_path";
 const BALATRO_AUTOFIND_KEY = "joker_forge_balatro_autofind";
 const BALATRO_AUTOFIND_ALERT_KEY = "joker_forge_balatro_autofind_alert";
 const SPLIT_LOCALIZATION_EXPORT_KEY = "joker_forge_split_localization_export";
+const DEFAULT_LOCALIZATION_LANGUAGE_KEY =
+  "joker_forge_default_localization_language";
 const EXPORT_DESTINATION_MODE_KEY = "joker_forge_export_destination_mode";
 const JOKERFORGE_EXPORT_AS_JSON_KEY = "joker_forge_export_as_json";
 const SINGLE_MANAGED_MOD_EXPORT_KEY =
@@ -303,6 +310,16 @@ type TrackableCollectionKey =
   | "enhancements"
   | "sounds";
 
+type LocalizableCollectionKey =
+  | "jokers"
+  | "consumables"
+  | "decks"
+  | "vouchers"
+  | "boosters"
+  | "seals"
+  | "editions"
+  | "enhancements";
+
 type TrackableItem = { id: string } & Record<string, unknown>;
 
 type CollectionActivityConfig = {
@@ -400,6 +417,22 @@ const isTrackableCollectionKey = (
   key: keyof ProjectData,
 ): key is TrackableCollectionKey =>
   Object.prototype.hasOwnProperty.call(COLLECTION_ACTIVITY_CONFIG, key);
+
+const LOCALIZABLE_COLLECTION_KEYS: Record<LocalizableCollectionKey, true> = {
+  jokers: true,
+  consumables: true,
+  decks: true,
+  vouchers: true,
+  boosters: true,
+  seals: true,
+  editions: true,
+  enhancements: true,
+};
+
+const isLocalizableCollectionKey = (
+  key: keyof ProjectData,
+): key is LocalizableCollectionKey =>
+  Object.prototype.hasOwnProperty.call(LOCALIZABLE_COLLECTION_KEYS, key);
 
 const toTrackableItems = (value: unknown): TrackableItem[] => {
   if (!Array.isArray(value)) return [];
@@ -750,6 +783,14 @@ const sanitizeProjectData = (input: any): ProjectData => {
   if (!input || typeof input !== "object") return DEFAULT_DATA;
 
   const toArray = <T>(val: T[] | undefined) => (Array.isArray(val) ? val : []);
+  const toLocalizedArray = <
+    T extends { name?: unknown; description?: unknown; localizations?: unknown },
+  >(
+    val: T[] | undefined,
+  ): T[] =>
+    (Array.isArray(val) ? val : []).map((item) =>
+      ensureLocalizableWithLanguage(item, DEFAULT_LOCALIZATION_LANGUAGE),
+    ) as T[];
 
   return {
     ...DEFAULT_DATA,
@@ -757,16 +798,16 @@ const sanitizeProjectData = (input: any): ProjectData => {
     metadata: sanitizeMetadata(input.metadata),
     stats: { ...DEFAULT_DATA.stats, ...(input.stats || {}) },
     recentActivity: sanitizeRecentActivity(input.recentActivity),
-    jokers: toArray(input.jokers),
-    consumables: toArray(input.consumables),
+    jokers: toLocalizedArray(input.jokers),
+    consumables: toLocalizedArray(input.consumables),
     rarities: toArray(input.rarities),
     consumableSets: toArray(input.consumableSets),
-    decks: toArray(input.decks),
-    vouchers: toArray(input.vouchers),
-    boosters: toArray(input.boosters),
-    seals: toArray(input.seals),
-    editions: toArray(input.editions),
-    enhancements: toArray(input.enhancements),
+    decks: toLocalizedArray(input.decks),
+    vouchers: toLocalizedArray(input.vouchers),
+    boosters: toLocalizedArray(input.boosters),
+    seals: toLocalizedArray(input.seals),
+    editions: toLocalizedArray(input.editions),
+    enhancements: toLocalizedArray(input.enhancements),
     sounds: toArray(input.sounds),
   };
 };
@@ -1020,23 +1061,36 @@ export const useProjectData = () => {
       setStore((prev) => {
         const currentId = prev.currentProjectId;
         const current = prev.projects[currentId] || DEFAULT_DATA;
+        const normalizedItems =
+          isLocalizableCollectionKey(key) && Array.isArray(items)
+            ? (items.map((item) =>
+                ensureLocalizableWithLanguage(
+                  item as {
+                    name?: unknown;
+                    description?: unknown;
+                    localizations?: unknown;
+                  },
+                  DEFAULT_LOCALIZATION_LANGUAGE,
+                ),
+              ) as ProjectData[K])
+            : items;
         const activityEntries =
           isTrackableCollectionKey(key) &&
           Array.isArray(current[key]) &&
-          Array.isArray(items)
-            ? buildCollectionActivityEntries(key, current[key], items)
+          Array.isArray(normalizedItems)
+            ? buildCollectionActivityEntries(key, current[key], normalizedItems)
             : [];
         const updatedProject: ProjectData = {
           ...current,
-          [key]: items,
+          [key]: normalizedItems,
           recentActivity: prependRecentActivity(
             current.recentActivity,
             activityEntries,
           ),
           stats: {
             ...current.stats,
-            [key]: Array.isArray(items)
-              ? items.length
+            [key]: Array.isArray(normalizedItems)
+              ? normalizedItems.length
               : current.stats[key as keyof ProjectStats],
           },
         };
@@ -1232,6 +1286,7 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(BALATRO_AUTOFIND_KEY);
   window.localStorage.removeItem(BALATRO_AUTOFIND_ALERT_KEY);
   window.localStorage.removeItem(SPLIT_LOCALIZATION_EXPORT_KEY);
+  window.localStorage.removeItem(DEFAULT_LOCALIZATION_LANGUAGE_KEY);
   window.localStorage.removeItem(EXPORT_DESTINATION_MODE_KEY);
   window.localStorage.removeItem(JOKERFORGE_EXPORT_AS_JSON_KEY);
   window.localStorage.removeItem(SINGLE_MANAGED_MOD_EXPORT_KEY);
@@ -1384,6 +1439,26 @@ export const setSplitLocalizationExportEnabled = (value: boolean) => {
     SPLIT_LOCALIZATION_EXPORT_KEY,
     value ? "true" : "false",
   );
+};
+
+export const getDefaultLocalizationLanguage = (): string => {
+  if (typeof window === "undefined") return DEFAULT_LOCALIZATION_LANGUAGE;
+  const stored = window.localStorage.getItem(DEFAULT_LOCALIZATION_LANGUAGE_KEY);
+  const normalized = normalizeLanguageValue(stored);
+  if (!normalized) return DEFAULT_LOCALIZATION_LANGUAGE;
+  if (normalized.toLowerCase() === "default") return DEFAULT_LOCALIZATION_LANGUAGE;
+  return normalized;
+};
+
+export const setDefaultLocalizationLanguage = (value: string) => {
+  if (typeof window === "undefined") return;
+  const normalizedRaw =
+    normalizeLanguageValue(value) || DEFAULT_LOCALIZATION_LANGUAGE;
+  const normalized =
+    normalizedRaw.toLowerCase() === "default"
+      ? DEFAULT_LOCALIZATION_LANGUAGE
+      : normalizedRaw;
+  window.localStorage.setItem(DEFAULT_LOCALIZATION_LANGUAGE_KEY, normalized);
 };
 
 export const getExportDestinationMode = (): ExportDestinationMode => {

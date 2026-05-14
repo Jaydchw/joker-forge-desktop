@@ -45,6 +45,7 @@ import {
   getBalatroGamePath,
   getAutoOpenNewItemDialogEnabled,
   getDescriptionVariablePlaceholdersEnabled,
+  getDefaultLocalizationLanguage,
   getBypassUnsupportedRulesDialogEnabled,
   getConfirmDeleteEnabled,
   getJokerforgeExportSaveMode,
@@ -58,6 +59,7 @@ import {
   setBalatroGamePath,
   setAutoOpenNewItemDialogEnabled,
   setDescriptionVariablePlaceholdersEnabled,
+  setDefaultLocalizationLanguage,
   setBypassUnsupportedRulesDialogEnabled,
   setConfirmDeleteEnabled,
   setJokerforgeExportSaveMode,
@@ -73,6 +75,7 @@ import {
   type JokerforgeExportSaveMode,
   type ThemePreference,
 } from "@/lib/storage";
+import { LOCALIZATION_LANGUAGE_OPTIONS } from "@/lib/localization";
 import {
   APP_ZOOM_LEVELS,
   applyThemeFromStorage,
@@ -395,6 +398,8 @@ export default function SettingsPage() {
     useState<JokerforgeExportSaveMode>("ask");
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
   const [singleManagedModExport, setSingleManagedModExport] = useState(true);
+  const [defaultLocalizationLanguage, setDefaultLocalizationLanguageState] =
+    useState("en-us");
   const [launchOnExport, setLaunchOnExport] = useState(false);
   const [autoOpenNewItemDialog, setAutoOpenNewItemDialog] = useState(true);
   const [showDescriptionVariablePlaceholders, setShowDescriptionVariablePlaceholders] =
@@ -439,6 +444,7 @@ export default function SettingsPage() {
     setExportSaveMode(getJokerforgeExportSaveMode());
     setExportJokerforgeAsJson(getJokerforgeExportAsJsonEnabled());
     setSingleManagedModExport(getSingleManagedModExportEnabled());
+    setDefaultLocalizationLanguageState(getDefaultLocalizationLanguage());
     setLaunchOnExport(window.localStorage.getItem(LAUNCH_GAME_ON_EXPORT_KEY) === "true");
     setAutoOpenNewItemDialog(getAutoOpenNewItemDialogEnabled());
     setShowDescriptionVariablePlaceholders(
@@ -931,6 +937,46 @@ export default function SettingsPage() {
                     }}
                     className="cursor-pointer"
                   />
+                </div>
+                )}
+
+                {showSetting("Default Localization Language") && (
+                <div className="flex items-center justify-between gap-4 py-2">
+                  <div>
+                    <Label htmlFor="default-localization-language">
+                      Default Localization Language
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Used by localization editing defaults and split localization export.
+                    </p>
+                  </div>
+                  <Select
+                    value={defaultLocalizationLanguage}
+                    onValueChange={(value) => {
+                      setDefaultLocalizationLanguageState(value);
+                      setDefaultLocalizationLanguage(value);
+                    }}
+                  >
+                    <SelectTrigger
+                      id="default-localization-language"
+                      className="w-60 cursor-pointer"
+                    >
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LOCALIZATION_LANGUAGE_OPTIONS.filter(
+                        (option) => option.value.toLowerCase() !== "default",
+                      ).map((option) => (
+                        <SelectItem
+                          key={option.value}
+                          value={option.value}
+                          className="cursor-pointer"
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 )}
 

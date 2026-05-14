@@ -972,14 +972,25 @@ pub fn export_mod_package(
         let localization_dir = root.join("localization");
         fs::create_dir_all(&localization_dir)
             .map_err(|e| format!("Failed to create {}: {}", localization_dir.display(), e))?;
-        let loc_path = localization_dir.join(format!("{}.lua", locale));
-        let loc_lua = format_lua_source(&super::export::build_localization_lua(
+        let localization_files = super::export::build_localization_lua_files(
             &metadata.prefix,
+            &locale,
             &jokers,
-        ));
-        fs::write(&loc_path, loc_lua.as_bytes())
-            .map_err(|e| format!("Failed to write {}: {}", loc_path.display(), e))?;
-        file_count += 1;
+            &consumables,
+            &vouchers,
+            &decks,
+            &enhancements,
+            &seals,
+            &editions,
+        );
+
+        for (locale_key, loc_contents) in localization_files {
+            let loc_path = localization_dir.join(format!("{}.lua", locale_key));
+            let loc_lua = format_lua_source(&loc_contents);
+            fs::write(&loc_path, loc_lua.as_bytes())
+                .map_err(|e| format!("Failed to write {}: {}", loc_path.display(), e))?;
+            file_count += 1;
+        }
     }
 
     Ok(file_count)

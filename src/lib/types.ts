@@ -1,6 +1,7 @@
 export type { Rule } from "@/components/rule-builder/types";
 
 import type { Rule } from "@/components/rule-builder/types";
+import type { LocalizationEntry } from "@/lib/localization";
 
 export interface UserVariable {
   id: string;
@@ -66,6 +67,7 @@ export interface BaseGameObject {
   objectKey: string;
   name: string;
   description: string;
+  localizations?: LocalizationEntry[];
   image: string;
   imageLayers?: PixelLayerData[];
   overlayImage?: string;

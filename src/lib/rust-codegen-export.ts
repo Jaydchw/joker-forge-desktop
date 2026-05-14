@@ -15,6 +15,10 @@ import type {
   UserVariable,
   VoucherData,
 } from "@/lib/types";
+import {
+  ensureLocalizableWithLanguage,
+  sanitizeLocalizationEntries,
+} from "@/lib/localization";
 
 // ---------------------------------------------------------------------------
 // Public option / result types
@@ -442,46 +446,103 @@ export const exportModRust = async (
     rarities,
     consumableSets,
     jokers: sortedJokers.map((joker) => ({
-      jokerData: joker,
+      // Localization-first model: base fields come from the chosen default locale.
+      ...(() => {
+        const normalized = ensureLocalizableWithLanguage(joker, locale);
+        return {
+          jokerData: {
+            ...normalized,
+            localizations: sanitizeLocalizationEntries(normalized.localizations),
+          },
+        };
+      })(),
       pos: jokerAtlas1x?.positionsById[joker.id] ?? { x: 0, y: 0 },
       soulPos: jokerAtlas1x?.soulPositionsById[joker.id] ?? null,
       fileName: `${joker.objectKey}.lua`,
       customLua: joker.customCode?.fullCode ?? null,
     })),
     consumables: sortedConsumables.map((item) => ({
-      consumableData: item,
+      ...(() => {
+        const normalized = ensureLocalizableWithLanguage(item, locale);
+        return {
+          consumableData: {
+            ...normalized,
+            localizations: sanitizeLocalizationEntries(normalized.localizations),
+          },
+        };
+      })(),
       pos: consumablesAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       soulPos: consumablesAtlas1x?.soulPositionsById[item.id] ?? null,
       fileName: `${item.objectKey}.lua`,
       customLua: item.customCode?.fullCode ?? null,
     })),
     vouchers: sortedVouchers.map((item) => ({
-      voucherData: item,
+      ...(() => {
+        const normalized = ensureLocalizableWithLanguage(item, locale);
+        return {
+          voucherData: {
+            ...normalized,
+            localizations: sanitizeLocalizationEntries(normalized.localizations),
+          },
+        };
+      })(),
       pos: vouchersAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       soulPos: vouchersAtlas1x?.soulPositionsById[item.id] ?? null,
       fileName: `${item.objectKey}.lua`,
       customLua: item.customCode?.fullCode ?? null,
     })),
     decks: sortedDecks.map((item) => ({
-      deckData: item,
+      ...(() => {
+        const normalized = ensureLocalizableWithLanguage(item, locale);
+        return {
+          deckData: {
+            ...normalized,
+            localizations: sanitizeLocalizationEntries(normalized.localizations),
+          },
+        };
+      })(),
       pos: decksAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
       customLua: item.customCode?.fullCode ?? null,
     })),
     enhancements: sortedEnhancements.map((item) => ({
-      enhancementData: item,
+      ...(() => {
+        const normalized = ensureLocalizableWithLanguage(item, locale);
+        return {
+          enhancementData: {
+            ...normalized,
+            localizations: sanitizeLocalizationEntries(normalized.localizations),
+          },
+        };
+      })(),
       pos: enhancementsAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
       customLua: item.customCode?.fullCode ?? null,
     })),
     seals: sortedSeals.map((item) => ({
-      sealData: item,
+      ...(() => {
+        const normalized = ensureLocalizableWithLanguage(item, locale);
+        return {
+          sealData: {
+            ...normalized,
+            localizations: sanitizeLocalizationEntries(normalized.localizations),
+          },
+        };
+      })(),
       pos: sealsAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
       customLua: item.customCode?.fullCode ?? null,
     })),
     editions: sortedEditions.map((item) => ({
-      editionData: item,
+      ...(() => {
+        const normalized = ensureLocalizableWithLanguage(item, locale);
+        return {
+          editionData: {
+            ...normalized,
+            localizations: sanitizeLocalizationEntries(normalized.localizations),
+          },
+        };
+      })(),
       fileName: `${item.objectKey}.lua`,
       customLua: item.customCode?.fullCode ?? null,
     })),
