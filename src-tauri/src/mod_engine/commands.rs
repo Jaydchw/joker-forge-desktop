@@ -1660,6 +1660,52 @@ pub fn open_devtools(window: tauri::WebviewWindow) {
 }
 
 #[tauri::command]
+pub fn open_folder_in_file_manager(path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    let target = PathBuf::from(path.trim());
+    if !target.exists() {
+        return Err(format!("Path does not exist: {}", target.display()));
+    }
+    if !target.is_dir() {
+        return Err(format!("Path is not a folder: {}", target.display()));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(&target)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder in Explorer: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&target)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder in Finder: {}", e))?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(&target)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder in file manager: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn can_launch_balatro(game_path: String) -> bool {
+    resolve_game_dir_from_any_path(&game_path)
+        .map(|game_dir| game_dir.join("Balatro.exe").exists())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
 pub fn launch_or_relaunch_balatro(game_path: String) -> Result<(), String> {
     use std::process::Command;
 

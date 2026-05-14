@@ -35,6 +35,8 @@ pub fn run() {
             commands::download_release_asset,
             commands::install_update_and_restart,
             commands::open_devtools,
+            commands::open_folder_in_file_manager,
+            commands::can_launch_balatro,
             commands::launch_or_relaunch_balatro,
         ])
         .run(tauri::generate_context!())

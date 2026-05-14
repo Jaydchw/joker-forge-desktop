@@ -1,7 +1,14 @@
 import { useEffect, useState, useMemo } from "react";
-import { Copy, FolderOpen, CheckCircle } from "@phosphor-icons/react";
+import {
+  Copy,
+  FolderOpen,
+  CheckCircle,
+  Play,
+  BookOpenText,
+  Bug,
+} from "@phosphor-icons/react";
 import { motion } from "framer-motion";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { getBalatroGamePath } from "@/lib/storage";
 
 interface ExportSuccessDialogProps {
   open: boolean;
@@ -27,6 +35,8 @@ export function ExportSuccessDialog({
 }: ExportSuccessDialogProps) {
   const [copied, setCopied] = useState(false);
   const [openFolderError, setOpenFolderError] = useState<string | null>(null);
+  const [openBalatroError, setOpenBalatroError] = useState<string | null>(null);
+  const [canOpenBalatro, setCanOpenBalatro] = useState(false);
 
   const confettiPieces = useMemo(
     () =>
@@ -50,7 +60,34 @@ export function ExportSuccessDialog({
     if (!open) {
       setCopied(false);
       setOpenFolderError(null);
+      setOpenBalatroError(null);
+      setCanOpenBalatro(false);
     }
+  }, [open]);
+
+  useEffect(() => {
+    let active = true;
+    const checkBalatro = async () => {
+      if (!open) return;
+      const gamePath = getBalatroGamePath().trim();
+      if (!gamePath) {
+        if (active) setCanOpenBalatro(false);
+        return;
+      }
+      try {
+        const canLaunch = await invoke<boolean>("can_launch_balatro", {
+          gamePath,
+        });
+        if (active) setCanOpenBalatro(canLaunch);
+      } catch {
+        if (active) setCanOpenBalatro(false);
+      }
+    };
+
+    void checkBalatro();
+    return () => {
+      active = false;
+    };
   }, [open]);
 
   const handleCopyPath = async () => {
@@ -69,10 +106,21 @@ export function ExportSuccessDialog({
   const handleOpenFolder = async () => {
     try {
       if (!modFolderPath) return;
-      await openPath(modFolderPath);
+      await invoke("open_folder_in_file_manager", { path: modFolderPath });
       setOpenFolderError(null);
     } catch {
       setOpenFolderError("Could not open the folder. Try Copy Path instead.");
+    }
+  };
+
+  const handleOpenBalatro = async () => {
+    try {
+      const gamePath = getBalatroGamePath().trim();
+      if (!gamePath) return;
+      await invoke("launch_or_relaunch_balatro", { gamePath });
+      setOpenBalatroError(null);
+    } catch {
+      setOpenBalatroError("Could not launch Balatro.");
     }
   };
 
@@ -103,7 +151,7 @@ export function ExportSuccessDialog({
             ))}
           </div>
         }
-        className="overflow-hidden border border-border/60 bg-card p-0 sm:max-w-md"
+        className="overflow-hidden border border-border/60 bg-card p-0 sm:max-w-2xl"
       >
         <div className="relative p-6 pb-2">
           <DialogHeader className="text-left space-y-2">
@@ -119,36 +167,79 @@ export function ExportSuccessDialog({
           </DialogHeader>
         </div>
 
-        <div className="space-y-3 px-6 py-4">
-          <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-muted/30 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Export Location
+        <div className="space-y-5 px-6 py-5">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/90">
+              <FolderOpen className="h-3.5 w-3.5 text-primary" />
+              <span>Export Location</span>
             </div>
             <div className="break-all font-mono text-sm text-foreground">
               {modFolderPath}
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-muted/30 p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Summary
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/90">
+              <CheckCircle className="h-3.5 w-3.5 text-primary" />
+              <span>Summary</span>
             </div>
             <div className="text-sm text-foreground">
               Wrote {fileCount} files to your mod folder.
             </div>
           </div>
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/90">
+              <BookOpenText className="h-3.5 w-3.5 text-primary" />
+              <span>Learn More About Modding</span>
+            </div>
+            <div className="flex flex-col gap-1 text-sm">
+              <a
+                href="https://github.com/nh6574/VanillaRemade/wiki"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Vanilla Remade Wiki by N'
+              </a>
+              <a
+                href="https://github.com/Steamodded/smods/wiki"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                SMODS Official Wiki
+              </a>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/90">
+              <Bug className="h-3.5 w-3.5 text-primary" />
+              <span>Found a Bug or Have Suggestions?</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Open an issue on{" "}
+              <a
+                href="https://github.com/Jaydchw/joker-forge/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                GitHub
+              </a>
+              .
+            </p>
+          </div>
         </div>
 
-        {openFolderError ? (
-          <div className="px-6 pb-2 text-xs text-destructive">
-            {openFolderError}
-          </div>
-        ) : null}
+        {openFolderError ? <div className="px-6 pb-1 text-xs text-destructive">{openFolderError}</div> : null}
+        {openBalatroError ? <div className="px-6 pb-2 text-xs text-destructive">{openBalatroError}</div> : null}
 
-        <DialogFooter className="flex w-full flex-row gap-2 border-t border-border/40 bg-muted/10 p-4">
+        <DialogFooter className="flex w-full flex-col gap-2 border-t border-border/40 bg-muted/10 p-4 sm:flex-row sm:flex-wrap">
           <Button
             variant="outline"
-            className="w-1/2 cursor-pointer"
+            className="w-full cursor-pointer sm:flex-1"
             type="button"
             onClick={handleCopyPath}
           >
@@ -157,13 +248,24 @@ export function ExportSuccessDialog({
           </Button>
           <Button
             variant="secondary"
-            className="w-1/2 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
+            className="w-full cursor-pointer sm:flex-1"
             type="button"
             onClick={handleOpenFolder}
           >
             <FolderOpen className="mr-2 h-4 w-4" />
             Open Folder
           </Button>
+          {canOpenBalatro ? (
+            <Button
+              variant="default"
+              className="w-full cursor-pointer sm:basis-full"
+              type="button"
+              onClick={handleOpenBalatro}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Launch Balatro
+            </Button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>
