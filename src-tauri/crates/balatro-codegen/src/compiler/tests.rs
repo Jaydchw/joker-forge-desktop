@@ -224,5 +224,28 @@ fn shared_calculate_keeps_triggers_isolated() {
 
     assert!(code.contains("message = 'HAND'"));
     assert!(code.contains("message = 'ROUND'"));
-    assert!(code.matches("if context.").count() >= 2);
+    assert!(code.contains("if context."));
+    assert!(code.contains("elseif context."));
+}
+
+#[test]
+fn joker_calculate_uses_elseif_for_multiple_triggers() {
+    let ctx = CompileContext::new(
+        ObjectType::Joker,
+        "mod".to_string(),
+        "j_test".to_string(),
+        false,
+    );
+
+    let hand_rule = make_rule_output("r_hand", "hand_played", None, "HAND");
+    let round_rule = make_rule_output("r_round", "round_end", None, "ROUND");
+
+    let calc = build_calculate_function(&[hand_rule, round_rule], &ctx)
+        .expect("calculate function should be generated");
+    let code = Emitter::new().emit_expr_to_string(&calc);
+
+    assert!(code.contains("message = 'HAND'"));
+    assert!(code.contains("message = 'ROUND'"));
+    assert!(code.contains("if context."));
+    assert!(code.contains("elseif context."));
 }

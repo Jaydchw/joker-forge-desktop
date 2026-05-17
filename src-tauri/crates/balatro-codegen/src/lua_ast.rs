@@ -1061,11 +1061,18 @@ pub fn format_lua_source(source: &str) -> String {
     let mut out = String::with_capacity(normalized.len() + 32);
 
     let mut indent: usize = 0;
+    let mut last_nonblank_trimmed: Option<String> = None;
     for raw_line in normalized.lines() {
         let line = raw_line.trim_end();
         let trimmed = line.trim_start();
 
         if trimmed.is_empty() {
+            if matches!(
+                last_nonblank_trimmed.as_deref(),
+                Some(prev) if prev.starts_with("return {")
+            ) {
+                continue;
+            }
             out.push('\n');
             continue;
         }
@@ -1080,6 +1087,7 @@ pub fn format_lua_source(source: &str) -> String {
         }
         out.push_str(trimmed);
         out.push('\n');
+        last_nonblank_trimmed = Some(trimmed.to_string());
 
         if should_indent_after(trimmed) {
             indent += 1;
@@ -1190,5 +1198,15 @@ mod tests {
         let expr = lua_and(lua_or(lua_ident("a"), lua_ident("b")), lua_ident("c"));
         let out = Emitter::new().emit_expr_to_string(&expr);
         assert_eq!(out, "(a or b) and c");
+    }
+
+    #[test]
+    fn format_lua_source_removes_blank_line_after_return_table_open() {
+        let src = "return {\n        \n            dollars = card.ability.extra.dollars0,\n            colour = G.C.MONEY\n        }\n";
+        let out = format_lua_source(src);
+        assert_eq!(
+            out,
+            "return {\n    dollars = card.ability.extra.dollars0,\n    colour = G.C.MONEY\n}\n"
+        );
     }
 }

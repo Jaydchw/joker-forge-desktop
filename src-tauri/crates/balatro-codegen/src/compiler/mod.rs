@@ -689,6 +689,7 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
         }
     }
 
+    let mut trigger_branches: Vec<(Expr, Vec<Stmt>)> = Vec::new();
     for trigger in &triggers_seen {
         let rules_for_trigger: Vec<&RuleOutput> = non_passive
             .iter()
@@ -732,9 +733,17 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
         });
 
         if !trigger_body.is_empty() {
-            body.extend(build_trigger_anchor_stmts(&rules_for_trigger));
-            body.push(lua_if(trigger_ctx, trigger_body));
+            let mut branch_body = build_trigger_anchor_stmts(&rules_for_trigger);
+            branch_body.extend(trigger_body);
+            trigger_branches.push((trigger_ctx, branch_body));
         }
+    }
+
+    if !trigger_branches.is_empty() {
+        body.push(Stmt::If {
+            branches: trigger_branches,
+            else_body: None,
+        });
     }
 
     if body.is_empty() {
@@ -1390,6 +1399,7 @@ pub(crate) fn build_shared_calculate_function(
         }
     }
 
+    let mut trigger_branches: Vec<(Expr, Vec<Stmt>)> = Vec::new();
     for trigger in &triggers_seen {
         let rules_for_trigger: Vec<&RuleOutput> = non_passive
             .iter()
@@ -1405,9 +1415,17 @@ pub(crate) fn build_shared_calculate_function(
         });
 
         if !trigger_body.is_empty() {
-            body.extend(build_trigger_anchor_stmts(&rules_for_trigger));
-            body.push(lua_if(trigger_ctx, trigger_body));
+            let mut branch_body = build_trigger_anchor_stmts(&rules_for_trigger);
+            branch_body.extend(trigger_body);
+            trigger_branches.push((trigger_ctx, branch_body));
         }
+    }
+
+    if !trigger_branches.is_empty() {
+        body.push(Stmt::If {
+            branches: trigger_branches,
+            else_body: None,
+        });
     }
 
     if body.is_empty() {
