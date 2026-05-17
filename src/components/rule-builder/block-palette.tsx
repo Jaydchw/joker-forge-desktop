@@ -21,6 +21,7 @@ import {
 import IconButton from "@/components/ui/icon-button";
 import ItemTypeBadge from "./item-type-badge";
 import Panel from "./panel";
+import HelpTooltipIcon from "@/components/ui/help-tooltip-icon";
 
 import {
   TRIGGER_CATEGORIES,
@@ -464,6 +465,9 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
       icon={Palette}
       title="Block Palette"
       titleAccessory={<ItemTypeBadge itemType={itemType} />}
+      headerActions={
+        <HelpTooltipIcon content="This panel is context-sensitive: Trigger list is global, but Condition/Effect lists are recalculated from the currently selected rule's trigger. Changing selected rule can completely change what appears here." />
+      }
       onClose={onClose}
       closeLabel="Close Block Palette"
       className="w-80"
@@ -476,7 +480,7 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
           <IconButton
             icon={Lightning}
             onClick={() => handleFilterToggle("triggers")}
-            tooltip="Filter Triggers"
+            tooltip="Show all trigger types (starting point for rule compatibility)"
             isActive={activeFilter === "triggers"}
             className={
               activeFilter === "triggers"
@@ -487,7 +491,7 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
           <IconButton
             icon={Flask}
             onClick={() => handleFilterToggle("conditions")}
-            tooltip="Filter Conditions"
+            tooltip="Show only conditions valid for the selected rule's trigger"
             disabled={!selectedRule}
             isActive={activeFilter === "conditions"}
             className={
@@ -501,7 +505,7 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
           <IconButton
             icon={PuzzlePiece}
             onClick={() => handleFilterToggle("effects")}
-            tooltip="Filter Effects"
+            tooltip="Show only effects valid for the selected rule's trigger"
             disabled={!selectedRule}
             isActive={activeFilter === "effects"}
             className={
@@ -515,6 +519,12 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
         </div>
 
         <div className="relative mb-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Search Blocks
+            </span>
+            <HelpTooltipIcon content="Search runs only inside the active filter tab and current compatibility set. If results seem missing, switch filter or select a different rule/trigger first." />
+          </div>
           <div className="relative">
             <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-jungle-green-400 stroke-2" />
             <input

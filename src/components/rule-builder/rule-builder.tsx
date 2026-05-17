@@ -93,6 +93,7 @@ import {
   getSelectedRule,
 } from "./selection-utils";
 import IconButton from "@/components/ui/icon-button";
+import HelpTooltipIcon from "@/components/ui/help-tooltip-icon";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import ItemTypeBadge from "./item-type-badge";
 import { CustomContextMenu, type ContextMenuGroupConfig } from "@/components/ui/custom-context-menu";
@@ -4086,6 +4087,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase shrink-0">
                   Rule Builder
                 </span>
+                <HelpTooltipIcon
+                  content="Canvas edits are live against in-memory rule state. Unsaved changes can still influence preview/inspector behavior until you close or reload."
+                  side="bottom"
+                  iconClassName="h-3.5 w-3.5"
+                />
                 {isReadOnly && (
                   <Badge
                     variant="secondary"
@@ -4155,6 +4161,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 <span className="text-[11px] text-muted-foreground w-12 text-center">
                   {Math.round(panState.scale * 100)}%
                 </span>
+                <HelpTooltipIcon
+                  content="Auto Layout and Recenter work on current rule positions, not semantic groups. Use them before fine manual placement if drag interactions start feeling inconsistent."
+                  side="bottom"
+                  iconClassName="h-3.5 w-3.5"
+                />
                 <div className="w-px h-5 bg-border" />
                 {availableRuleTemplates.length > 0 && (
                   <Button
@@ -4191,6 +4202,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 <span className="text-xs font-semibold text-foreground/90">
                   {modeLabel}
                 </span>
+                <HelpTooltipIcon
+                  content="Mode changes trigger/effect catalogs and compile assumptions. A rule valid in one mode can become hidden or non-applicable when mode/context changes."
+                  side="bottom"
+                  iconClassName="h-3.5 w-3.5"
+                />
                 <ItemTypeBadge itemType={itemType} />
               </div>
             </div>

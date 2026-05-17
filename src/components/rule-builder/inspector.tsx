@@ -72,6 +72,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Toggle } from "@/components/ui/toggle";
 import Panel from "./panel";
+import HelpTooltipIcon from "@/components/ui/help-tooltip-icon";
 
 interface InspectorProps {
   position: { x: number; y: number };
@@ -443,11 +444,6 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
   );
   const [inputValue, setInputValue] = React.useState("");
   const [inputError, setInputError] = React.useState<string>("");
-
-  const [showStartsFromTooltip, setShowStartsFromTooltip] =
-    React.useState(false);
-  const [showMultiplierTooltip, setShowMultiplierTooltip] =
-    React.useState(false);
 
   React.useEffect(() => {
     if (param.type === "number" && typeof value === "number") {
@@ -1068,19 +1064,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
               <div className="relative">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-zinc-100 text-sm">Starts From</span>
-                  <div
-                    className="relative"
-                    onMouseEnter={() => setShowStartsFromTooltip(true)}
-                    onMouseLeave={() => setShowStartsFromTooltip(false)}
-                  >
-                    <Info className="h-4 w-4 text-zinc-400 hover:text-zinc-100 cursor-help transition-colors" />
-                    {showStartsFromTooltip && (
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/4 mb-2 px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground w-72 z-50 shadow-lg pointer-events-none">
-                        Value that the Game Variable starts from. (e.g. 1 for
-                        XMult)
-                      </div>
-                    )}
-                  </div>
+                  <HelpTooltipIcon content="Final value is computed as: startsFrom + (gameVariable * multiplier). Use this to set a floor before scaling begins." />
                 </div>
                 <InputField
                   type="number"
@@ -1094,19 +1078,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
               <div className="relative">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-zinc-100 text-sm">Multiplier</span>
-                  <div
-                    className="relative"
-                    onMouseEnter={() => setShowMultiplierTooltip(true)}
-                    onMouseLeave={() => setShowMultiplierTooltip(false)}
-                  >
-                    <Info className="h-4 w-4 text-zinc-400 hover:text-zinc-100 cursor-help transition-colors" />
-                    {showMultiplierTooltip && (
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/4 mb-2 px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground w-72 z-50 shadow-lg pointer-events-none">
-                        Factor that the Game Variable with multiply with /
-                        increment by. (e.g. 0.1 for XMult)
-                      </div>
-                    )}
-                  </div>
+                  <HelpTooltipIcon content="Per-step scaling factor in the game-variable formula. Negative values invert growth direction; decimals provide gradual scaling." />
                 </div>
                 <InputField
                   type="number"
@@ -1626,6 +1598,7 @@ const Inspector: React.FC<InspectorProps> = ({
             <h5 className="text-zinc-100 font-medium text-sm flex items-center gap-2">
               <div className="w-2 h-2 bg-balatro-blue rounded-full"></div>
               Parameters
+              <HelpTooltipIcon content="Only parameters whose show-when dependencies are currently satisfied are shown. Changing one parent field can reveal or hide downstream fields." />
             </h5>
             <div className="divide-y divide-border/70">
               {paramsToRender.map((param) => (
@@ -1676,6 +1649,7 @@ const Inspector: React.FC<InspectorProps> = ({
             <h4 className="text-jungle-green-400 font-semibold text-base leading-none">
               Random Group
             </h4>
+            <HelpTooltipIcon content="Random group applies one roll to the whole group, not per effect. If the roll fails, all contained effects are skipped together." />
             <span className="text-jungle-green-400 text-xs font-semibold">
               ({selectedRandomGroup.effects.length})
             </span>
@@ -1691,6 +1665,7 @@ const Inspector: React.FC<InspectorProps> = ({
           <h5 className="text-zinc-100 font-medium text-sm flex items-center gap-2">
             <div className="w-2 h-2 bg-jungle-green-500 rounded-full"></div>
             Chance Configuration
+            <HelpTooltipIcon content="Chance is evaluated as numerator / denominator at runtime. Variable-driven values are re-read each execution, so probability can change during play." />
           </h5>
 
           <div className="divide-y divide-border/70">
@@ -1746,6 +1721,7 @@ const Inspector: React.FC<InspectorProps> = ({
             <h5 className="text-zinc-100 font-medium text-sm flex items-center gap-2">
               <div className="w-2 h-2 bg-jungle-green-500 rounded-full"></div>
               Advanced Configuration
+              <HelpTooltipIcon content="These fields alter how probability integrates with external systems. `Affected by Probability Effects` can be forced off by specific triggers, and `Custom Probability key` changes where modifiers are read/written." />
             </h5>
 
             <div className="divide-y divide-border/70">
@@ -1833,6 +1809,7 @@ const Inspector: React.FC<InspectorProps> = ({
             <h4 className="text-balatro-blue font-semibold text-base leading-none">
               Loop Group
             </h4>
+            <HelpTooltipIcon content="Loop repeats the full effect sequence in order. If effects mutate state, each repetition sees updated state from the previous pass." />
             <span className="text-balatro-blue text-xs font-semibold">
               ({selectedLoopGroup.effects.length})
             </span>
@@ -2025,6 +2002,7 @@ const Inspector: React.FC<InspectorProps> = ({
             <h5 className="text-zinc-100 font-medium text-sm flex items-center gap-2">
               <div className="w-2 h-2 bg-balatro-green rounded-full"></div>
               Parameters
+              <HelpTooltipIcon content="Parameter visibility and valid value types depend on effect definition and current selections. Some fields intentionally disappear when incompatible." />
             </h5>
             <div className="divide-y divide-border/70">
               {paramsToRender.map((param) => (
@@ -2076,6 +2054,9 @@ const Inspector: React.FC<InspectorProps> = ({
       icon={ChartPieSlice}
       title="Inspector"
       titleAccessory={<ItemTypeBadge itemType={itemType} />}
+      headerActions={
+        <HelpTooltipIcon content="Inspector binds to your current canvas selection. If edits seem to affect the wrong thing, re-select the exact node/group; this panel does not auto-lock to prior selections." />
+      }
       onClose={onClose}
       closeLabel="Close Inspector"
       className="w-88 bg-card/98 border-2 border-border/90 rounded-2xl shadow-2xl max-h-[calc(100vh-5rem)] overflow-hidden"

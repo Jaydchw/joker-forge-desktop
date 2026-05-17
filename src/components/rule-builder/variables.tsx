@@ -45,6 +45,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import HelpTooltipIcon from "@/components/ui/help-tooltip-icon";
 type ItemData = any;
 
 interface VariablesProps {
@@ -566,9 +567,16 @@ const Variables: React.FC<VariablesProps> = ({
       headerClassName="p-4"
       contentClassName="p-4"
       headerActions={
-        <span className="text-muted-foreground text-xs">
-          {userVariables.length} variable{userVariables.length !== 1 ? "s" : ""}
-        </span>
+        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+          <span>
+            {userVariables.length} variable{userVariables.length !== 1 ? "s" : ""}
+          </span>
+          <HelpTooltipIcon
+            content="Name collisions are merged by variable name, not id. If a global variable has the same name as a local one, the first resolved definition wins in many pickers."
+            side="bottom"
+            iconClassName="h-3.5 w-3.5"
+          />
+        </div>
       }
     >
       <div>
@@ -657,6 +665,11 @@ const Variables: React.FC<VariablesProps> = ({
                           }
                           isActive={editingIsGlobal}
                           className="h-8 w-8"
+                        />
+                        <HelpTooltipIcon
+                          content="Global writes can affect rules in other items that reference the same variable name. Persistent values may carry stale state into later test runs unless reset."
+                          side="left"
+                          iconClassName="h-3.5 w-3.5"
                         />
                         {editingIsGlobal ? (
                           <IconButton
@@ -914,6 +927,11 @@ const Variables: React.FC<VariablesProps> = ({
                   }
                   isActive={newVariableIsGlobal}
                   className="h-8 w-8"
+                />
+                <HelpTooltipIcon
+                  content="Global writes can affect rules in other items that reference the same variable name. Persistent values may carry stale state into later test runs unless reset."
+                  side="left"
+                  iconClassName="h-3.5 w-3.5"
                 />
                 {newVariableIsGlobal ? (
                   <IconButton
