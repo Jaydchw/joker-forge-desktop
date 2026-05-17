@@ -249,3 +249,36 @@ fn joker_calculate_uses_elseif_for_multiple_triggers() {
     assert!(code.contains("if context."));
     assert!(code.contains("elseif context."));
 }
+
+#[test]
+fn trigger_segment_starts_on_trigger_if_line() {
+    let ctx = CompileContext::new(
+        ObjectType::Joker,
+        "mod".to_string(),
+        "j_test".to_string(),
+        false,
+    );
+
+    let hand_rule = make_rule_output("r_hand", "hand_played", None, "HAND");
+    let round_rule = make_rule_output("r_round", "round_end", None, "ROUND");
+
+    let calc = build_calculate_function(&[hand_rule, round_rule], &ctx)
+        .expect("calculate function should be generated");
+    let chunk = Chunk {
+        stmts: vec![Stmt::Local("calculate".to_string(), Some(calc))],
+    };
+    let (code, segments) = Emitter::new().emit_chunk_with_segments(&chunk);
+    let if_line = code
+        .lines()
+        .position(|line| line.trim_start().starts_with("if context."))
+        .map(|line| line + 1)
+        .expect("expected trigger if line");
+
+    for segment_id in ["trigger:r_hand", "trigger:r_round"] {
+        let seg = segments
+            .iter()
+            .find(|segment| segment.id == segment_id)
+            .unwrap_or_else(|| panic!("missing segment {}", segment_id));
+        assert_eq!(seg.start_line, if_line);
+    }
+}

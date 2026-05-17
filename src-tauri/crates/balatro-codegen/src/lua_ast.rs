@@ -894,19 +894,22 @@ impl Emitter {
 
     fn push_segment_end(&mut self, id: &str) {
         let (end_line, end_col) = self.current_line_col();
-        if let Some((start_id, start_line, start_col)) = self.segment_stack.pop() {
-            if start_id == id {
-                let (segment_type, name) = classify_segment(id);
-                self.segments.push(LuaSegment {
-                    id: id.to_string(),
-                    segment_type,
-                    name,
-                    start_line,
-                    start_column: start_col,
-                    end_line,
-                    end_column: end_col,
-                });
-            }
+        if let Some(idx) = self
+            .segment_stack
+            .iter()
+            .rposition(|(start_id, _, _)| start_id == id)
+        {
+            let (_, start_line, start_col) = self.segment_stack.remove(idx);
+            let (segment_type, name) = classify_segment(id);
+            self.segments.push(LuaSegment {
+                id: id.to_string(),
+                segment_type,
+                name,
+                start_line,
+                start_column: start_col,
+                end_line,
+                end_column: end_col,
+            });
         }
     }
 
@@ -1208,5 +1211,31 @@ mod tests {
             out,
             "return {\n    dollars = card.ability.extra.dollars0,\n    colour = G.C.MONEY\n}\n"
         );
+    }
+
+    #[test]
+    fn segment_end_matches_by_id_without_corrupting_stack() {
+        let chunk = Chunk {
+            stmts: vec![
+                stmt_section_begin("a"),
+                stmt_section_begin("b"),
+                lua_raw_stmt("local x = 1"),
+                stmt_section_end("a"),
+                stmt_section_end("b"),
+            ],
+        };
+
+        let (_code, segments) = Emitter::new().emit_chunk_with_segments(&chunk);
+        let a = segments
+            .iter()
+            .find(|segment| segment.id == "a")
+            .expect("missing segment a");
+        let b = segments
+            .iter()
+            .find(|segment| segment.id == "b")
+            .expect("missing segment b");
+
+        assert!(a.start_line <= a.end_line);
+        assert!(b.start_line <= b.end_line);
     }
 }

@@ -733,17 +733,19 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
         });
 
         if !trigger_body.is_empty() {
-            let mut branch_body = build_trigger_anchor_stmts(&rules_for_trigger);
-            branch_body.extend(trigger_body);
-            trigger_branches.push((trigger_ctx, branch_body));
+            trigger_branches.push((trigger_ctx, trigger_body));
         }
     }
 
     if !trigger_branches.is_empty() {
-        body.push(Stmt::If {
+        let trigger_if = Stmt::If {
             branches: trigger_branches,
             else_body: None,
-        });
+        };
+        body.extend(wrap_trigger_stmt_for_rules(
+            &non_passive,
+            trigger_if,
+        ));
     }
 
     if body.is_empty() {
@@ -1415,17 +1417,19 @@ pub(crate) fn build_shared_calculate_function(
         });
 
         if !trigger_body.is_empty() {
-            let mut branch_body = build_trigger_anchor_stmts(&rules_for_trigger);
-            branch_body.extend(trigger_body);
-            trigger_branches.push((trigger_ctx, branch_body));
+            trigger_branches.push((trigger_ctx, trigger_body));
         }
     }
 
     if !trigger_branches.is_empty() {
-        body.push(Stmt::If {
+        let trigger_if = Stmt::If {
             branches: trigger_branches,
             else_body: None,
-        });
+        };
+        body.extend(wrap_trigger_stmt_for_rules(
+            &non_passive,
+            trigger_if,
+        ));
     }
 
     if body.is_empty() {
@@ -1508,13 +1512,16 @@ fn build_rule_anchor_stmts(ro: &RuleOutput) -> Vec<Stmt> {
     anchors
 }
 
-fn build_trigger_anchor_stmts(rules_for_trigger: &[&RuleOutput]) -> Vec<Stmt> {
-    let mut anchors = Vec::with_capacity(rules_for_trigger.len() * 2);
-    for ro in rules_for_trigger {
-        anchors.push(stmt_section_begin(&format!("trigger:{}", ro.rule_id)));
-        anchors.push(stmt_section_end(&format!("trigger:{}", ro.rule_id)));
+fn wrap_trigger_stmt_for_rules(rules: &[&RuleOutput], trigger_stmt: Stmt) -> Vec<Stmt> {
+    let mut wrapped = Vec::with_capacity(rules.len() * 2 + 1);
+    for ro in rules {
+        wrapped.push(stmt_section_begin(&format!("trigger:{}", ro.rule_id)));
     }
-    anchors
+    wrapped.push(trigger_stmt);
+    for ro in rules.iter().rev() {
+        wrapped.push(stmt_section_end(&format!("trigger:{}", ro.rule_id)));
+    }
+    wrapped
 }
 
 pub(crate) fn wrap_rule_segment(rule_id: &str, stmts: Vec<Stmt>) -> Vec<Stmt> {
