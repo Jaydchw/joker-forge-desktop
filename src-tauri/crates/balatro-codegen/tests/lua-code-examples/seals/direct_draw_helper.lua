@@ -1,20 +1,20 @@
--- Purpose: verify seal scoring trigger emits calculate hook and payload.
+-- Purpose: Snapshot for `direct_draw_helper` (seal) codegen output.
 
 SMODS.Seal {
-    key = 's_card_scored_bonus',
+    key = 's_direct_draw_helper',
     pos = {
         x = 0,
         y = 0
     },
     config = {
-        extra = { chips0 = 5 }
+        extra = { card_draw0 = 1 }
     },
     badge_colour = HEX('FF0000'),
     loc_txt = {
-        ['name'] = 'Card Scored Bonus Seal',
-        ['label'] = 'Card Scored Bonus Seal',
+        ['name'] = 'Direct Draw Helper',
+        ['label'] = 'Direct Draw Helper',
         ['text'] = {
-            [1] = 'Adds chips on card scored.'
+            [1] = 'Seal fixture using draw helper.'
         }
     },
     atlas = 'centers',
@@ -24,14 +24,16 @@ SMODS.Seal {
     loc_vars = function(self, info_queue, card)
         return {
             vars = {
-                self.config.extra.chips0
+                self.config.extra.card_draw0
             }
         }
     end,
     calculate = function(self, card, context)
         if context.main_scoring and context.cardarea == G.play then
+            SMODS.draw_cards(card.ability.seal.extra.card_draw0)
             return {
-                chips = card.ability.seal.extra.chips0
+                message = "+"..tostring(card.ability.seal.extra.card_draw0)..' Cards Drawn',
+                colour = G.C.BLUE
             }
         end
     end

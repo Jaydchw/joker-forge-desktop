@@ -1,0 +1,27 @@
+{
+  "object_type": "joker",
+  "mod_prefix": "modprefix",
+  "include_loc_txt": true,
+  "definition": {
+    "key": "j_draw_and_level_helpers",
+    "name": "Draw And Level Helpers",
+    "description": ["Uses SMODS helper functions."],
+    "cost": 4,
+    "rarity": "common",
+    "blueprint_compat": true,
+    "eternal_compat": true,
+    "perishable_compat": true,
+    "unlocked": true,
+    "discovered": true,
+    "atlas": "Joker",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "hand_played",
+      "effects": [
+        {"effect_type": "draw_cards", "params": {"value": 2}},
+        {"effect_type": "level_up_hand", "params": {"amount": 1}}
+      ]
+    }]
+  }
+}

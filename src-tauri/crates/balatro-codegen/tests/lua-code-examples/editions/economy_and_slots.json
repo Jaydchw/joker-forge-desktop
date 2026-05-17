@@ -1,0 +1,27 @@
+{
+  "object_type": "edition",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "e_economy_and_slots",
+    "name": "Economy And Slots",
+    "description": ["Edition fixture for economy and slots effects."],
+    "rules": [{
+      "id": "r1",
+      "trigger": "card_scored",
+      "effects": [
+        {"effect_type": "edit_interest_cap", "params": {"operation": "add", "value": 1}},
+        {"effect_type": "edit_consumable_slots", "params": {"operation": "add", "value": 1}}
+      ]
+    }],
+    "user_variables": [],
+    "in_shop": true,
+    "weight": 1.0,
+    "extra_cost": 0,
+    "apply_to_float": false,
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "disable_shadow": false,
+    "disable_base_shader": false
+  }
+}

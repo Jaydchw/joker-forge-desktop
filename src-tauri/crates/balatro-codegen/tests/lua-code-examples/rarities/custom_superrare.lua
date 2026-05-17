@@ -1,5 +1,3 @@
--- Example: custom_superrare
--- Object: rarity
 -- Purpose: verify custom rarity definitions compile with expected keys/weights.
 
 SMODS.Rarity {

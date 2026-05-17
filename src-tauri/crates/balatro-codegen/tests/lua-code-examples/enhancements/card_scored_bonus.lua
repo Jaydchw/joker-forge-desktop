@@ -1,5 +1,3 @@
--- Example: card_scored_bonus
--- Object: enhancement
 -- Purpose: verify scoring trigger emits calculate hook and payload.
 
 SMODS.Enhancement {

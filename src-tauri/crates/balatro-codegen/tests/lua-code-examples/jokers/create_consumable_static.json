@@ -1,0 +1,24 @@
+{
+  "object_type": "joker",
+  "mod_prefix": "modprefix",
+  "include_loc_txt": true,
+  "definition": {
+    "key": "j_create_consumable_static",
+    "name": "Create Consumable Static",
+    "description": ["Creates a fixed consumable card."],
+    "cost": 4,
+    "rarity": "common",
+    "blueprint_compat": true,
+    "eternal_compat": true,
+    "perishable_compat": true,
+    "unlocked": true,
+    "discovered": true,
+    "atlas": "Joker",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "hand_played",
+      "effects": [{"effect_type": "create_consumable", "params": {"set": "Tarot", "specific_card": "c_fool", "count": 1}}]
+    }]
+  }
+}

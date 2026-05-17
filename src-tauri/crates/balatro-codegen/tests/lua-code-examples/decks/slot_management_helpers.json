@@ -1,0 +1,28 @@
+{
+  "object_type": "deck",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "b_slot_management_helpers",
+    "name": "Slot Management Helpers",
+    "description": ["Uses slot management effects."],
+    "atlas": "Enhancers",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "hand_played",
+      "effects": [
+        {"effect_type": "edit_consumable_slots", "params": {"operation": "add", "value": 1}},
+        {"effect_type": "edit_hand_size", "params": {"operation": "add", "value": 1}}
+      ]
+    }],
+    "user_variables": [],
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "config_vouchers": [],
+    "config_consumables": [],
+    "no_interest": false,
+    "no_faces": false,
+    "erratic_deck": false
+  }
+}

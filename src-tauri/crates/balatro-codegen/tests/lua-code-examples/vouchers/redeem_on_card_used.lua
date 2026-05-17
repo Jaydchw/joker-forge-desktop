@@ -1,5 +1,3 @@
--- Example: redeem_on_card_used
--- Object: voucher
 -- Purpose: verify card_used rules generate a redeem hook for vouchers.
 
 SMODS.Voucher {

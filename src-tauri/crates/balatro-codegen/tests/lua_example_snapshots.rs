@@ -166,7 +166,7 @@ fn expected_lua_path(spec_path: &Path) -> PathBuf {
 
 fn default_header(spec_path: &Path, spec: &ExampleSpec) -> String {
     format!(
-        "-- Example: {}\n-- Object: {}\n-- Keep this header; test compares only Lua body below.",
+        "-- Purpose: Snapshot for `{}` ({}) codegen output.",
         spec_path
             .file_stem()
             .and_then(|name| name.to_str())
@@ -177,27 +177,16 @@ fn default_header(spec_path: &Path, spec: &ExampleSpec) -> String {
 
 fn curated_header_or_default(existing: &str, spec_path: &Path, spec: &ExampleSpec) -> String {
     let normalized = existing.replace("\r\n", "\n");
-    let mut example: Option<String> = None;
-    let mut object: Option<String> = None;
     let mut purpose: Option<String> = None;
 
     for line in normalized.lines() {
         let trimmed = line.trim_start();
-        if trimmed.starts_with("-- Example:") && example.is_none() {
-            example = Some(trimmed.to_string());
-        } else if trimmed.starts_with("-- Object:") && object.is_none() {
-            object = Some(trimmed.to_string());
-        } else if trimmed.starts_with("-- Purpose:") && purpose.is_none() {
+        if trimmed.starts_with("-- Purpose:") && purpose.is_none() {
             purpose = Some(trimmed.to_string());
         }
     }
 
-    match (example, object, purpose) {
-        (Some(example), Some(object), Some(purpose)) => {
-            format!("{}\n{}\n{}", example, object, purpose)
-        }
-        _ => default_header(spec_path, spec),
-    }
+    purpose.unwrap_or_else(|| default_header(spec_path, spec))
 }
 
 #[test]
@@ -225,8 +214,8 @@ fn lua_example_files_have_comment_headers() {
         assert!(
             header
                 .lines()
-                .any(|line| line.trim_start().starts_with("-- Example:")),
-            "{} must start with a comment header containing `-- Example:`",
+                .any(|line| line.trim_start().starts_with("-- Purpose:")),
+            "{} must start with a comment header containing `-- Purpose:`",
             lua_path.display()
         );
         assert!(

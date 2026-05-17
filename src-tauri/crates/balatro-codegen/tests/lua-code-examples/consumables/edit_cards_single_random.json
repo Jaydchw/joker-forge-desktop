@@ -1,0 +1,22 @@
+{
+  "object_type": "consumable",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "c_edit_cards_single_random",
+    "name": "Edit Cards Single Random",
+    "description": ["Edits one random card with minimal scaffolding."],
+    "set": "Tarot",
+    "cost": 3,
+    "unlocked": true,
+    "discovered": true,
+    "hidden": false,
+    "can_repeat_soul": false,
+    "atlas": "Consumables",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "card_used",
+      "effects": [{"effect_type": "edit_cards", "params": {"selection_method": "random", "count": 1, "rank": "Ace"}}]
+    }]
+  }
+}

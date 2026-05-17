@@ -169,6 +169,7 @@ pub fn effect(effect_type: &str, params: &[(&str, ParamValue)]) -> EffectDef {
         map.insert((*k).to_string(), v.clone());
     }
     EffectDef {
+        id: String::new(),
         effect_type: effect_type.to_string(),
         params: map,
     }
@@ -176,6 +177,7 @@ pub fn effect(effect_type: &str, params: &[(&str, ParamValue)]) -> EffectDef {
 
 pub fn condition(condition_type: &str) -> ConditionDef {
     ConditionDef {
+        id: String::new(),
         condition_type: condition_type.to_string(),
         negate: false,
         operator: None,

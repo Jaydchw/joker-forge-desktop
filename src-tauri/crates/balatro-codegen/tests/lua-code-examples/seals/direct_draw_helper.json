@@ -1,0 +1,22 @@
+{
+  "object_type": "seal",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "s_direct_draw_helper",
+    "name": "Direct Draw Helper",
+    "description": ["Seal fixture using draw helper."],
+    "atlas": "centers",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "card_scored",
+      "effects": [{"effect_type": "draw_cards", "params": {"value": 1}}]
+    }],
+    "user_variables": [],
+    "badge_colour": "FF0000",
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "sound": "gold_seal"
+  }
+}

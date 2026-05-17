@@ -1,0 +1,26 @@
+{
+  "object_type": "voucher",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "v_create_and_destroy",
+    "name": "Create And Destroy",
+    "description": ["Voucher fixture with creation/destruction effects."],
+    "unlock_description": [],
+    "cost": 10,
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "can_repeat_soul": false,
+    "atlas": "Voucher",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "card_used",
+      "effects": [
+        {"effect_type": "create_playing_cards", "params": {"count": 1}},
+        {"effect_type": "destroy_consumable", "params": {}}
+      ]
+    }],
+    "user_variables": []
+  }
+}

@@ -1,5 +1,3 @@
--- Example: apply_and_calculate
--- Object: deck
 -- Purpose: verify both calculate and apply hooks for deck triggers.
 
 SMODS.Back {

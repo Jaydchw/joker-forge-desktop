@@ -1,5 +1,3 @@
--- Example: calculate_and_use
--- Object: consumable
 -- Purpose: verify separate calculate/use hooks are emitted for different triggers.
 
 SMODS.Consumable {

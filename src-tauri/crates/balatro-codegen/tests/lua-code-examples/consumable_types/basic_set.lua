@@ -1,5 +1,3 @@
--- Example: basic_set
--- Object: consumable_type
 -- Purpose: verify custom consumable-set objects compile with expected fields.
 
 SMODS.ConsumableType {

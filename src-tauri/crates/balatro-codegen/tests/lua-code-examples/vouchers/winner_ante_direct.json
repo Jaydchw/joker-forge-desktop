@@ -1,0 +1,23 @@
+{
+  "object_type": "voucher",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "v_winner_ante_direct",
+    "name": "Winner Ante Direct",
+    "description": ["Voucher fixture for direct winner ante updates."],
+    "unlock_description": [],
+    "cost": 10,
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "can_repeat_soul": false,
+    "atlas": "Voucher",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "hand_played",
+      "effects": [{"effect_type": "edit_winner_ante", "params": {"operation": "add", "value": 1}}]
+    }],
+    "user_variables": []
+  }
+}

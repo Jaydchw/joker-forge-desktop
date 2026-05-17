@@ -1,0 +1,26 @@
+{
+  "object_type": "enhancement",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "m_card_transform_random",
+    "name": "Card Transform Random",
+    "description": ["Random enhancement/edition transform fixture."],
+    "atlas": "centers",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "card_scored",
+      "effects": [{"effect_type": "edit_card", "params": {"new_enhancement": "random", "new_edition": "random"}}]
+    }],
+    "user_variables": [],
+    "any_suit": false,
+    "replace_base_card": false,
+    "no_rank": false,
+    "no_suit": false,
+    "always_scores": false,
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "weight": 1.0
+  }
+}

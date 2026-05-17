@@ -1,0 +1,28 @@
+{
+  "object_type": "deck",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "b_economy_updates",
+    "name": "Economy Updates",
+    "description": ["Applies direct economy modifications."],
+    "atlas": "Enhancers",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "hand_played",
+      "effects": [
+        {"effect_type": "edit_interest_cap", "params": {"operation": "add", "value": 1}},
+        {"effect_type": "edit_reroll_price", "params": {"operation": "add", "value": 1}}
+      ]
+    }],
+    "user_variables": [],
+    "unlocked": true,
+    "discovered": true,
+    "no_collection": false,
+    "config_vouchers": [],
+    "config_consumables": [],
+    "no_interest": false,
+    "no_faces": false,
+    "erratic_deck": false
+  }
+}

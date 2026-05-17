@@ -1,0 +1,22 @@
+{
+  "object_type": "consumable",
+  "mod_prefix": "modprefix",
+  "definition": {
+    "key": "c_create_consumable_static_use",
+    "name": "Create Consumable Static Use",
+    "description": ["Creates a fixed consumable when used."],
+    "set": "Tarot",
+    "cost": 3,
+    "unlocked": true,
+    "discovered": true,
+    "hidden": false,
+    "can_repeat_soul": false,
+    "atlas": "Consumables",
+    "pos": {"x": 0, "y": 0},
+    "rules": [{
+      "id": "r1",
+      "trigger": "card_used",
+      "effects": [{"effect_type": "create_consumable", "params": {"set": "Tarot", "specific_card": "c_fool", "count": 1}}]
+    }]
+  }
+}

@@ -1,5 +1,3 @@
--- Example: card_scored_bonus
--- Object: edition
 -- Purpose: verify edition scoring trigger emits calculate hook and payload.
 
 SMODS.Edition {
