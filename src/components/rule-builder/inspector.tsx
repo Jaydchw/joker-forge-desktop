@@ -862,23 +862,11 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
       );
       const isVariableOnlySelector = param.id === "variable_name";
       const variableOptions = options.filter((option) => option.valueType === "user_var");
-      const variableParamTypes = new Set([
-        "number",
-        "suit",
-        "rank",
-        "pokerhand",
-        "key",
-        "text",
-      ]);
-      const isVariableTypedSelector =
-        param.type === "select" &&
-        !!param.variableTypes?.length &&
-        param.variableTypes.every((type) => variableParamTypes.has(type));
       const hasOnlyVariableOptions =
         options.length === 0 ||
         options.every((option) => option.valueType === "user_var");
       const shouldRenderAddVariableButton =
-        (isVariableOnlySelector || isVariableTypedSelector || hasOnlyVariableOptions) &&
+        (isVariableOnlySelector || hasOnlyVariableOptions) &&
         variableOptions.length === 0;
 
       return (
