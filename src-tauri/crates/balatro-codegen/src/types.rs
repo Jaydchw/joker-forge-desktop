@@ -490,6 +490,8 @@ pub enum LogicOp {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConditionDef {
+    #[serde(default)]
+    pub id: String,
     pub condition_type: String,
     #[serde(default)]
     pub negate: bool,
@@ -501,6 +503,8 @@ pub struct ConditionDef {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EffectDef {
+    #[serde(default)]
+    pub id: String,
     pub effect_type: String,
     #[serde(default)]
     pub params: HashMap<String, ParamValue>,

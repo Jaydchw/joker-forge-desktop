@@ -33,6 +33,9 @@ pub struct EffectOutput {
 
     /// Optional colour expression (e.g.: `G.C.CHIPS`).
     pub colour: Option<Expr>,
+
+    /// Optional source segment id used by preview highlighting.
+    pub segment_id: Option<String>,
 }
 
 /// Compile a single effect into its Lua AST representation.
@@ -192,7 +195,13 @@ pub fn build_return_block(effects: &[EffectOutput]) -> Vec<Stmt> {
 
     // Collect pre-return code from all effects
     for eff in effects {
-        stmts.extend(eff.pre_return.clone());
+        if let Some(segment_id) = &eff.segment_id {
+            stmts.push(stmt_section_begin(segment_id));
+            stmts.extend(eff.pre_return.clone());
+            stmts.push(stmt_section_end(segment_id));
+        } else {
+            stmts.extend(eff.pre_return.clone());
+        }
     }
 
     // Keep only effects that contribute return-table content.
@@ -229,6 +238,10 @@ pub fn build_return_block(effects: &[EffectOutput]) -> Vec<Stmt> {
 fn effect_entries(effect: &EffectOutput) -> Vec<TableEntry> {
     let mut entries: Vec<TableEntry> = Vec::new();
 
+    if let Some(segment_id) = &effect.segment_id {
+        entries.push(section_begin(segment_id));
+    }
+
     for (key, val) in &effect.return_fields {
         entries.push(TableEntry::KeyValue(key.clone(), val.clone()));
     }
@@ -239,6 +252,10 @@ fn effect_entries(effect: &EffectOutput) -> Vec<TableEntry> {
 
     if let Some(col) = &effect.colour {
         entries.push(TableEntry::KeyValue("colour".to_string(), col.clone()));
+    }
+
+    if let Some(segment_id) = &effect.segment_id {
+        entries.push(section_end(segment_id));
     }
 
     entries

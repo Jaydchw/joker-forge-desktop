@@ -10,6 +10,7 @@ fn make_rule_output(
         rule_id: rule_id.to_string(),
         trigger: trigger.to_string(),
         condition_expr,
+        condition_segment_ids: vec![],
         effect_stmts: vec![lua_return(lua_table(vec![("message", lua_str(message))]))],
         is_passive: false,
         passive_outputs: vec![],
@@ -202,8 +203,6 @@ fn joker_calculate_wraps_rules_and_keeps_fallback_last_for_same_trigger() {
         .expect("calculate function should be generated");
     let code = Emitter::new().emit_expr_to_string(&calc);
 
-    assert!(code.contains("[JF:rule:rule_cond] begin"));
-    assert!(code.contains("[JF:rule:rule_fallback] begin"));
     assert!(index_of(&code, "message = 'COND'") < index_of(&code, "message = 'FALLBACK'"));
 }
 

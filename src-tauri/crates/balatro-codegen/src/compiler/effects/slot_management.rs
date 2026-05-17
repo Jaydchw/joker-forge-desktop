@@ -76,6 +76,8 @@ pub fn edit_joker_slots(effect: &EffectDef, ctx: &mut CompileContext) -> EffectO
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.DARK_EDITION")),
+    
+        segment_id: None,
     }
 }
 
@@ -196,6 +198,8 @@ pub fn edit_joker_size(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.DARK_EDITION")),
+    
+        segment_id: None,
     }
 }
 
@@ -303,6 +307,8 @@ pub fn edit_consumable_slots(effect: &EffectDef, ctx: &mut CompileContext) -> Ef
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
+    
+        segment_id: None,
     }
 }
 
@@ -494,6 +500,8 @@ pub fn edit_item_size_typed(
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.BLUE")),
+    
+        segment_id: None,
     }
 }
 
@@ -668,6 +676,8 @@ pub fn edit_round_counter_typed(
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
+    
+        segment_id: None,
     }
 }
 

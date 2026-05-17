@@ -351,6 +351,8 @@ pub struct ConditionGroupInput {
 /// Mirrors the TypeScript `Condition` interface.
 #[derive(Debug, Deserialize)]
 pub struct ConditionInput {
+    #[serde(default)]
+    pub id: String,
     #[serde(rename = "type")]
     pub condition_type: String,
     #[serde(default)]
@@ -364,6 +366,8 @@ pub struct ConditionInput {
 /// Mirrors the TypeScript `Effect` interface.
 #[derive(Debug, Deserialize)]
 pub struct EffectInput {
+    #[serde(default)]
+    pub id: String,
     #[serde(rename = "type")]
     pub effect_type: String,
     #[serde(default)]
@@ -796,6 +800,7 @@ fn map_condition_group(cg: &ConditionGroupInput) -> ConditionGroupDef {
 
 fn map_condition(c: &ConditionInput) -> ConditionDef {
     ConditionDef {
+        id: c.id.clone(),
         condition_type: c.condition_type.clone(),
         negate: c.negate,
         operator: c.operator.as_deref().and_then(parse_logic_op),
@@ -805,6 +810,7 @@ fn map_condition(c: &ConditionInput) -> ConditionDef {
 
 fn map_effect(e: &EffectInput) -> EffectDef {
     EffectDef {
+        id: e.id.clone(),
         effect_type: e.effect_type.clone(),
         params: map_params(&e.params),
     }

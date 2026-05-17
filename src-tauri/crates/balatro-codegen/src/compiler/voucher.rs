@@ -168,7 +168,9 @@ fn build_redeem_function(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -> 
     }
 
     let mut body: Vec<Stmt> = Vec::new();
-    super::append_rule_chain_with_fallback(&mut body, &redeem_rules, |ro| ro.effect_stmts.clone());
+    super::append_rule_chain_with_fallback(&mut body, &redeem_rules, |ro| {
+        super::wrap_rule_segment(&ro.rule_id, ro.effect_stmts.clone())
+    });
 
     Some(Expr::Function {
         params: vec!["self".into(), "card".into()],

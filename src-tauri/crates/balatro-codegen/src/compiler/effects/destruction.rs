@@ -23,6 +23,8 @@ pub fn destroy_card(effect: &EffectDef, _ctx: &mut CompileContext, trigger: &str
             config_vars: vec![],
             message: Some(lua_str(message)),
             colour: Some(lua_raw_expr("G.C.RED")),
+        
+        segment_id: None,
         },
         _ => {
             let mut pre = vec![];
@@ -50,6 +52,8 @@ pub fn destroy_card(effect: &EffectDef, _ctx: &mut CompileContext, trigger: &str
                 config_vars: vec![],
                 message: Some(lua_str(message)),
                 colour: Some(lua_raw_expr("G.C.RED")),
+            
+        segment_id: None,
             }
         }
     }
@@ -94,6 +98,8 @@ pub fn destroy_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOut
         config_vars: vec![],
         message: Some(lua_str("Destroyed!")),
         colour: Some(lua_raw_expr("G.C.RED")),
+    
+        segment_id: None,
     }
 }
 
@@ -109,6 +115,8 @@ pub fn destroy_consumable(_effect: &EffectDef, _ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message: Some(lua_str("Destroyed Consumable!")),
         colour: Some(lua_raw_expr("G.C.RED")),
+    
+        segment_id: None,
     }
 }
 
@@ -149,5 +157,7 @@ pub fn destroy_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutp
         config_vars: vec![],
         message: Some(lua_str("Destroyed Cards!")),
         colour: Some(lua_raw_expr("G.C.RED")),
+    
+        segment_id: None,
     }
 }

@@ -98,6 +98,7 @@ pub fn compile_node_snippet(
         }
         "condition" => {
             let condition = ConditionDef {
+                id: String::new(),
                 condition_type: specific.to_string(),
                 negate: false,
                 operator: None,
@@ -119,6 +120,7 @@ pub fn compile_node_snippet(
         }
         "effect" => {
             let effect = EffectDef {
+                id: String::new(),
                 effect_type: specific.to_string(),
                 params: convert_params(params),
             };
@@ -148,6 +150,7 @@ pub(crate) struct RuleOutput {
     pub(crate) rule_id: String,
     pub(crate) trigger: String,
     pub(crate) condition_expr: Option<Expr>,
+    pub(crate) condition_segment_ids: Vec<String>,
     pub(crate) effect_stmts: Vec<Stmt>,
     pub(crate) is_passive: bool,
     pub(crate) passive_outputs: Vec<effects::passive::PassiveEffectOutput>,
@@ -267,6 +270,18 @@ fn compile_single_rule(rule: &RuleDef, ctx: &mut CompileContext) -> RuleOutput {
     // Compile conditions
     let condition_expr =
         conditions::compile_condition_chain(&rule.condition_groups, ctx.object_type, ctx);
+    let condition_segment_ids = rule
+        .condition_groups
+        .iter()
+        .flat_map(|group| group.conditions.iter())
+        .filter_map(|condition| {
+            if condition.id.trim().is_empty() {
+                None
+            } else {
+                Some(format!("condition:{}:{}", rule.id, condition.id))
+            }
+        })
+        .collect::<Vec<_>>();
 
     // Check for passive effects
     let mut passive_outputs = Vec::new();
@@ -298,7 +313,8 @@ fn compile_single_rule(rule: &RuleDef, ctx: &mut CompileContext) -> RuleOutput {
                 continue;
             }
 
-            if let Some(eo) = effects::compile_effect(effect, ctx, &trigger) {
+            if let Some(mut eo) = effects::compile_effect(effect, ctx, &trigger) {
+                eo.segment_id = effect_segment_id(&rule.id, effect);
                 effect_outputs.push(eo);
             }
         }
@@ -306,13 +322,13 @@ fn compile_single_rule(rule: &RuleDef, ctx: &mut CompileContext) -> RuleOutput {
 
     // Compile random groups
     for rg in &rule.random_groups {
-        let rg_effects = compile_random_group(rg, ctx, &trigger);
+        let rg_effects = compile_random_group(&rule.id, rg, ctx, &trigger);
         effect_outputs.extend(rg_effects);
     }
 
     // Compile loop groups
     for lg in &rule.loop_groups {
-        let lg_effects = compile_loop_group(lg, ctx, &trigger);
+        let lg_effects = compile_loop_group(&rule.id, lg, ctx, &trigger);
         effect_outputs.extend(lg_effects);
     }
 
@@ -327,6 +343,7 @@ fn compile_single_rule(rule: &RuleDef, ctx: &mut CompileContext) -> RuleOutput {
         rule_id: rule.id.clone(),
         trigger,
         condition_expr,
+        condition_segment_ids,
         effect_stmts,
         is_passive,
         passive_outputs,
@@ -337,7 +354,16 @@ fn compile_single_rule(rule: &RuleDef, ctx: &mut CompileContext) -> RuleOutput {
     }
 }
 
+fn effect_segment_id(rule_id: &str, effect: &EffectDef) -> Option<String> {
+    if effect.id.trim().is_empty() {
+        None
+    } else {
+        Some(format!("effect:{}:{}", rule_id, effect.id))
+    }
+}
+
 fn compile_random_group(
+    rule_id: &str,
     rg: &RandomGroupDef,
     ctx: &mut CompileContext,
     trigger: &str,
@@ -345,7 +371,8 @@ fn compile_random_group(
     // Compile the effects within the random group
     let mut inner_outputs = Vec::new();
     for effect in &rg.effects {
-        if let Some(eo) = effects::compile_effect(effect, ctx, trigger) {
+        if let Some(mut eo) = effects::compile_effect(effect, ctx, trigger) {
+            eo.segment_id = effect_segment_id(rule_id, effect);
             inner_outputs.push(eo);
         }
     }
@@ -386,19 +413,23 @@ fn compile_random_group(
         config_vars: vec![],
         message: None,
         colour: None,
+    
+        segment_id: None,
     };
 
     vec![wrapped]
 }
 
 fn compile_loop_group(
+    rule_id: &str,
     lg: &LoopGroupDef,
     ctx: &mut CompileContext,
     trigger: &str,
 ) -> Vec<effects::EffectOutput> {
     let mut inner_outputs = Vec::new();
     for effect in &lg.effects {
-        if let Some(eo) = effects::compile_effect(effect, ctx, trigger) {
+        if let Some(mut eo) = effects::compile_effect(effect, ctx, trigger) {
+            eo.segment_id = effect_segment_id(rule_id, effect);
             inner_outputs.push(eo);
         }
     }
@@ -430,6 +461,8 @@ fn compile_loop_group(
         config_vars: vec![],
         message: None,
         colour: None,
+    
+        segment_id: None,
     }]
 }
 
@@ -450,7 +483,7 @@ fn build_joker_table(
     entries.push(kv("key", lua_str(&joker.key)));
 
     // Config table with extra
-    entries.push(jf_section_begin("config"));
+    entries.push(section_begin("config"));
     let config_extra = ctx.build_config_extra_table();
     if !config_extra.is_empty() {
         entries.push(TableEntry::KeyValue(
@@ -461,10 +494,10 @@ fn build_joker_table(
             )]),
         ));
     }
-    entries.push(jf_section_end("config"));
+    entries.push(section_end("config"));
 
     if include_loc_txt {
-        entries.push(jf_section_begin("loc_txt"));
+        entries.push(section_begin("loc_txt"));
         // Localization, use ['name'], ['text'], ['unlock'] bracket keys
         // Text and unlock use numbered array entries: [1] = '...', [2] = '...'
         let text_entries: Vec<TableEntry> = joker
@@ -497,7 +530,7 @@ fn build_joker_table(
             "loc_txt".to_string(),
             lua_table_raw(loc_txt_entries),
         ));
-        entries.push(jf_section_end("loc_txt"));
+        entries.push(section_end("loc_txt"));
     }
 
     // Position
@@ -546,7 +579,7 @@ fn build_joker_table(
     }
 
     // Scalar properties
-    entries.push(jf_section_begin("props"));
+    entries.push(section_begin("props"));
     entries.push(kv("cost", lua_int(joker.cost as i64)));
     // Rarity, standard rarities are numeric, custom rarities are strings
     let rarity_expr = match joker.rarity.as_str() {
@@ -563,7 +596,7 @@ fn build_joker_table(
     entries.push(kv("unlocked", lua_bool(joker.unlocked)));
     entries.push(kv("discovered", lua_bool(joker.discovered)));
     entries.push(kv("atlas", lua_str(&joker.atlas)));
-    entries.push(jf_section_end("props"));
+    entries.push(section_end("props"));
 
     // In-pool function
     if let Some(appearance) = &joker.appearance {
@@ -581,12 +614,12 @@ fn build_joker_table(
     }
 
     // Loc vars function
-    entries.push(jf_section_begin("loc_vars"));
+    entries.push(section_begin("loc_vars"));
     let loc_vars_fn = build_loc_vars(joker, ctx, rule_outputs);
     if let Some(f) = loc_vars_fn {
         entries.push(TableEntry::KeyValue("loc_vars".to_string(), f));
     }
-    entries.push(jf_section_end("loc_vars"));
+    entries.push(section_end("loc_vars"));
 
     // Blind reward hook
     if let Some(calc_dollar_bonus) = build_calc_dollar_bonus(rule_outputs, ctx) {
@@ -695,14 +728,11 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
                 );
             }
 
-            let section_id = format!("rule:{}", ro.rule_id);
-            let mut wrapped = vec![jf_stmt_begin(&section_id)];
-            wrapped.extend(rule_stmts);
-            wrapped.push(jf_stmt_end(&section_id));
-            wrapped
+            wrap_rule_segment(&ro.rule_id, rule_stmts)
         });
 
         if !trigger_body.is_empty() {
+            body.extend(build_trigger_anchor_stmts(&rules_for_trigger));
             body.push(lua_if(trigger_ctx, trigger_body));
         }
     }
@@ -1371,10 +1401,11 @@ pub(crate) fn build_shared_calculate_function(
 
         let mut trigger_body: Vec<Stmt> = Vec::new();
         append_rule_chain_with_fallback(&mut trigger_body, &rules_for_trigger, |ro| {
-            ro.effect_stmts.clone()
+            wrap_rule_segment(&ro.rule_id, ro.effect_stmts.clone())
         });
 
         if !trigger_body.is_empty() {
+            body.extend(build_trigger_anchor_stmts(&rules_for_trigger));
             body.push(lua_if(trigger_ctx, trigger_body));
         }
     }
@@ -1414,6 +1445,7 @@ pub(crate) fn append_rule_chain_with_fallback<F>(
 
     if conditional_rules.is_empty() {
         for ro in unconditional_rules {
+            out.extend(build_rule_anchor_stmts(ro));
             out.extend(build_rule_stmts(ro));
         }
         return;
@@ -1439,12 +1471,40 @@ pub(crate) fn append_rule_chain_with_fallback<F>(
             branches: vec![(cond, then_body)],
             else_body: fallback_tail,
         };
-        fallback_tail = Some(vec![next]);
+        let mut wrapped = build_rule_anchor_stmts(ro);
+        wrapped.push(next);
+        fallback_tail = Some(wrapped);
     }
 
     if let Some(stmts) = fallback_tail {
         out.extend(stmts);
     }
+}
+
+fn build_rule_anchor_stmts(ro: &RuleOutput) -> Vec<Stmt> {
+    let mut anchors = Vec::new();
+    for condition_segment_id in &ro.condition_segment_ids {
+        anchors.push(stmt_section_begin(condition_segment_id));
+        anchors.push(stmt_section_end(condition_segment_id));
+    }
+    anchors
+}
+
+fn build_trigger_anchor_stmts(rules_for_trigger: &[&RuleOutput]) -> Vec<Stmt> {
+    let mut anchors = Vec::with_capacity(rules_for_trigger.len() * 2);
+    for ro in rules_for_trigger {
+        anchors.push(stmt_section_begin(&format!("trigger:{}", ro.rule_id)));
+        anchors.push(stmt_section_end(&format!("trigger:{}", ro.rule_id)));
+    }
+    anchors
+}
+
+pub(crate) fn wrap_rule_segment(rule_id: &str, stmts: Vec<Stmt>) -> Vec<Stmt> {
+    let section_id = format!("rule:{}", rule_id);
+    let mut wrapped = vec![stmt_section_begin(&section_id)];
+    wrapped.extend(stmts);
+    wrapped.push(stmt_section_end(&section_id));
+    wrapped
 }
 
 /// Build a shared `loc_vars` function suitable for consumables, vouchers, decks: etc.

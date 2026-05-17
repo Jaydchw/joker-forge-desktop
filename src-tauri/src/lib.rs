@@ -26,6 +26,7 @@ pub fn run() {
             commands::compile_joker_lua_with_options,
             commands::compile_rulebuilder_node_snippet,
             commands::compile_item_from_data,
+            commands::compile_item_from_data_with_segments,
             // Unified export commands, accept raw JokerData, eliminate TS mapping
             commands::compile_joker_from_data,
             commands::batch_export_jokers,

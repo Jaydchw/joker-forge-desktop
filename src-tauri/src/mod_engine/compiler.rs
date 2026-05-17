@@ -259,6 +259,7 @@ fn build_condition_groups(
                     .and_then(|s| parse_logic_op(&s));
 
                     ConditionDef {
+                        id: n.id.clone(),
                         condition_type: kind,
                         negate: n
                             .values
@@ -312,6 +313,7 @@ fn build_effect_groups(
             .unwrap_or_else(|| node.node_type.clone());
         let params = convert_values(&node.values);
         let effect = EffectDef {
+            id: node.id.clone(),
             effect_type: kind,
             params,
         };

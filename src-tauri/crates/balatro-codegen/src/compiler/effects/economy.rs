@@ -36,6 +36,8 @@ pub fn edit_reroll_price(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
         config_vars: vec![],
         message: Some(lua_str("Reroll Cost Changed")),
         colour: Some(lua_raw_expr("G.C.MONEY")),
+    
+        segment_id: None,
     }
 }
 
@@ -62,6 +64,8 @@ pub fn edit_interest_cap(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
         config_vars: vec![],
         message: Some(lua_str("Interest Cap Changed")),
         colour: Some(lua_raw_expr("G.C.MONEY")),
+    
+        segment_id: None,
     }
 }
 
@@ -105,6 +109,8 @@ pub fn discount_items(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOut
         config_vars: vec![],
         message: Some(lua_str("Items Discounted")),
         colour: Some(lua_raw_expr("G.C.MONEY")),
+    
+        segment_id: None,
     }
 }
 
@@ -141,6 +147,8 @@ pub fn edit_item_weight(effect: &EffectDef, ctx: &mut CompileContext) -> EffectO
         config_vars: vec![],
         message: Some(lua_str("Spawn Rate Changed")),
         colour: Some(lua_raw_expr("G.C.BLUE")),
+    
+        segment_id: None,
     }
 }
 
@@ -200,6 +208,8 @@ pub fn edit_winner_ante(
             config_vars: vec![],
             message: Some(message_expr),
             colour: Some(lua_raw_expr("G.C.FILTER")),
+        
+        segment_id: None,
         }
     } else {
         let func_body = vec![lua_raw_stmt(format!("{}\nreturn true", ante_code))];
@@ -215,6 +225,8 @@ pub fn edit_winner_ante(
             config_vars: vec![],
             message: Some(message_expr),
             colour: Some(lua_raw_expr("G.C.FILTER")),
+        
+        segment_id: None,
         }
     }
 }
@@ -246,6 +258,8 @@ pub fn edit_end_round_hand_money(effect: &EffectDef, ctx: &mut CompileContext) -
         config_vars: vec![],
         message: Some(lua_str("End-Round Money Changed")),
         colour: Some(lua_raw_expr("G.C.MONEY")),
+    
+        segment_id: None,
     }
 }
 
@@ -276,5 +290,7 @@ pub fn edit_end_round_discard_money(effect: &EffectDef, ctx: &mut CompileContext
         config_vars: vec![],
         message: Some(lua_str("Discard Money Changed")),
         colour: Some(lua_raw_expr("G.C.MONEY")),
+    
+        segment_id: None,
     }
 }

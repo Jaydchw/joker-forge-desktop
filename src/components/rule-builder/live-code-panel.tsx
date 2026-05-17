@@ -4,7 +4,6 @@ import {
   WarningCircle,
   ArrowCounterClockwise,
   ArrowsClockwise,
-  HashStraight,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,9 +11,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { EditorState, Compartment } from "@codemirror/state";
+import {
+  EditorState,
+  Compartment,
+  StateField,
+  StateEffect,
+  type Range,
+} from "@codemirror/state";
 import {
   EditorView,
+  Decoration,
+  type DecorationSet,
   keymap,
   lineNumbers,
   highlightActiveLine,
@@ -35,8 +42,7 @@ import {
   moveCompletionSelection,
 } from "@codemirror/autocomplete";
 import { luaSmodsCompletions } from "@/lib/content/lua-completions";
-import { reconstructWithMarkers } from "@/lib/content/code-sections";
-import type { SectionInfo } from "@/lib/content/code-sections";
+import type { CodeSegment } from "@/lib/content/code-sections";
 
 interface LiveCodePanelProps {
   title: string;
@@ -52,8 +58,9 @@ interface LiveCodePanelProps {
   onCodeChange?: (code: string) => void;
   onResetCustomCode?: () => void;
   hasCustomCode?: boolean;
-  /** Section map for reconstructing markers in read-only view */
-  sections?: SectionInfo[];
+  segments?: CodeSegment[];
+  selectedSegmentId?: string;
+  hoveredSegmentId?: string;
 }
 
 // Theme that inherits the panel background (transparent)
@@ -152,10 +159,36 @@ const editorTheme = EditorView.theme({
     textDecoration: "none",
     fontWeight: "600",
   },
+  ".cm-line.jf-segment-hover-line": {
+    backgroundColor: "rgba(34, 197, 94, 0.08) !important",
+    boxShadow: "inset 2px 0 0 rgba(34, 197, 94, 0.38)",
+  },
+  ".cm-line.jf-segment-selected-line": {
+    backgroundColor: "rgba(34, 197, 94, 0.12) !important",
+    boxShadow: "inset 2px 0 0 rgba(34, 197, 94, 0.62)",
+  },
 });
 
 const readOnlyCompartment = new Compartment();
 const fontSizeCompartment = new Compartment();
+
+const setSegmentDecorationsEffect = StateEffect.define<DecorationSet>();
+
+const segmentHighlightField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(value, tr) {
+    let next = value.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (effect.is(setSegmentDecorationsEffect)) {
+        next = effect.value;
+      }
+    }
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
 
 const makeFontSizeTheme = (size: number) =>
   EditorView.theme({
@@ -168,6 +201,7 @@ const makeFontSizeTheme = (size: number) =>
 const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 24;
 const DEFAULT_FONT_SIZE = 12;
+const MAX_SEGMENT_LINE_DECORATIONS = 1200;
 
 const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
   title,
@@ -183,7 +217,9 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
   onCodeChange,
   onResetCustomCode,
   hasCustomCode = false,
-  sections,
+  segments: _segments,
+  selectedSegmentId,
+  hoveredSegmentId,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -191,8 +227,6 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
   const isExternalUpdateRef = useRef(false);
   const refreshAnimTimeoutRef = useRef<number | null>(null);
 
-  // Section markers: hidden by default
-  const [showMarkers, setShowMarkers] = useState(false);
   // Font size for Ctrl+scroll zoom
   const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
 
@@ -228,7 +262,9 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
   // Ctrl+scroll to change font size
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     setFontSize((prev) => {
       const delta = e.deltaY > 0 ? -1 : 1;
       return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, prev + delta));
@@ -247,11 +283,82 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
   // Editable when not in block preview and onCodeChange is provided
   const isEditable = !isBlockPreview && !!onCodeChange;
 
-  // When markers toggled on in non-editable view, reconstruct markers
-  const displayCode =
-    !isEditable && showMarkers && sections && sections.length > 0
-      ? reconstructWithMarkers(code, sections)
-      : code;
+  const displayCode = code;
+  const segments = _segments ?? [];
+  const selectedSegmentExists = !!(
+    selectedSegmentId && segments.some((segment) => segment.id === selectedSegmentId)
+  );
+  const hoveredSegmentExists = !!(
+    hoveredSegmentId && segments.some((segment) => segment.id === hoveredSegmentId)
+  );
+
+  const buildSegmentHighlightDecorations = useCallback(() => {
+    if (!segments.length || (!selectedSegmentId && !hoveredSegmentId)) {
+      return Decoration.none;
+    }
+    const lineStarts = [0];
+    for (let i = 0; i < displayCode.length; i += 1) {
+      if (displayCode[i] === "\n") lineStarts.push(i + 1);
+    }
+    const numericField = (
+      segment: CodeSegment,
+      camelCaseKey: keyof CodeSegment,
+      snakeCaseKey: string,
+    ): number | null => {
+      const raw =
+        (segment as unknown as Record<string, unknown>)[camelCaseKey as string] ??
+        (segment as unknown as Record<string, unknown>)[snakeCaseKey];
+
+      if (typeof raw === "number") {
+        return Number.isFinite(raw) ? raw : null;
+      }
+
+      if (typeof raw === "string") {
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+
+      return null;
+    };
+
+    const ranges: Range<Decoration>[] = [];
+    let targetedSegments = 0;
+    let lineDecorationCount = 0;
+    for (const segment of segments) {
+      let lineClass = "";
+      if (selectedSegmentId && segment.id === selectedSegmentId) {
+        lineClass = "jf-segment-selected-line";
+      } else if (hoveredSegmentId && segment.id === hoveredSegmentId) {
+        lineClass = "jf-segment-hover-line";
+      }
+      if (!lineClass) continue;
+      targetedSegments += 1;
+
+      const startLine = numericField(segment, "startLine", "start_line");
+      const endLine = numericField(segment, "endLine", "end_line");
+      if (startLine === null || endLine === null) {
+        continue;
+      }
+
+      const normalizedStartLine = Math.max(1, Math.floor(startLine));
+      const normalizedEndLine = Math.max(1, Math.floor(endLine));
+
+      const maxLine = lineStarts.length;
+      const fromLine = Math.max(1, Math.min(maxLine, normalizedStartLine));
+      const toLine = Math.max(fromLine, Math.min(maxLine, normalizedEndLine));
+      for (let line = fromLine; line <= toLine; line += 1) {
+        if (lineDecorationCount >= MAX_SEGMENT_LINE_DECORATIONS) {
+          break;
+        }
+        const lineStart = lineStarts[line - 1];
+        if (lineStart === undefined) continue;
+        ranges.push(Decoration.line({ class: lineClass }).range(lineStart));
+        lineDecorationCount += 1;
+      }
+    }
+
+    return Decoration.set(ranges, true);
+  }, [displayCode, hoveredSegmentId, segments, selectedSegmentId]);
 
   // Create editor on mount
   useEffect(() => {
@@ -322,6 +429,7 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
         }),
         EditorState.allowMultipleSelections.of(true),
         readOnlyCompartment.of(EditorState.readOnly.of(!isEditable)),
+        segmentHighlightField,
         updateListener,
         EditorView.lineWrapping,
       ],
@@ -378,6 +486,14 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
     });
   }, [isEditable]);
 
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: setSegmentDecorationsEffect.of(buildSegmentHighlightDecorations()),
+    });
+  }, [buildSegmentHighlightDecorations]);
+
   return (
     <aside
       data-rb-live-code="true"
@@ -406,39 +522,14 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
                 Edited
               </span>
             )}
+            {!isBlockPreview && (selectedSegmentId || hoveredSegmentId) && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-medium shrink-0">
+                {selectedSegmentExists || hoveredSegmentExists ? "Linked" : "No Link"}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Toggle section markers */}
-            {!isBlockPreview && sections && sections.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    onClick={() => setShowMarkers((prev) => !prev)}
-                    className={
-                      "h-8 w-8 rounded-lg border-2 transition-all duration-200 cursor-pointer " +
-                      (showMarkers
-                        ? "bg-primary/10 border-primary/45 text-primary shadow-sm"
-                        : "bg-card/90 border-border text-muted-foreground hover:border-primary/40 hover:text-primary")
-                    }
-                    icon={<HashStraight className="h-3.5 w-3.5" />}
-                  />
-                </TooltipTrigger>
-                <TooltipContent
-                  side="bottom"
-                  sideOffset={6}
-                  className="text-xs font-medium"
-                >
-                  {showMarkers
-                    ? "Hide section markers"
-                    : "Show section markers"}
-                </TooltipContent>
-              </Tooltip>
-            )}
-
             {/* Reset custom code */}
             {hasCustomCode && onResetCustomCode && !isBlockPreview && (
               <Tooltip>

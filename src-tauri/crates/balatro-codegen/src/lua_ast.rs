@@ -50,6 +50,10 @@ pub enum Stmt {
     Raw(String),
     /// A `do ... end` block.
     DoBlock(Vec<Stmt>),
+    /// Non-emitted boundary marker used to build external segment maps.
+    SegmentStart(String),
+    /// Non-emitted boundary marker used to build external segment maps.
+    SegmentEnd(String),
 }
 
 /// Lua expression.
@@ -101,6 +105,21 @@ pub enum TableEntry {
     Value(Expr),
     /// `-- comment` inside a table body (used for section markers).
     Comment(String),
+    /// Non-emitted boundary marker used to build external segment maps.
+    SegmentStart(String),
+    /// Non-emitted boundary marker used to build external segment maps.
+    SegmentEnd(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct LuaSegment {
+    pub id: String,
+    pub segment_type: String,
+    pub name: String,
+    pub start_line: usize,
+    pub start_column: usize,
+    pub end_line: usize,
+    pub end_column: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -339,24 +358,24 @@ pub fn lua_table_call(func: Expr, entries: Vec<TableEntry>) -> Expr {
     Expr::TableCall(Box::new(func), entries)
 }
 
-/// Section marker comment for inside table bodies: `-- [JF:id] begin`
-pub fn jf_section_begin(section_id: &str) -> TableEntry {
-    TableEntry::Comment(format!("[JF:{}] begin", section_id))
+/// Start a non-emitted segment boundary inside table bodies.
+pub fn section_begin(section_id: &str) -> TableEntry {
+    TableEntry::SegmentStart(section_id.to_string())
 }
 
-/// Section marker comment for inside table bodies: `-- [JF:id] end`
-pub fn jf_section_end(section_id: &str) -> TableEntry {
-    TableEntry::Comment(format!("[JF:{}] end", section_id))
+/// End a non-emitted segment boundary inside table bodies.
+pub fn section_end(section_id: &str) -> TableEntry {
+    TableEntry::SegmentEnd(section_id.to_string())
 }
 
-/// Section marker statement: `-- [JF:id] begin`
-pub fn jf_stmt_begin(section_id: &str) -> Stmt {
-    Stmt::Comment(format!("[JF:{}] begin", section_id))
+/// Start a non-emitted segment boundary in statement lists.
+pub fn stmt_section_begin(section_id: &str) -> Stmt {
+    Stmt::SegmentStart(section_id.to_string())
 }
 
-/// Section marker statement: `-- [JF:id] end`
-pub fn jf_stmt_end(section_id: &str) -> Stmt {
-    Stmt::Comment(format!("[JF:{}] end", section_id))
+/// End a non-emitted segment boundary in statement lists.
+pub fn stmt_section_end(section_id: &str) -> Stmt {
+    Stmt::SegmentEnd(section_id.to_string())
 }
 
 /// Expression as statement (for function / method calls).
@@ -372,6 +391,8 @@ pub struct Emitter {
     indent: usize,
     indent_str: String,
     buf: String,
+    segments: Vec<LuaSegment>,
+    segment_stack: Vec<(String, usize, usize)>,
 }
 
 impl Emitter {
@@ -380,6 +401,8 @@ impl Emitter {
             indent: 0,
             indent_str: "    ".to_string(),
             buf: String::with_capacity(4096),
+            segments: Vec::new(),
+            segment_stack: Vec::new(),
         }
     }
 
@@ -388,6 +411,8 @@ impl Emitter {
             indent,
             indent_str: "    ".to_string(),
             buf: String::with_capacity(4096),
+            segments: Vec::new(),
+            segment_stack: Vec::new(),
         }
     }
 
@@ -403,6 +428,13 @@ impl Emitter {
             self.emit_stmt(stmt);
         }
         self.buf
+    }
+
+    pub fn emit_chunk_with_segments(mut self, chunk: &Chunk) -> (String, Vec<LuaSegment>) {
+        for stmt in &chunk.stmts {
+            self.emit_stmt(stmt);
+        }
+        (self.buf, self.segments)
     }
 
     pub fn emit_expr_to_string(mut self, expr: &Expr) -> String {
@@ -577,6 +609,8 @@ impl Emitter {
                 self.write_indent();
                 self.buf.push_str("end\n");
             }
+            Stmt::SegmentStart(id) => self.push_segment_start(id),
+            Stmt::SegmentEnd(id) => self.push_segment_end(id),
         }
     }
 
@@ -697,7 +731,14 @@ impl Emitter {
                 // Single simple entry → inline (skip comments for inline check)
                 let non_comment: Vec<&TableEntry> = entries
                     .iter()
-                    .filter(|e| !matches!(e, TableEntry::Comment(_)))
+                    .filter(|e| {
+                        !matches!(
+                            e,
+                            TableEntry::Comment(_)
+                                | TableEntry::SegmentStart(_)
+                                | TableEntry::SegmentEnd(_)
+                        )
+                    })
                     .collect();
                 if non_comment.len() == 1 && is_simple_entry(non_comment[0]) && entries.len() == 1 {
                     self.buf.push_str("{ ");
@@ -709,14 +750,30 @@ impl Emitter {
                 self.buf.push_str("{\n");
                 self.indent += 1;
                 for (i, entry) in entries.iter().enumerate() {
+                    if is_segment_entry(entry) {
+                        self.emit_table_entry(entry);
+                        continue;
+                    }
                     self.write_indent();
                     self.emit_table_entry(entry);
                     // No comma after comment entries
-                    if !matches!(entry, TableEntry::Comment(_)) {
+                    if !matches!(
+                        entry,
+                        TableEntry::Comment(_)
+                            | TableEntry::SegmentStart(_)
+                            | TableEntry::SegmentEnd(_)
+                    ) {
                         // Add comma if the next non-comment entry exists
                         let has_next_value = entries[i + 1..]
                             .iter()
-                            .any(|e| !matches!(e, TableEntry::Comment(_)));
+                            .any(|e| {
+                                !matches!(
+                                    e,
+                                    TableEntry::Comment(_)
+                                        | TableEntry::SegmentStart(_)
+                                        | TableEntry::SegmentEnd(_)
+                                )
+                            });
                         if has_next_value {
                             self.buf.push(',');
                         }
@@ -749,12 +806,28 @@ impl Emitter {
                 self.buf.push_str(" {\n");
                 self.indent += 1;
                 for (i, entry) in entries.iter().enumerate() {
+                    if is_segment_entry(entry) {
+                        self.emit_table_entry(entry);
+                        continue;
+                    }
                     self.write_indent();
                     self.emit_table_entry(entry);
-                    if !matches!(entry, TableEntry::Comment(_)) {
+                    if !matches!(
+                        entry,
+                        TableEntry::Comment(_)
+                            | TableEntry::SegmentStart(_)
+                            | TableEntry::SegmentEnd(_)
+                    ) {
                         let has_next_value = entries[i + 1..]
                             .iter()
-                            .any(|e| !matches!(e, TableEntry::Comment(_)));
+                            .any(|e| {
+                                !matches!(
+                                    e,
+                                    TableEntry::Comment(_)
+                                        | TableEntry::SegmentStart(_)
+                                        | TableEntry::SegmentEnd(_)
+                                )
+                            });
                         if has_next_value {
                             self.buf.push(',');
                         }
@@ -794,6 +867,45 @@ impl Emitter {
             TableEntry::Comment(text) => {
                 self.buf.push_str("-- ");
                 self.buf.push_str(text);
+            }
+            TableEntry::SegmentStart(id) => self.push_segment_start(id),
+            TableEntry::SegmentEnd(id) => self.push_segment_end(id),
+        }
+    }
+
+    fn current_line_col(&self) -> (usize, usize) {
+        let mut line = 1usize;
+        let mut col = 1usize;
+        for ch in self.buf.chars() {
+            if ch == '\n' {
+                line += 1;
+                col = 1;
+            } else {
+                col += 1;
+            }
+        }
+        (line, col)
+    }
+
+    fn push_segment_start(&mut self, id: &str) {
+        let (line, col) = self.current_line_col();
+        self.segment_stack.push((id.to_string(), line, col));
+    }
+
+    fn push_segment_end(&mut self, id: &str) {
+        let (end_line, end_col) = self.current_line_col();
+        if let Some((start_id, start_line, start_col)) = self.segment_stack.pop() {
+            if start_id == id {
+                let (segment_type, name) = classify_segment(id);
+                self.segments.push(LuaSegment {
+                    id: id.to_string(),
+                    segment_type,
+                    name,
+                    start_line,
+                    start_column: start_col,
+                    end_line,
+                    end_column: end_col,
+                });
             }
         }
     }
@@ -911,7 +1023,28 @@ fn is_simple_entry(entry: &TableEntry) -> bool {
                 | Expr::Ident(_)
                 | Expr::Nil
         ),
-        TableEntry::IndexValue(_, _) | TableEntry::Comment(_) => false,
+        TableEntry::IndexValue(_, _)
+        | TableEntry::Comment(_)
+        | TableEntry::SegmentStart(_)
+        | TableEntry::SegmentEnd(_) => false,
+    }
+}
+
+fn is_segment_entry(entry: &TableEntry) -> bool {
+    matches!(entry, TableEntry::SegmentStart(_) | TableEntry::SegmentEnd(_))
+}
+
+fn classify_segment(id: &str) -> (String, String) {
+    if let Some(rule_id) = id.strip_prefix("rule:") {
+        ("rule".to_string(), rule_id.to_string())
+    } else if let Some(rule_id) = id.strip_prefix("trigger:") {
+        ("trigger".to_string(), rule_id.to_string())
+    } else if let Some(condition_key) = id.strip_prefix("condition:") {
+        ("condition".to_string(), condition_key.to_string())
+    } else if let Some(effect_key) = id.strip_prefix("effect:") {
+        ("effect".to_string(), effect_key.to_string())
+    } else {
+        ("section".to_string(), id.to_string())
     }
 }
 

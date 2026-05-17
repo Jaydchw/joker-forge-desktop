@@ -188,6 +188,8 @@ pub fn edit_card(effect: &EffectDef, ctx: &mut CompileContext, trigger: &str) ->
             config_vars: vec![],
             message: None,
             colour: Some(lua_raw_expr("G.C.BLUE")),
+        
+        segment_id: None,
         }
     } else {
         // func = function() ... end in return table
@@ -207,6 +209,8 @@ pub fn edit_card(effect: &EffectDef, ctx: &mut CompileContext, trigger: &str) ->
             config_vars: vec![],
             message: Some(lua_str(custom_message)),
             colour: Some(lua_raw_expr("G.C.BLUE")),
+        
+        segment_id: None,
         }
     }
 }
@@ -307,6 +311,8 @@ pub fn convert_all_cards_to_rank(effect: &EffectDef, _ctx: &mut CompileContext) 
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
+    
+        segment_id: None,
     }
 }
 
@@ -404,6 +410,8 @@ pub fn convert_all_cards_to_suit(effect: &EffectDef, _ctx: &mut CompileContext) 
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
+    
+        segment_id: None,
     }
 }
 
@@ -491,6 +499,8 @@ pub fn increment_rank(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOut
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
+    
+        segment_id: None,
     }
 }
 
@@ -575,5 +585,7 @@ pub fn convert_left_to_right(effect: &EffectDef, _ctx: &mut CompileContext) -> E
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
+    
+        segment_id: None,
     }
 }

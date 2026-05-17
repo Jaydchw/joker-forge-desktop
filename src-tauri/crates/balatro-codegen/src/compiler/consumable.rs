@@ -214,7 +214,9 @@ fn build_use_function(rule_outputs: &[super::RuleOutput], _ctx: &CompileContext)
         ));
     }
 
-    super::append_rule_chain_with_fallback(&mut body, &use_rules, |ro| ro.effect_stmts.clone());
+    super::append_rule_chain_with_fallback(&mut body, &use_rules, |ro| {
+        super::wrap_rule_segment(&ro.rule_id, ro.effect_stmts.clone())
+    });
 
     Some(Expr::Function {
         params: vec!["self".into(), "card".into(), "area".into(), "copier".into()],
@@ -293,7 +295,7 @@ fn stmt_references_used_card(stmt: &Stmt) -> bool {
                 || body.iter().any(stmt_references_used_card)
         }
         Stmt::DoBlock(body) => body.iter().any(stmt_references_used_card),
-        Stmt::Comment(_) | Stmt::Blank => false,
+        Stmt::Comment(_) | Stmt::Blank | Stmt::SegmentStart(_) | Stmt::SegmentEnd(_) => false,
     }
 }
 
@@ -326,6 +328,6 @@ fn table_entry_references_used_card(entry: &TableEntry) -> bool {
     match entry {
         TableEntry::KeyValue(_, expr) | TableEntry::Value(expr) => expr_references_used_card(expr),
         TableEntry::IndexValue(k, v) => expr_references_used_card(k) || expr_references_used_card(v),
-        TableEntry::Comment(_) => false,
+        TableEntry::Comment(_) | TableEntry::SegmentStart(_) | TableEntry::SegmentEnd(_) => false,
     }
 }

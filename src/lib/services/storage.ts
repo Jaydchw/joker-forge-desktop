@@ -225,6 +225,7 @@ export type RuleBuilderShortcutMap = Record<RuleBuilderShortcutId, string>;
 export interface RuleBuilderSettings {
   defaultGridSnap: boolean;
   showDotsBackground: boolean;
+  enableLiveCodeHighlighting: boolean;
   confirmDeleteRule: boolean;
   confirmDeleteBlock: boolean;
   enableDragBoxSelection: boolean;
@@ -240,6 +241,7 @@ export interface RuleBuilderSettings {
 export const DEFAULT_RULE_BUILDER_SETTINGS: RuleBuilderSettings = {
   defaultGridSnap: false,
   showDotsBackground: true,
+  enableLiveCodeHighlighting: true,
   confirmDeleteRule: false,
   confirmDeleteBlock: false,
   enableDragBoxSelection: true,
@@ -1681,6 +1683,10 @@ const sanitizeRuleBuilderSettings = (
       typeof safe.showDotsBackground === "boolean"
         ? safe.showDotsBackground
         : DEFAULT_RULE_BUILDER_SETTINGS.showDotsBackground,
+    enableLiveCodeHighlighting:
+      typeof safe.enableLiveCodeHighlighting === "boolean"
+        ? safe.enableLiveCodeHighlighting
+        : DEFAULT_RULE_BUILDER_SETTINGS.enableLiveCodeHighlighting,
     confirmDeleteRule:
       typeof safe.confirmDeleteRule === "boolean"
         ? safe.confirmDeleteRule

@@ -49,11 +49,13 @@ import Inspector from "./inspector";
 import LiveCodePanel from "./live-code-panel";
 import HistoryPanel from "./history-panel";
 import {
-  compileSingleItemLua,
+  compileSingleItemLuaWithSegments,
   type PreviewCompileItemType,
 } from "@/lib/export/rust-codegen-export";
-import { extractSections, mergeWithGenerated } from "@/lib/content/code-sections";
-import type { SectionInfo } from "@/lib/content/code-sections";
+import {
+  mergeWithGeneratedSegments,
+  type CodeSegment,
+} from "@/lib/content/code-sections";
 import type { CustomCodeState } from "@/lib/core/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -143,6 +145,17 @@ type RuleBuilderContextTarget = {
   randomGroupId?: string;
   loopGroupId?: string;
 };
+
+const isSameContextTarget = (
+  a: RuleBuilderContextTarget | null,
+  b: RuleBuilderContextTarget | null,
+): boolean =>
+  a?.type === b?.type &&
+  a?.ruleId === b?.ruleId &&
+  a?.itemId === b?.itemId &&
+  a?.groupId === b?.groupId &&
+  a?.randomGroupId === b?.randomGroupId &&
+  a?.loopGroupId === b?.loopGroupId;
 
 type SelectionRect = {
   startClientX: number;
@@ -433,6 +446,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     type: "canvas",
   });
   const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
+  const [hoveredContextTarget, setHoveredContextTarget] =
+    useState<RuleBuilderContextTarget | null>(null);
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(
     null,
   );
@@ -459,8 +474,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     item.customCode,
   );
   const lastGeneratedCleanRef = useRef<string>("");
-  const lastSectionsRef = useRef<SectionInfo[]>(
-    item.customCode?.sections ?? [],
+  const lastSegmentsRef = useRef<CodeSegment[]>(
+    item.customCode?.segments ?? [],
   );
   const prevRulesSnapshotRef = useRef<string>("");
   const customCodeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -650,7 +665,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           ? {
               fullCode: newCode,
               lastGeneratedCode: lastGeneratedCleanRef.current,
-              sections: lastSectionsRef.current,
+              segments: lastSegmentsRef.current,
             }
           : undefined;
 
@@ -2802,6 +2817,37 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     () => new Set(selectedRuleIds),
     [selectedRuleIds],
   );
+  const segmentIdFromContextTarget = useCallback(
+    (
+      target:
+        | RuleBuilderContextTarget
+        | {
+            type: "trigger" | "condition" | "effect";
+            ruleId: string;
+            itemId?: string;
+            groupId?: string;
+          }
+        | null
+        | undefined,
+    ): string | undefined => {
+      if (!target?.ruleId) return undefined;
+
+      if (target.type === "trigger") {
+        return `trigger:${target.ruleId}`;
+      }
+
+      if (target.type === "condition" && target.itemId) {
+        return `condition:${target.ruleId}:${target.itemId}`;
+      }
+
+      if (target.type === "effect" && target.itemId) {
+        return `effect:${target.ruleId}:${target.itemId}`;
+      }
+
+      return undefined;
+    },
+    [],
+  );
 
   const generateConditionTitleForCard = useCallback(
     (condition: Condition) => {
@@ -3266,6 +3312,22 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     [],
   );
 
+  const handleCanvasPointerMoveCapture = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      const next = resolveContextTarget(event.target);
+      const normalized = next.type === "canvas" ? null : next;
+
+      setHoveredContextTarget((current) =>
+        isSameContextTarget(current, normalized) ? current : normalized,
+      );
+    },
+    [resolveContextTarget],
+  );
+
+  const handleCanvasPointerLeave = useCallback(() => {
+    setHoveredContextTarget(null);
+  }, []);
+
   const applyContextSelection = useCallback(
     (target: RuleBuilderContextTarget) => {
       if (!target.ruleId) return;
@@ -3524,6 +3586,38 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       !!contextTarget.itemId);
 
   const hasBulkSelection = selectedRuleIds.length > 1;
+  const selectedSegmentId = useMemo(() => {
+    if (liveCodePreviewTarget) {
+      return segmentIdFromContextTarget(liveCodePreviewTarget);
+    }
+
+    if (selectedItem?.ruleId) {
+      if (selectedItem.type === "trigger") {
+        return `trigger:${selectedItem.ruleId}`;
+      }
+      if (selectedItem.type === "condition" && selectedItem.itemId) {
+        return `condition:${selectedItem.ruleId}:${selectedItem.itemId}`;
+      }
+      if (selectedItem.type === "effect" && selectedItem.itemId) {
+        return `effect:${selectedItem.ruleId}:${selectedItem.itemId}`;
+      }
+      return `rule:${selectedItem.ruleId}`;
+    }
+
+    if (selectedRuleIds[0]) {
+      return `rule:${selectedRuleIds[0]}`;
+    }
+
+    return undefined;
+  }, [
+    liveCodePreviewTarget,
+    segmentIdFromContextTarget,
+    selectedItem,
+    selectedRuleIds,
+  ]);
+
+  const hoveredSegmentId =
+    segmentIdFromContextTarget(hoveredContextTarget) ?? selectedSegmentId;
 
   const contextTargetTitle =
     contextTarget.type === "canvas"
@@ -3771,7 +3865,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           `Item Preview: ${itemWithoutCustomCode.name || "Current Item"}`,
         );
 
-        const freshGenerated = await compileSingleItemLua(
+        const freshCompiled = await compileSingleItemLuaWithSegments(
           { ...(itemWithoutCustomCode as any), rules },
           previewItemType,
           "mod",
@@ -3782,7 +3876,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           return;
         }
 
-        const normalized = (freshGenerated || "").toLowerCase();
+        const normalized = (freshCompiled.code || "").toLowerCase();
         const isNotImplemented = normalized.includes("not yet implemented");
 
         // Determine which rules changed since the last generation
@@ -3822,16 +3916,15 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         }
         prevRulesSnapshotRef.current = currentRulesSnapshot;
 
-        // Extract clean code and section map from the marker-based output
-        const { cleanCode: freshClean, sections: freshSections } =
-          extractSections(freshGenerated);
+        const freshClean = freshCompiled.code;
+        const freshSegments = freshCompiled.segments;
 
         let displayCode = freshClean || "-- no snippet output";
 
         // If user has custom code, merge with the new generation
         if (customCodeRef.current?.fullCode) {
-          const oldSections =
-            customCodeRef.current.sections ?? lastSectionsRef.current;
+          const oldSegments =
+            customCodeRef.current.segments ?? lastSegmentsRef.current;
 
           // On first load (no previous generation yet), use saved
           // lastGeneratedCode from the custom code state for comparison.
@@ -3844,13 +3937,14 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           if (prevClean === freshClean) {
             // Nothing changed in generation, show user's code as-is
             displayCode = customCodeRef.current.fullCode;
-          } else if (oldSections.length > 0) {
+          } else if (oldSegments.length > 0) {
             try {
-              displayCode = mergeWithGenerated(
+              displayCode = mergeWithGeneratedSegments(
                 customCodeRef.current.fullCode,
-                oldSections,
+                prevClean,
+                oldSegments,
                 freshClean,
-                freshSections,
+                freshSegments,
                 changedRuleIds,
               );
 
@@ -3858,7 +3952,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
               const mergedCustom: CustomCodeState = {
                 fullCode: displayCode,
                 lastGeneratedCode: freshClean,
-                sections: freshSections,
+                segments: freshSegments,
               };
               setCustomCode(mergedCustom);
               onUpdateItem({ customCode: mergedCustom });
@@ -3872,7 +3966,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         }
 
         lastGeneratedCleanRef.current = freshClean;
-        lastSectionsRef.current = freshSections;
+        lastSegmentsRef.current = freshSegments;
 
         setLiveCodeSnippet(displayCode);
         setLiveCodeStatusMessage(
@@ -4420,7 +4514,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                         height: "3200px",
                       }}
                     >
-                      <div className="relative z-10">
+                      <div
+                        className="relative z-10"
+                        onMouseMoveCapture={handleCanvasPointerMoveCapture}
+                        onMouseLeave={handleCanvasPointerLeave}
+                      >
                         <div className="p-6 min-h-full">
                           <div className="relative">
                             {rules.map((rule, index) => (
@@ -4618,7 +4716,17 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   }
                   onResetCustomCode={handleResetCustomCode}
                   hasCustomCode={!!customCode}
-                  sections={lastSectionsRef.current}
+                  segments={lastSegmentsRef.current}
+                  selectedSegmentId={
+                    ruleBuilderSettings.enableLiveCodeHighlighting
+                      ? selectedSegmentId
+                      : undefined
+                  }
+                  hoveredSegmentId={
+                    ruleBuilderSettings.enableLiveCodeHighlighting
+                      ? hoveredSegmentId
+                      : undefined
+                  }
                 />
               )}
             </div>

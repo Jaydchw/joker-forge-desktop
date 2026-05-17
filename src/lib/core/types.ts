@@ -44,12 +44,20 @@ export interface UserVariable {
 }
 
 export interface CustomCodeState {
-  // The user's edited code (clean, no JF markers)
+  // The user's edited code
   fullCode: string;
-  // The last clean generated code (markers stripped)
+  // The last generated code used as merge baseline
   lastGeneratedCode: string;
-  // Ordered section map from the last generation (id + clean content)
-  sections: Array<{ id: string; content: string }>;
+  // Ordered segment map from the last generation
+  segments: Array<{
+    id: string;
+    segmentType: string;
+    name: string;
+    startLine: number;
+    startColumn: number;
+    endLine: number;
+    endColumn: number;
+  }>;
 }
 
 export interface PixelLayerData {

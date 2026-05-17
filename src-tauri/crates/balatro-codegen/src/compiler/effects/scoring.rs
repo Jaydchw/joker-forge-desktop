@@ -77,6 +77,8 @@ fn scoring_effect(
         config_vars: vec![],
         message,
         colour: None,
+    
+        segment_id: None,
     }
 }
 
@@ -171,6 +173,8 @@ pub fn balance_chips_and_mult(effect: &EffectDef, _ctx: &mut CompileContext) -> 
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.PURPLE")),
+    
+        segment_id: None,
     }
 }
 
@@ -188,6 +192,8 @@ pub fn swap_chips_and_mult(effect: &EffectDef, _ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.CHIPS")),
+    
+        segment_id: None,
     }
 }
 

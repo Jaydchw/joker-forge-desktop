@@ -335,7 +335,7 @@ pub(crate) fn build_card_calculate_function(
                     lua_assign(lua_path(&["card", "should_destroy"]), lua_bool(true)),
                 );
             }
-            stmts
+            super::wrap_rule_segment(&ro.rule_id, stmts)
         });
 
         if !trigger_body.is_empty() {

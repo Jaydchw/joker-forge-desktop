@@ -166,7 +166,9 @@ fn build_apply_function(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -> O
     }
 
     let mut body: Vec<Stmt> = Vec::new();
-    super::append_rule_chain_with_fallback(&mut body, &apply_rules, |ro| ro.effect_stmts.clone());
+    super::append_rule_chain_with_fallback(&mut body, &apply_rules, |ro| {
+        super::wrap_rule_segment(&ro.rule_id, ro.effect_stmts.clone())
+    });
 
     Some(Expr::Function {
         params: vec!["self".into(), "back".into()],

@@ -728,6 +728,7 @@ export default function SettingsPage() {
         "Middle Click Drags Canvas",
         "Enable Wheel Zoom",
         "Enable Pinch Zoom",
+        "Enable Live Code Highlighting",
         "Open Inspector On First Selection",
         ...filteredRuleBuilderShortcuts.map(([shortcutId]) =>
           shortcutId
@@ -756,6 +757,7 @@ export default function SettingsPage() {
         "Middle Click Drags Canvas",
         "Enable Wheel Zoom",
         "Enable Pinch Zoom",
+        "Enable Live Code Highlighting",
         "Open Inspector On First Selection",
         "Keybind",
         ...filteredRuleBuilderShortcuts.map(([shortcutId]) =>
@@ -1420,6 +1422,23 @@ export default function SettingsPage() {
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Panels
                   </h4>
+                  {fuzzyMatch("Enable Live Code Highlighting", settingsSearch) && (
+                    <div className="flex items-center justify-between py-2">
+                      <Label htmlFor="rb-live-code-highlighting">
+                        Enable Live Code Highlighting
+                      </Label>
+                      <Switch
+                        id="rb-live-code-highlighting"
+                        checked={ruleBuilderSettings.enableLiveCodeHighlighting}
+                        onCheckedChange={(value) =>
+                          updateRuleBuilderSettings({
+                            enableLiveCodeHighlighting: value,
+                          })
+                        }
+                        className="cursor-pointer"
+                      />
+                    </div>
+                  )}
                   {fuzzyMatch("Open Inspector On First Selection", settingsSearch) && (
                     <div className="flex items-center justify-between py-2">
                       <Label htmlFor="rb-open-inspector">

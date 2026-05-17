@@ -127,6 +127,8 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.GREEN")),
+    
+        segment_id: None,
     }
 }
 
@@ -229,6 +231,8 @@ pub fn create_consumable(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
         config_vars: vec![],
         message: Some(lua_call("localize", vec![lua_str("k_plus_consumable")])),
         colour: Some(lua_raw_expr("G.C.GREEN")),
+    
+        segment_id: None,
     }
 }
 
@@ -251,6 +255,8 @@ pub fn create_playing_card(effect: &EffectDef, _ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message: Some(lua_str(message)),
         colour: Some(lua_raw_expr("G.C.GREEN")),
+    
+        segment_id: None,
     }
 }
 
@@ -278,6 +284,8 @@ pub fn create_playing_cards(effect: &EffectDef, ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message: Some(lua_str("Added Cards!")),
         colour: Some(lua_raw_expr("G.C.GREEN")),
+    
+        segment_id: None,
     }
 }
 
@@ -303,6 +311,8 @@ pub fn create_tag(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput
         config_vars: vec![],
         message: Some(lua_str("Created Tag!")),
         colour: Some(lua_raw_expr("G.C.GREEN")),
+    
+        segment_id: None,
     }
 }
 
@@ -353,6 +363,8 @@ pub fn create_copy_triggered_card(
             config_vars: vec![],
             message: Some(message),
             colour: Some(lua_raw_expr("G.C.GREEN")),
+        
+        segment_id: None,
         }
     } else {
         let non_scoring_body = format!(
@@ -378,6 +390,8 @@ pub fn create_copy_triggered_card(
             config_vars: vec![],
             message: Some(message),
             colour: Some(lua_raw_expr("G.C.GREEN")),
+        
+        segment_id: None,
         }
     }
 }
@@ -439,6 +453,8 @@ pub fn create_copy_played_card(
             config_vars: vec![],
             message: Some(message),
             colour: Some(lua_raw_expr("G.C.GREEN")),
+        
+        segment_id: None,
         }
     } else {
         let non_scoring_body = format!(
@@ -464,6 +480,8 @@ pub fn create_copy_played_card(
             config_vars: vec![],
             message: Some(message),
             colour: Some(lua_raw_expr("G.C.GREEN")),
+        
+        segment_id: None,
         }
     }
 }
@@ -529,6 +547,8 @@ pub fn create_last_played_planet(effect: &EffectDef, _ctx: &mut CompileContext) 
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Planet")),
+    
+        segment_id: None,
     }
 }
 

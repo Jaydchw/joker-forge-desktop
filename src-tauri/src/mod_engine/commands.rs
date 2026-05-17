@@ -535,6 +535,120 @@ pub fn compile_item_from_data(
     }
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewCodeSegment {
+    pub id: String,
+    pub segment_type: String,
+    pub name: String,
+    pub start_line: usize,
+    pub start_column: usize,
+    pub end_line: usize,
+    pub end_column: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompiledLuaWithSegments {
+    pub code: String,
+    pub segments: Vec<PreviewCodeSegment>,
+}
+
+#[tauri::command]
+pub fn compile_item_from_data_with_segments(
+    item_type: String,
+    item_data: Value,
+    pos: Option<AtlasPosInput>,
+    soul_pos: Option<AtlasPosInput>,
+    mod_prefix: String,
+    include_loc_txt: bool,
+    global_user_variables: Option<Vec<super::export::UserVariableInput>>,
+) -> Result<CompiledLuaWithSegments, String> {
+    let base_pos = pos.unwrap_or(AtlasPosInput { x: 0, y: 0 });
+    let mapped_globals = global_user_variables
+        .as_deref()
+        .map(super::export::map_user_variable_inputs)
+        .unwrap_or_default();
+
+    let (code, segments) = match item_type.as_str() {
+        "joker" => {
+            let parsed: JokerDataInput = serde_json::from_value(item_data)
+                .map_err(|e| format!("Invalid joker data: {}", e))?;
+            let mut def = super::export::joker_data_to_def(&parsed, &mod_prefix, base_pos, soul_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
+            let chunk = compile_joker_with_options(&def, &mod_prefix, include_loc_txt);
+            LuaEmitter::new().emit_chunk_with_segments(&chunk)
+        }
+        "consumable" => {
+            let parsed: ConsumableDataInput = serde_json::from_value(item_data)
+                .map_err(|e| format!("Invalid consumable data: {}", e))?;
+            let mut def = super::export::consumable_data_to_def(&parsed, base_pos, soul_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
+            let chunk = compile_consumable(&def, &mod_prefix);
+            LuaEmitter::new().emit_chunk_with_segments(&chunk)
+        }
+        "voucher" => {
+            let parsed: VoucherDataInput = serde_json::from_value(item_data)
+                .map_err(|e| format!("Invalid voucher data: {}", e))?;
+            let mut def = super::export::voucher_data_to_def(&parsed, base_pos, soul_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
+            let chunk = compile_voucher(&def, &mod_prefix);
+            LuaEmitter::new().emit_chunk_with_segments(&chunk)
+        }
+        "deck" => {
+            let parsed: DeckDataInput = serde_json::from_value(item_data)
+                .map_err(|e| format!("Invalid deck data: {}", e))?;
+            let mut def = super::export::deck_data_to_def(&parsed, base_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
+            let chunk = compile_deck(&def, &mod_prefix);
+            LuaEmitter::new().emit_chunk_with_segments(&chunk)
+        }
+        "enhancement" => {
+            let parsed: EnhancementDataInput = serde_json::from_value(item_data)
+                .map_err(|e| format!("Invalid enhancement data: {}", e))?;
+            let mut def = super::export::enhancement_data_to_def(&parsed, base_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
+            let chunk = compile_enhancement(&def, &mod_prefix);
+            LuaEmitter::new().emit_chunk_with_segments(&chunk)
+        }
+        "seal" => {
+            let parsed: SealDataInput = serde_json::from_value(item_data)
+                .map_err(|e| format!("Invalid seal data: {}", e))?;
+            let mut def = super::export::seal_data_to_def(&parsed, base_pos);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
+            let chunk = compile_seal(&def, &mod_prefix);
+            LuaEmitter::new().emit_chunk_with_segments(&chunk)
+        }
+        "edition" => {
+            let parsed: EditionDataInput = serde_json::from_value(item_data)
+                .map_err(|e| format!("Invalid edition data: {}", e))?;
+            let mut def = super::export::edition_data_to_def(&parsed);
+            merge_global_user_vars(&mut def.user_variables, &mapped_globals);
+            let chunk = compile_edition(&def, &mod_prefix);
+            LuaEmitter::new().emit_chunk_with_segments(&chunk)
+        }
+        _ => return Err(format!("Unsupported item type: {}", item_type)),
+    };
+
+    let mapped_segments = segments
+        .into_iter()
+        .map(|segment| PreviewCodeSegment {
+            id: segment.id,
+            segment_type: segment.segment_type,
+            name: segment.name,
+            start_line: segment.start_line,
+            start_column: segment.start_column,
+            end_line: segment.end_line,
+            end_column: segment.end_column,
+        })
+        .collect();
+
+    Ok(CompiledLuaWithSegments {
+        code,
+        segments: mapped_segments,
+    })
+}
+
 /// Compile and write a batch of jokers to disk in a single IPC call.
 ///
 /// Replaces the TypeScript `for (const joker of sorted)` loop that called

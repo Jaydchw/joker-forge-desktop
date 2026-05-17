@@ -29,6 +29,21 @@ interface CompileSingleJokerOptions {
   globalUserVariables?: UserVariable[];
 }
 
+export interface PreviewCodeSegment {
+  id: string;
+  segmentType: string;
+  name: string;
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+}
+
+export interface CompiledLuaWithSegments {
+  code: string;
+  segments: PreviewCodeSegment[];
+}
+
 export type PreviewCompileItemType =
   | "joker"
   | "consumable"
@@ -330,6 +345,23 @@ export const compileSingleItemLua = async (
   options: CompileSingleJokerOptions = {},
 ): Promise<string> => {
   return invoke<string>("compile_item_from_data", {
+    itemType,
+    itemData: item,
+    pos: null,
+    soulPos: null,
+    modPrefix,
+    includeLocTxt: options.includeLocTxt ?? true,
+    globalUserVariables: options.globalUserVariables ?? null,
+  });
+};
+
+export const compileSingleItemLuaWithSegments = async (
+  item: unknown,
+  itemType: PreviewCompileItemType,
+  modPrefix: string,
+  options: CompileSingleJokerOptions = {},
+): Promise<CompiledLuaWithSegments> => {
+  return invoke<CompiledLuaWithSegments>("compile_item_from_data_with_segments", {
     itemType,
     itemData: item,
     pos: null,
