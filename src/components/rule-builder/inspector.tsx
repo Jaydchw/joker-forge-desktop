@@ -142,6 +142,18 @@ interface ParameterFieldProps {
   itemType: "joker" | "consumable" | "card" | "voucher" | "deck";
 }
 
+const dedupeSelectOptions = <T extends { value: string; label: string }>(
+  options: T[],
+): T[] => {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const key = `${String(option.value)}::${option.label}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 interface ChanceInputProps {
   label: string;
   value: string | number | undefined;
@@ -158,7 +170,6 @@ interface ChanceInputProps {
   onOpenGameVariablesPanel: () => void;
   selectedGameVariable?: GameVariable | null;
   onGameVariableApplied?: () => void;
-  itemType: "joker" | "consumable" | "card" | "voucher" | "deck";
 }
 
 const ChanceInput: React.FC<ChanceInputProps> = React.memo(
@@ -171,7 +182,6 @@ const ChanceInput: React.FC<ChanceInputProps> = React.memo(
     onOpenGameVariablesPanel,
     selectedGameVariable,
     onGameVariableApplied,
-    itemType,
   }) => {
     const [isVariableMode, setIsVariableMode] = React.useState(
       typeof value === "string" &&
@@ -276,20 +286,18 @@ const ChanceInput: React.FC<ChanceInputProps> = React.memo(
       <div className="flex flex-col gap-2 items-start w-full">
         <div className="flex items-center gap-2">
           <span className="text-zinc-100 text-sm">{label}</span>
-          {itemType !== "consumable" && (
-            <Toggle
-              pressed={isVariableMode}
-              onPressedChange={() =>
-                handleModeChange(isVariableMode ? "number" : "variable")
-              }
-              variant="outline"
-              size="sm"
-              className="cursor-pointer data-[state=on]:bg-jungle-green-500/20 data-[state=on]:text-jungle-green-400"
-              title="Toggle variable mode"
-            >
-              <Brackets className="h-3 w-3" />
-            </Toggle>
-          )}
+          <Toggle
+            pressed={isVariableMode}
+            onPressedChange={() =>
+              handleModeChange(isVariableMode ? "number" : "variable")
+            }
+            variant="outline"
+            size="sm"
+            className="cursor-pointer data-[state=on]:bg-jungle-green-500/20 data-[state=on]:text-jungle-green-400"
+            title="Toggle variable mode"
+          >
+            <Brackets className="h-3 w-3" />
+          </Toggle>
           <Toggle
             pressed={typeof value === "string" && value.startsWith("GAMEVAR:")}
             onPressedChange={() => onOpenGameVariablesPanel()}
@@ -346,7 +354,7 @@ const ChanceInput: React.FC<ChanceInputProps> = React.memo(
               placeholder="Max"
             />
           </div>
-        ) : isVariableMode && itemType !== "consumable" ? (
+        ) : isVariableMode ? (
           <div className="space-y-2 w-full">
             {availableVariables.length > 0 ? (
               <Select
@@ -838,7 +846,9 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         }
       }
 
-      options = options.filter((option) => !option.exempt?.includes(itemType));
+      options = dedupeSelectOptions(options).filter(
+        (option) => !option.exempt?.includes(itemType),
+      );
       const variableTypeOrder = [
         "number",
         "suit",
@@ -1032,20 +1042,18 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         <>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-zinc-100 text-sm">{String(param.label)}</span>
-            {itemType !== "consumable" && (
-              <Toggle
-                pressed={isVariableMode}
-                onPressedChange={() =>
-                  handleModeChange(isVariableMode ? "number" : "variable")
-                }
-                variant="outline"
-                size="sm"
-                className="cursor-pointer data-[state=on]:bg-jungle-green-500/20 data-[state=on]:text-jungle-green-400"
-                title="Toggle variable mode"
-              >
-                <Brackets className="h-4 w-4" />
-              </Toggle>
-            )}
+            <Toggle
+              pressed={isVariableMode}
+              onPressedChange={() =>
+                handleModeChange(isVariableMode ? "number" : "variable")
+              }
+              variant="outline"
+              size="sm"
+              className="cursor-pointer data-[state=on]:bg-jungle-green-500/20 data-[state=on]:text-jungle-green-400"
+              title="Toggle variable mode"
+            >
+              <Brackets className="h-4 w-4" />
+            </Toggle>
             <Toggle
               pressed={isGameVariable}
               onPressedChange={() => onOpenGameVariablesPanel?.()}
@@ -1161,7 +1169,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
                 />
               </div>
             </div>
-          ) : isVariableMode && itemType !== "consumable" ? (
+          ) : isVariableMode ? (
             <div className="space-y-2">
               {availableVariables && availableVariables.length > 0 ? (
                 <Select
@@ -1721,7 +1729,6 @@ const Inspector: React.FC<InspectorProps> = ({
                   onOpenGameVariablesPanel={onToggleGameVariablesPanel}
                   selectedGameVariable={selectedGameVariable}
                   onGameVariableApplied={onGameVariableApplied}
-                  itemType={itemType}
                 />
                 <div className="border-b border-border/80" />
                 <ChanceInput
@@ -1743,7 +1750,6 @@ const Inspector: React.FC<InspectorProps> = ({
                   onOpenGameVariablesPanel={onToggleGameVariablesPanel}
                   selectedGameVariable={selectedGameVariable}
                   onGameVariableApplied={onGameVariableApplied}
-                  itemType={itemType}
                 />
               </div>
             </div>
@@ -1877,7 +1883,6 @@ const Inspector: React.FC<InspectorProps> = ({
                   onOpenGameVariablesPanel={onToggleGameVariablesPanel}
                   selectedGameVariable={selectedGameVariable}
                   onGameVariableApplied={onGameVariableApplied}
-                  itemType={itemType}
                 />
                 <span className="text-zinc-100 text-sm">Time(s)</span>
               </div>

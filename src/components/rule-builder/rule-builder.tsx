@@ -398,7 +398,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const [gridSnapping, setGridSnapping] = useState<boolean>(
     getRuleBuilderSettings().defaultGridSnap ?? userConfig.defaultGridSnap ?? false,
   );
-  const { panels, togglePanel, updatePanelPosition } = usePanelState(itemType);
+  const { panels, togglePanel, updatePanelPosition } = usePanelState();
 
   const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
   const [showNoRulesMessage, setShowNoRulesMessage] = useState(false);
@@ -4521,19 +4521,18 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                       itemType={itemType}
                     />
                   )}
-                  {itemType !== "consumable" &&
-                    panels.variables?.isVisible && (
-                      <Variables
-                        position={panels.variables.position}
-                        item={item as any}
-                        onUpdateItem={onUpdateItem}
-                        onClose={() => togglePanel("variables")}
-                        addVariableRequest={addVariableRequest}
-                        onPositionChange={(position) =>
-                          updatePanelPosition("variables", position)
-                        }
-                      />
-                    )}
+                  {panels.variables?.isVisible && (
+                    <Variables
+                      position={panels.variables.position}
+                      item={item as any}
+                      onUpdateItem={onUpdateItem}
+                      onClose={() => togglePanel("variables")}
+                      addVariableRequest={addVariableRequest}
+                      onPositionChange={(position) =>
+                        updatePanelPosition("variables", position)
+                      }
+                    />
+                  )}
                   {panels.inspector.isVisible && (
                     <Inspector
                       position={panels.inspector.position}
@@ -4596,7 +4595,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   <FloatingDock
                     panels={panels}
                     onTogglePanel={togglePanel}
-                    itemType={itemType}
                   />
                 </DndContext>
               </div>

@@ -19,13 +19,11 @@ interface PanelState {
 interface FloatingDockProps {
   panels: Record<string, PanelState>;
   onTogglePanel: (panelId: string) => void;
-  itemType: "joker" | "consumable" | "card" | "voucher" | "deck";
 }
 
 const FloatingDock: React.FC<FloatingDockProps> = ({
   panels,
   onTogglePanel,
-  itemType,
 }) => {
   const allDockItems = [
     {
@@ -66,18 +64,11 @@ const FloatingDock: React.FC<FloatingDockProps> = ({
     },
   ];
 
-  const dockItems = allDockItems.filter((item) => {
-    if (item.id === "variables" && itemType === "consumable") {
-      return false;
-    }
-    return true;
-  });
-
   return (
     <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-50">
       <div className="bg-card/90 backdrop-blur-md border border-border rounded-xl px-3 py-2 shadow-lg">
         <div className="flex items-center gap-2">
-          {dockItems.map((item) => {
+          {allDockItems.map((item) => {
             const Icon = item.icon;
             const isActive = panels[item.id]?.isVisible;
 

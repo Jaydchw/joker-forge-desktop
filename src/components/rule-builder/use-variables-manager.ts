@@ -6,7 +6,7 @@ import {
   SUITS,
   SUIT_VALUES,
 } from "@/lib/balatro/balatro-utils";
-import type { ConsumableData, UserVariable } from "@/lib/core/types";
+import type { UserVariable } from "@/lib/core/types";
 import {
   Cube,
   Hand,
@@ -74,7 +74,7 @@ export const VARIABLE_TYPE_OPTIONS = [
 ];
 
 interface VariablesManagerArgs {
-  item: Exclude<ItemData, ConsumableData>;
+  item: ItemData;
   onUpdateItem: (updates: Partial<ItemData>) => void;
 }
 

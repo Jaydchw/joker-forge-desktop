@@ -8,11 +8,7 @@ export interface PanelState {
   positionSet: boolean;
 }
 
-type ItemType = "joker" | "consumable" | "card" | "voucher" | "deck";
-
-const createInitialPanels = (
-  itemType: ItemType,
-): Record<string, PanelState> => {
+const createInitialPanels = (): Record<string, PanelState> => {
   const basePanels = {
     blockPalette: {
       id: "blockPalette",
@@ -58,20 +54,16 @@ const createInitialPanels = (
     },
   };
 
-  if (itemType !== "consumable") {
-    return {
-      ...basePanels,
-      variables: {
-        id: "variables",
-        isVisible: false,
-        position: { x: 0, y: 0 },
-        size: { width: 320, height: 300 },
-        positionSet: false,
-      },
-    };
-  }
-
-  return basePanels;
+  return {
+    ...basePanels,
+    variables: {
+      id: "variables",
+      isVisible: false,
+      position: { x: 0, y: 0 },
+      size: { width: 320, height: 300 },
+      positionSet: false,
+    },
+  };
 };
 
 const findPosition = (
@@ -192,17 +184,13 @@ const findPosition = (
   };
 };
 
-export const usePanelState = (itemType: ItemType) => {
+export const usePanelState = () => {
   const [panels, setPanels] = useState<Record<string, PanelState>>(() =>
-    createInitialPanels(itemType),
+    createInitialPanels(),
   );
 
   const togglePanel = useCallback(
     (panelId: string) => {
-      if (panelId === "variables" && itemType === "consumable") {
-        return;
-      }
-
       setPanels((prev) => {
         const panel = prev[panelId];
 
@@ -224,7 +212,7 @@ export const usePanelState = (itemType: ItemType) => {
         };
       });
     },
-    [itemType],
+    [],
   );
 
   const updatePanelPosition = useCallback(

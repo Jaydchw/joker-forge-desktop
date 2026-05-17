@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import type { ConsumableData, UserVariable } from "@/lib/core/types";
+import type { UserVariable } from "@/lib/core/types";
 import { getVariableUsageDetails } from "@/lib/rules/user-variable-utils";
 import {
   SUITS,
@@ -50,7 +50,7 @@ type ItemData = any;
 
 interface VariablesProps {
   position: { x: number; y: number };
-  item: Exclude<ItemData, ConsumableData>;
+  item: ItemData;
   onUpdateItem: (updates: Partial<ItemData>) => void;
   onClose: () => void;
   onPositionChange: (position: { x: number; y: number }) => void;
@@ -588,7 +588,7 @@ const Variables: React.FC<VariablesProps> = ({
                 No variables created yet
               </p>
               <p className="text-muted-foreground text-xs mt-1">
-                Create variables to store and modify values in your joker
+                Create variables to store and modify values in this item
               </p>
             </div>
           ) : (
