@@ -191,6 +191,31 @@ const resolveParameterDefaultValue = (
   return options?.[0]?.value;
 };
 
+const coerceLegacyTriggerId = (
+  triggerId: string,
+  itemType: ItemType,
+): string => {
+  // Legacy Vanilla Reforged payloads use historical trigger ids that no longer
+  // match the active rule catalog.
+  if (triggerId === "card_held") return "card_held_in_hand";
+  if (triggerId === "voucher_used" || triggerId === "deck_selected") {
+    return "card_used";
+  }
+  // For consumables, the builder trigger is "card_used" (this consumable),
+  // while "consumable_used" is the Joker-facing trigger (any consumable).
+  if (itemType === "consumable" && triggerId === "consumable_used") {
+    return "card_used";
+  }
+  return triggerId;
+};
+
+const getDefaultTriggerForItemType = (itemType: ItemType): string => {
+  if (itemType === "consumable" || itemType === "voucher" || itemType === "deck") {
+    return "card_used";
+  }
+  return "hand_played";
+};
+
 const normalizeParamsForDefinition = (
   params: Record<string, { value: unknown; valueType?: string }> | undefined,
   definitionParams: Array<ConditionParameter | EffectParameter>,
@@ -201,13 +226,23 @@ const normalizeParamsForDefinition = (
 
   for (const param of definitionParams) {
     const existing = sourceParams[param.id];
-    if (existing !== undefined) {
+    if (
+      existing !== undefined &&
+      typeof existing === "object" &&
+      existing !== null &&
+      "value" in existing
+    ) {
+      const existingValue = existing.value;
+      const hasConcreteValue = existingValue !== undefined;
+      const fallbackValue = resolveParameterDefaultValue(param, normalizedParams);
+      const resolvedValue = hasConcreteValue ? existingValue : fallbackValue;
       normalizedParams[param.id] = {
         ...existing,
+        value: resolvedValue,
         valueType:
           existing.valueType !== undefined
             ? existing.valueType
-            : detectValueType(existing.value),
+            : detectValueType(resolvedValue),
       };
       continue;
     }
@@ -237,6 +272,58 @@ const normalizeEffectFromCatalog = (effect: Effect): Effect => {
   return {
     ...effect,
     params: normalizeParamsForDefinition(effect.params, definition.params),
+  };
+};
+
+const normalizeRuleForBuilder = (
+  rule: Rule,
+  itemType: ItemType,
+  removeUnknownBlocks: boolean,
+): Rule => {
+  const aliasTrigger = coerceLegacyTriggerId(rule.trigger, itemType);
+  const triggerDefinition = getTriggerById(aliasTrigger);
+  const triggerSupportsItem =
+    !!triggerDefinition &&
+    triggerDefinition.objectUsers.includes(itemType) &&
+    !!triggerDefinition.label?.[itemType];
+  const trigger = triggerSupportsItem
+    ? aliasTrigger
+    : getDefaultTriggerForItemType(itemType);
+
+  const conditionGroups = (rule.conditionGroups || []).map((group) => {
+    const normalizedConditions = (group.conditions || [])
+      .map((condition: Condition) => normalizeConditionFromCatalog(condition))
+      .filter((condition) =>
+        removeUnknownBlocks ? !!getConditionTypeById(condition.type) : true,
+      );
+
+    return {
+      ...group,
+      operator: group.operator === "or" ? "or" : "and",
+      conditions: normalizedConditions,
+    };
+  });
+
+  const normalizeEffectsArray = (effects: Effect[] = []) =>
+    effects
+      .map((effect) => normalizeEffectFromCatalog(effect))
+      .filter((effect) =>
+        removeUnknownBlocks ? !!getEffectTypeById(effect.type) : true,
+      );
+
+  return {
+    ...rule,
+    trigger,
+    conditionGroups,
+    effects: normalizeEffectsArray(rule.effects || []),
+    randomGroups: (rule.randomGroups || []).map((group: RandomGroup) => ({
+      ...group,
+      effects: normalizeEffectsArray(group.effects || []),
+    })),
+    loops: (rule.loops || []).map((group: LoopGroup) => ({
+      ...group,
+      effects: normalizeEffectsArray(group.effects || []),
+    })),
   };
 };
 
@@ -872,30 +959,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const normalizedRules = existingRules.map((rule) => ({
-        ...rule,
-        conditionGroups: (rule.conditionGroups || []).map((group: any) => ({
-          ...group,
-          conditions: (group.conditions || []).map((condition: Condition) =>
-            normalizeConditionFromCatalog(condition),
-          ),
-        })),
-        effects: (rule.effects || []).map((effect: Effect) =>
-          normalizeEffectFromCatalog(effect),
-        ),
-        randomGroups: (rule.randomGroups || []).map((group: RandomGroup) => ({
-          ...group,
-          effects: (group.effects || []).map((effect: Effect) =>
-            normalizeEffectFromCatalog(effect),
-          ),
-        })),
-        loops: (rule.loops || []).map((group: LoopGroup) => ({
-          ...group,
-          effects: (group.effects || []).map((effect: Effect) =>
-            normalizeEffectFromCatalog(effect),
-          ),
-        })),
-      }));
+      const normalizedRules = existingRules.map((rule) =>
+        normalizeRuleForBuilder(rule, itemType, reforged),
+      );
       const initialSnapshot = cloneRulesSnapshot(normalizedRules);
       historyPastRef.current = [];
       historyFutureRef.current = [];
