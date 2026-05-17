@@ -104,6 +104,11 @@ export const ensureLocalizableWithLanguage = <T extends LocalizableBase>(
 ): LocalizableResolved<T> => {
   const normalizedLanguage =
     normalizeLanguageValue(language) || DEFAULT_LOCALIZATION_LANGUAGE;
+  const hasNameField = Object.prototype.hasOwnProperty.call(item, "name");
+  const hasDescriptionField = Object.prototype.hasOwnProperty.call(
+    item,
+    "description",
+  );
   const rawName = typeof item.name === "string" ? item.name : "";
   const rawDescription =
     typeof item.description === "string" ? item.description : "";
@@ -112,8 +117,10 @@ export const ensureLocalizableWithLanguage = <T extends LocalizableBase>(
 
   const mergedEntry: LocalizationEntry = {
     language: normalizedLanguage,
-    name: existing ? (existing.name || rawName) : rawName,
-    description: existing ? (existing.description || rawDescription) : rawDescription,
+    name: hasNameField ? rawName : existing?.name || "",
+    description: hasDescriptionField
+      ? rawDescription
+      : existing?.description || "",
   };
 
   const nextLocalizations = sanitized
