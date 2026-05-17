@@ -158,41 +158,106 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
 }
 
 /// Create Consumable effect: spawns a consumable card.
-pub fn create_consumable(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
-    let consumable_type = get_str_param(effect, "consumableType").unwrap_or("Tarot");
-    let specific_key = get_str_param(effect, "consumableKey");
+pub fn create_consumable(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
+    let set_mode = get_typed_str_param(effect, "set")
+        .or_else(|| get_typed_str_param(effect, "consumableType"))
+        .unwrap_or_else(|| "random".to_string());
+    let key_variable = get_typed_str_param(effect, "variable")
+        .or_else(|| get_typed_str_param(effect, "consumableVariable"))
+        .unwrap_or_default();
+    let specific_card = get_typed_str_param(effect, "specific_card")
+        .or_else(|| get_typed_str_param(effect, "consumableKey"))
+        .unwrap_or_else(|| "random".to_string());
+    let is_negative = get_typed_str_param(effect, "is_negative")
+        .map(|v| v == "y" || v == "negative" || v == "true")
+        .unwrap_or(false);
+    let soulable = get_typed_str_param(effect, "soulable")
+        .map(|v| v == "y" || v == "true")
+        .unwrap_or(false);
+    let ignore_slots = get_typed_str_param(effect, "ignore_slots")
+        .map(|v| v == "y" || v == "true")
+        .unwrap_or(false);
+    let count = crate::compiler::values::resolve_config_value(
+        &effect.params,
+        "count",
+        ctx,
+        "create_consumable_count",
+    )
+    .lua_str;
 
-    let mut add_card_entries = vec![TableEntry::KeyValue(
-        "set".to_string(),
-        lua_str(consumable_type),
-    )];
+    let variable_set_expr = if !key_variable.is_empty() && ctx.has_user_var(&key_variable) {
+        ctx.user_var_path(&key_variable)
+    } else {
+        "\"random\"".to_string()
+    };
 
-    if let Some(key) = specific_key {
-        add_card_entries.push(TableEntry::KeyValue("key".to_string(), lua_str(key)));
-    }
+    let set_mode_lua = format!("\"{}\"", set_mode.replace('\"', "\\\""));
+    let specific_card_lua = format!("\"{}\"", specific_card.replace('\"', "\\\""));
+    let negative_fragment = if is_negative {
+        "            edition = 'e_negative',\n"
+    } else {
+        ""
+    };
+    let soulable_fragment = if soulable {
+        "            soulable = true,\n"
+    } else {
+        ""
+    };
+    let slot_guard = if ignore_slots || is_negative {
+        "true".to_string()
+    } else {
+        "#G.consumeables.cards + (G.GAME.consumeable_buffer or 0) < G.consumeables.config.card_limit".to_string()
+    };
 
-    let add_card_call = Expr::Call(
-        Box::new(lua_path(&["SMODS", "add_card"])),
-        vec![lua_table_raw(add_card_entries)],
-    );
-
-    // Slot check for consumables
-    let slot_check_body = vec![lua_expr_stmt(add_card_call)];
-
-    let slot_check = lua_if(
-        lua_lt(
-            lua_len(lua_path(&["G", "consumeables", "cards"])),
-            lua_path(&["G", "consumeables", "config", "card_limit"]),
-        ),
-        slot_check_body,
+    let lua = format!(
+        "local _jf_set_mode = {set_mode}\n\
+         if _jf_set_mode == 'keyvar' then\n\
+             _jf_set_mode = {variable_set_expr}\n\
+         end\n\
+         if not _jf_set_mode or _jf_set_mode == '' then\n\
+             _jf_set_mode = 'random'\n\
+         end\n\
+         local _jf_specific = {specific}\n\
+         local _jf_spawn_count = {count}\n\
+         local _jf_sets = {{'Tarot', 'Planet', 'Spectral'}}\n\
+         for _ = 1, _jf_spawn_count do\n\
+             if {slot_guard} then\n\
+                 local _jf_set_to_use = _jf_set_mode\n\
+                 if _jf_set_to_use == 'random' then\n\
+                     _jf_set_to_use = pseudorandom_element(_jf_sets, pseudoseed('create_consumable_set'))\n\
+                 end\n\
+                 local _jf_key = nil\n\
+                 if string.sub(_jf_specific, 1, 11) == 'random_set:' then\n\
+                     local _requested = string.sub(_jf_specific, 12)\n\
+                     if _requested and _requested ~= '' then\n\
+                         _jf_set_to_use = _requested\n\
+                     end\n\
+                 elseif _jf_specific ~= 'random' then\n\
+                     _jf_key = _jf_specific\n\
+                 end\n\
+                 local _jf_payload = {{\n\
+                     set = _jf_set_to_use,\n\
+{negative_fragment}{soulable_fragment}\
+                 }}\n\
+                 if _jf_key then _jf_payload.key = _jf_key end\n\
+                 SMODS.add_card(_jf_payload)\n\
+             end\n\
+         end",
+        set_mode = set_mode_lua,
+        variable_set_expr = variable_set_expr,
+        specific = specific_card_lua,
+        count = count,
+        slot_guard = slot_guard,
+        negative_fragment = negative_fragment,
+        soulable_fragment = soulable_fragment,
     );
 
     EffectOutput {
         return_fields: vec![],
-        pre_return: vec![slot_check],
+        pre_return: vec![lua_raw_stmt(lua)],
         config_vars: vec![],
-        message: Some(lua_call("localize", vec![lua_str("k_plus_tarot")])),
-        colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
+        message: Some(lua_call("localize", vec![lua_str("k_plus_consumable")])),
+        colour: Some(lua_raw_expr("G.C.GREEN")),
     }
 }
 

@@ -114,6 +114,7 @@ export let AVAILABLE_OPTION_SOURCES = new Set<string>();
 type CatalogOption = {
   value: string;
   label: string;
+  set?: string;
 };
 
 type SourcedParameter = (ConditionParameter | EffectParameter) & {
@@ -273,6 +274,101 @@ function applyOptionSource(
 
   if (param.type === "checkbox") {
     mergeWithDynamicCheckboxOptions(param, source());
+    return;
+  }
+
+  if (sourceKey === "allConsumables") {
+    const baseOptions = param.options;
+    param.options = (
+      parentValues?: Record<string, { value: unknown; valueType?: string }>,
+    ) => {
+      let staticOptions: CatalogOption[] = [];
+      if (typeof baseOptions === "function") {
+        staticOptions = asOptionArray(baseOptions(parentValues ?? {}));
+      } else {
+        staticOptions = asOptionArray(baseOptions);
+      }
+
+      const normalizeSet = (value: string) => value.trim().toLowerCase();
+      const selectedSetRaw = String(
+        parentValues?.set?.value ??
+          parentValues?.consumable_type?.value ??
+          "random",
+      );
+      const selectedSet = normalizeSet(selectedSetRaw);
+      const selectedIsSpecific =
+        selectedSet !== "random" && selectedSet !== "any" && selectedSet !== "keyvar";
+
+      const setOptions = CONSUMABLE_SETS().map((setOption) => ({
+        value: String(setOption.value),
+        label: String(setOption.label),
+        key: String(setOption.key ?? setOption.value).toLowerCase(),
+      }));
+      const setLabelByKey = new Map<string, string>();
+      setOptions.forEach((set) => {
+        setLabelByKey.set(normalizeSet(set.value), set.label);
+        setLabelByKey.set(normalizeSet(set.key), set.label);
+      });
+
+      const vanillaWithSet: CatalogOption[] = [
+        ...TAROT_CARDS.map((card) => ({ ...card, set: "Tarot" })),
+        ...PLANET_CARDS.map((card) => ({ ...card, set: "Planet" })),
+        ...SPECTRAL_CARDS.map((card) => ({ ...card, set: "Spectral" })),
+      ];
+      const customWithSet = CUSTOM_CONSUMABLES().map((card) => ({
+        value: String(card.value),
+        label: String(card.label),
+        set: String(card.set ?? ""),
+      }));
+
+      const allConsumables = [...vanillaWithSet, ...customWithSet];
+      const filteredConsumables = selectedIsSpecific
+        ? allConsumables.filter((card) => {
+            const cardSet = normalizeSet(card.set ?? "");
+            return (
+              cardSet === selectedSet ||
+              normalizeSet(String(setLabelByKey.get(selectedSet) ?? "")) === cardSet
+            );
+          })
+        : allConsumables;
+
+      const randomBySetOptions: CatalogOption[] = setOptions
+        .filter((set) => {
+          const setKey = normalizeSet(set.value);
+          return (
+            setKey !== "random" &&
+            setKey !== "any" &&
+            setKey !== "keyvar" &&
+            (!selectedIsSpecific || setKey === selectedSet)
+          );
+        })
+        .map((set) => ({
+          value: `random_set:${set.value}`,
+          label: `Random ${set.label}`,
+        }));
+
+      const selectedSetLabel =
+        setLabelByKey.get(selectedSet) ?? selectedSetRaw;
+      const defaultRandomOption: CatalogOption = selectedIsSpecific
+        ? {
+            value: "random",
+            label: `Random ${selectedSetLabel}`,
+          }
+        : {
+            value: "random",
+            label: "Random Card",
+          };
+
+      return uniqueByValue([
+        defaultRandomOption,
+        ...staticOptions,
+        ...randomBySetOptions,
+        ...filteredConsumables.map((card) => ({
+          value: card.value,
+          label: card.label,
+        })),
+      ]);
+    };
     return;
   }
 

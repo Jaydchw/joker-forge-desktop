@@ -496,7 +496,20 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
 
     while (showing && currentParam && hasShowWhen(currentParam)) {
       const { parameter, values }: ShowWhenCondition = currentParam.showWhen;
-      const parentValue = parentValues[parameter].value;
+      const parentValue = parentValues[parameter]?.value;
+      const isConsumableSpecificCardGuard =
+        currentParam.id === "specific_card" &&
+        (parameter === "set" || parameter === "consumable_type");
+      if (isConsumableSpecificCardGuard) {
+        const normalized = String(parentValue ?? "")
+          .trim()
+          .toLowerCase();
+        if (normalized === "random" || normalized === "any" || normalized === "keyvar") {
+          showing = false;
+        }
+        currentParam = parentObject?.params.find((param) => param.id === parameter);
+        continue;
+      }
       if (Array.isArray(parentValue) && typeof parentValue[0] === "boolean") {
         if (!values.some((item) => parentValue[parseFloat(item)])) {
           showing = false;
@@ -839,13 +852,31 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
       );
       const isVariableOnlySelector = param.id === "variable_name";
       const variableOptions = options.filter((option) => option.valueType === "user_var");
+      const variableParamTypes = new Set([
+        "number",
+        "suit",
+        "rank",
+        "pokerhand",
+        "key",
+        "text",
+      ]);
+      const isVariableTypedSelector =
+        param.type === "select" &&
+        !!param.variableTypes?.length &&
+        param.variableTypes.every((type) => variableParamTypes.has(type));
+      const hasOnlyVariableOptions =
+        options.length === 0 ||
+        options.every((option) => option.valueType === "user_var");
+      const shouldRenderAddVariableButton =
+        (isVariableOnlySelector || isVariableTypedSelector || hasOnlyVariableOptions) &&
+        variableOptions.length === 0;
 
       return (
         <div className="space-y-1">
           <label className="block text-zinc-200 text-sm">
             {String(param.label)}
           </label>
-          {isVariableOnlySelector && variableOptions.length === 0 ? (
+          {shouldRenderAddVariableButton ? (
             <Button
               variant="secondary"
               size="sm"
