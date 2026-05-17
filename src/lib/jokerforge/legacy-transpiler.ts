@@ -1,6 +1,6 @@
-import type { ProjectData, ProjectStats } from "@/lib/storage";
-import type { ModMetadata } from "@/lib/types";
-import { sanitizeDescription } from "@/lib/description-sanitizer";
+import type { ProjectData, ProjectStats } from "@/lib/services/storage";
+import type { ModMetadata } from "@/lib/core/types";
+import { sanitizeDescription } from "@/lib/description/description-sanitizer";
 
 const DEFAULT_METADATA: ModMetadata = {
   id: "my_custom_mod",

@@ -14,7 +14,7 @@ import {
   onUpdateAvailable,
   performUpdate,
   type UpdateInfo,
-} from "@/lib/release-updater";
+} from "@/lib/services/release-updater";
 
 export function UpdateDialog() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);

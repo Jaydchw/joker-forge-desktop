@@ -1,4 +1,4 @@
-import type { ThemePreference } from "@/lib/storage";
+import type { ThemePreference } from "@/lib/services/storage";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 export const THEME_CHANGE_EVENT = "joker_forge_theme_change";

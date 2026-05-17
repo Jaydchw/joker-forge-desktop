@@ -4,8 +4,8 @@ import { GenericItemDialogMini } from "@/components/pages/generic-item-dialog-mi
 import type { DialogTab } from "@/components/pages/generic-item-dialog";
 import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { Input } from "@/components/ui/input";
-import { slugify } from "@/lib/balatro-utils";
-import type { RarityData } from "@/lib/types";
+import { slugify } from "@/lib/balatro/balatro-utils";
+import type { RarityData } from "@/lib/core/types";
 import { Palette } from "@phosphor-icons/react";
 
 const DEFAULT_BADGE_COLOR = "6A7A8B";

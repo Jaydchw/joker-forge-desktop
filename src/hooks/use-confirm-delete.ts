@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { getConfirmDeleteEnabled } from "@/lib/storage";
+import { getConfirmDeleteEnabled } from "@/lib/services/storage";
 
 export const useConfirmDelete = (onDelete: (id: string) => void) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);

@@ -1,5 +1,5 @@
-import type { BaseGameObject, UserVariable } from "@/lib/types";
-import type { ProjectData } from "@/lib/storage";
+import type { BaseGameObject, UserVariable } from "@/lib/core/types";
+import type { ProjectData } from "@/lib/services/storage";
 
 export interface GlobalVariableEntry {
   variable: UserVariable;

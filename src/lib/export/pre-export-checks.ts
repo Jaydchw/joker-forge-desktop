@@ -1,4 +1,4 @@
-import type { ProjectData } from "@/lib/storage";
+import type { ProjectData } from "@/lib/services/storage";
 import type {
   BaseGameObject,
   ConsumableData,
@@ -9,8 +9,8 @@ import type {
   RarityData,
   SoundData,
   VoucherData,
-} from "@/lib/types";
-import type { NavigationTarget } from "@/lib/navigation-target";
+} from "@/lib/core/types";
+import type { NavigationTarget } from "@/lib/app/navigation-target";
 
 export interface PreExportIssue {
   id: string;

@@ -1,7 +1,7 @@
 export type { Rule } from "@/components/rule-builder/types";
 
 import type { Rule } from "@/components/rule-builder/types";
-import type { LocalizationEntry } from "@/lib/localization";
+import type { LocalizationEntry } from "@/lib/core/localization";
 
 export interface UserVariable {
   id: string;

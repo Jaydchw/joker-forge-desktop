@@ -1,4 +1,4 @@
-import type { BaseGameObject, UserVariable } from "@/lib/types";
+import type { BaseGameObject, UserVariable } from "@/lib/core/types";
 import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import type { Rule } from "@/components/rule-builder/types";
 

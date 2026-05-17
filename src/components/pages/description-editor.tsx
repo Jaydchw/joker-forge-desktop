@@ -9,12 +9,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
+import { cn } from "@/lib/core/utils";
+import { applyAutoFormatting } from "@/lib/balatro/balatro-text-formatter";
 import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import { generateDescriptionFromRules } from "@/lib/rules/auto-description";
-import { fuzzyMatchAny } from "@/lib/search";
-import type { Rule, UserVariable } from "@/lib/types";
+import { fuzzyMatchAny } from "@/lib/core/search";
+import type { Rule, UserVariable } from "@/lib/core/types";
 import {
   ArrowCounterClockwise,
   Cube,

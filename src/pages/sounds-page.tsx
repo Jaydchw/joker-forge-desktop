@@ -3,9 +3,9 @@ import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
-import { useProjectData, useModName } from "@/lib/storage";
-import { SoundData } from "@/lib/types";
-import { fuzzyMatchAny } from "@/lib/search";
+import { useProjectData, useModName } from "@/lib/services/storage";
+import { SoundData } from "@/lib/core/types";
+import { fuzzyMatchAny } from "@/lib/core/search";
 import {
   BookmarksSimple,
   PencilSimple,
@@ -16,9 +16,9 @@ import {
   instantiateItemFromTemplate,
   useTemplateStore,
   type ItemTemplateEntry,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 
 export default function SoundsPage() {
   const { data, updateSounds, isHydrating } = useProjectData();

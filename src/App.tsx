@@ -26,7 +26,7 @@ import VanillaReforgedDecksPage from "@/pages/vanilla-reforged/vanilla-reforged-
 import { EntityBridgeListener } from "@/components/bridge/entity-bridge-listener";
 import { CustomContextMenu } from "@/components/ui/custom-context-menu";
 import { useEffect } from "react";
-import { checkForReleaseUpdateOnLaunch } from "@/lib/release-updater";
+import { checkForReleaseUpdateOnLaunch } from "@/lib/services/release-updater";
 import { UpdateDialog } from "@/components/bridge/update-dialog";
 import { GithubStarDialog } from "@/components/bridge/github-star-dialog";
 import { Toaster } from "sonner";

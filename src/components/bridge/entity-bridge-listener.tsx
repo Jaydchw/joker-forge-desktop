@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { entityBridge, type StateSyncPayload } from "@/lib/entity-bridge";
+import { entityBridge, type StateSyncPayload } from "@/lib/services/entity-bridge";
 
 export function EntityBridgeListener() {
   useEffect(() => {

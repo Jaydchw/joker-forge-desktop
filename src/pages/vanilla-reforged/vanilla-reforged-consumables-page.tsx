@@ -2,13 +2,13 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
-import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
+import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 import { RuleBuilder } from "@/components/rule-builder";
-import { useProjectData } from "@/lib/storage";
-import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
-import { ConsumableData } from "@/lib/types";
-import { fuzzyMatchAny } from "@/lib/search";
-import { slugify } from "@/lib/balatro-utils";
+import { useProjectData } from "@/lib/services/storage";
+import { useVanillaReforgedData } from "@/lib/items/vanilla-reforged";
+import { ConsumableData } from "@/lib/core/types";
+import { fuzzyMatchAny } from "@/lib/core/search";
+import { slugify } from "@/lib/balatro/balatro-utils";
 import {
   Copy,
   Eye,

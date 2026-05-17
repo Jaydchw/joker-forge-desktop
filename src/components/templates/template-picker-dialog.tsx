@@ -18,18 +18,18 @@ import {
 } from "@phosphor-icons/react";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import type {
   ItemTemplateEntry,
   RuleTemplateEntry,
   TemplateEntry,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import {
   parseTemplateBundleText,
   serializeTemplateBundle,
   TEMPLATE_FILE_EXTENSION,
   useTemplateStore,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import {
   TemplateCard,
   getTemplateImage,
@@ -60,7 +60,7 @@ import type {
   SealData,
   SoundData,
   VoucherData,
-} from "@/lib/types";
+} from "@/lib/core/types";
 
 interface TemplatePickerDialogProps {
   open: boolean;

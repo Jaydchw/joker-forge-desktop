@@ -51,10 +51,10 @@ import HistoryPanel from "./history-panel";
 import {
   compileSingleItemLua,
   type PreviewCompileItemType,
-} from "@/lib/rust-codegen-export";
-import { extractSections, mergeWithGenerated } from "@/lib/code-sections";
-import type { SectionInfo } from "@/lib/code-sections";
-import type { CustomCodeState } from "@/lib/types";
+} from "@/lib/export/rust-codegen-export";
+import { extractSections, mergeWithGenerated } from "@/lib/content/code-sections";
+import type { SectionInfo } from "@/lib/content/code-sections";
+import type { CustomCodeState } from "@/lib/core/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -80,7 +80,7 @@ import {
   getTriggerById,
 } from "./rule-catalog";
 import GameVariables from "./game-variables";
-import { GameVariable } from "@/lib/game-vars";
+import { GameVariable } from "@/lib/content/game-vars";
 import { motion } from "framer-motion";
 import { UserConfigContext } from "@/components/Contexts";
 import { detectValueType } from "@/lib/rules/value-type-utils";
@@ -97,22 +97,22 @@ import HelpTooltipIcon from "@/components/ui/help-tooltip-icon";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import ItemTypeBadge from "./item-type-badge";
 import { CustomContextMenu, type ContextMenuGroupConfig } from "@/components/ui/custom-context-menu";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import {
   getRuleBuilderSettings,
   setRuleBuilderSettings,
   type RuleBuilderSettings,
   useProjectData,
-} from "@/lib/storage";
-import { collectGlobalVariables } from "@/lib/global-user-variables";
+} from "@/lib/services/storage";
+import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   instantiateRuleFromTemplate,
   useTemplateStore,
   type RuleTemplateEntry,
   type RuleTemplateItemType,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 
 export type ItemData = any;
 type ItemType = "joker" | "consumable" | "card" | "voucher" | "deck";

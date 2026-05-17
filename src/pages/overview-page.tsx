@@ -34,7 +34,7 @@ import {
   getBalatroGamePath,
   type RecentActivityEntry,
   useProjectData,
-} from "@/lib/storage";
+} from "@/lib/services/storage";
 import { motion, AnimatePresence } from "framer-motion";
 import { StatButton } from "@/components/ui/stat-button";
 import { ActionButton } from "@/components/ui/action-button";
@@ -43,8 +43,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { importJokerforgeFromText } from "@/lib/jokerforge/importer";
 import { exportJokerforgeV2 } from "@/lib/jokerforge/exporter";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
-import { useVanillaReforgedData } from "@/lib/vanilla-reforged";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
+import { useVanillaReforgedData } from "@/lib/items/vanilla-reforged";
 import { invoke } from "@tauri-apps/api/core";
 
 const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";

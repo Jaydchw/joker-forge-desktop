@@ -40,7 +40,7 @@ import {
   EditionData,
   VoucherData,
   DeckData,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 import {
   getTriggerById,
   getEffectTypeById,

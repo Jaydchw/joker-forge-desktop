@@ -14,11 +14,11 @@ import type {
   SealData,
   UserVariable,
   VoucherData,
-} from "@/lib/types";
+} from "@/lib/core/types";
 import {
   ensureLocalizableWithLanguage,
   sanitizeLocalizationEntries,
-} from "@/lib/localization";
+} from "@/lib/core/localization";
 
 // ---------------------------------------------------------------------------
 // Public option / result types

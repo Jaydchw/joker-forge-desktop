@@ -15,8 +15,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import type { ItemTemplateEntry, TemplateEntry } from "@/lib/templates";
+import { cn } from "@/lib/core/utils";
+import type { ItemTemplateEntry, TemplateEntry } from "@/lib/content/templates";
 
 type TemplateCardAction = {
   id: string;

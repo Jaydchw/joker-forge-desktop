@@ -5,7 +5,7 @@ import {
   type DialogTab,
 } from "@/components/pages/generic-item-dialog";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
-import type { EnhancementData } from "@/lib/types";
+import type { EnhancementData } from "@/lib/core/types";
 import { Image as ImageIcon, TextT } from "@phosphor-icons/react";
 
 interface EditEnhancementDialogProps {

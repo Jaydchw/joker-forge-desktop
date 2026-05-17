@@ -1,5 +1,5 @@
 import React, { createContext, useState } from "react";
-import type { UserConfig } from "@/lib/balatro-utils";
+import type { UserConfig } from "@/lib/balatro/balatro-utils";
 
 const defaultConfig: UserConfig = {
   pageData: [],

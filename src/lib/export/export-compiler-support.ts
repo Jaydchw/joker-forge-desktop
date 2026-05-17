@@ -1,4 +1,4 @@
-import type { Rule } from "@/lib/types";
+import type { Rule } from "@/lib/core/types";
 
 type CompilerObjectType = "joker" | "consumable" | "card" | "voucher" | "deck";
 

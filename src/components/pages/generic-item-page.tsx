@@ -32,9 +32,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { cn } from "@/lib/utils";
-import { fuzzyMatch } from "@/lib/search";
-import { getRandomEmptyStateFlavor } from "@/lib/empty-state-flavor";
+import { cn } from "@/lib/core/utils";
+import { fuzzyMatch } from "@/lib/core/search";
+import { getRandomEmptyStateFlavor } from "@/lib/app/empty-state-flavor";
 import { motion } from "framer-motion";
 
 const ESTIMATED_REGULAR_ROW_HEIGHT = 384;

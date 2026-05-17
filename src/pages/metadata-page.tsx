@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useProjectData } from "@/lib/storage";
-import type { ModMetadata } from "@/lib/types";
+import { useProjectData } from "@/lib/services/storage";
+import type { ModMetadata } from "@/lib/core/types";
 import {
   FileText,
   Tag,
@@ -32,7 +32,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { toast } from "sonner";
 
 const validateModMetadata = (metadata: ModMetadata) => {

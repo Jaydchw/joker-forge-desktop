@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { GenericItemDialogMini } from "@/components/pages/generic-item-dialog-mini";
 import type { DialogTab } from "@/components/pages/generic-item-dialog";
-import type { SoundData } from "@/lib/types";
+import type { SoundData } from "@/lib/core/types";
 import { MusicNotes } from "@phosphor-icons/react";
 
 interface EditSoundDialogProps {

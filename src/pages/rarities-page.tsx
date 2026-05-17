@@ -3,10 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCardMini } from "@/components/pages/generic-item-card-mini";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useModName, useProjectData } from "@/lib/storage";
-import { slugify } from "@/lib/balatro-utils";
-import { RarityData } from "@/lib/types";
-import { fuzzyMatchAny } from "@/lib/search";
+import { useModName, useProjectData } from "@/lib/services/storage";
+import { slugify } from "@/lib/balatro/balatro-utils";
+import { RarityData } from "@/lib/core/types";
+import { fuzzyMatchAny } from "@/lib/core/search";
 import {
   BookmarksSimple,
   Copy,
@@ -18,9 +18,9 @@ import {
   instantiateItemFromTemplate,
   useTemplateStore,
   type ItemTemplateEntry,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import { EditRarityDialog } from "@/components/edit-dialogs";
 
 const DEFAULT_BADGE_COLOR = "6A7A8B";

@@ -6,8 +6,8 @@ import {
   setBalatroAutofindResult,
   setBalatroAppdataPath,
   setBalatroGamePath,
-} from "@/lib/storage";
-import { autoFindBalatroPaths } from "@/lib/balatro-mod-setup";
+} from "@/lib/services/storage";
+import { autoFindBalatroPaths } from "@/lib/balatro/balatro-mod-setup";
 import type { GlobalAlert } from "@/components/layout/global-alerts";
 
 const createAlertId = () =>

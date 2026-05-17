@@ -5,11 +5,11 @@ import { TitleBar } from "./title-bar";
 import { motion } from "framer-motion";
 import { GlobalAlerts } from "./global-alerts";
 import { useAlertQueue } from "@/hooks/use-alert-queue";
-import { runBalatroAutofind } from "@/lib/balatro-autofind";
+import { runBalatroAutofind } from "@/lib/balatro/balatro-autofind";
 import {
   GLOBAL_ALERTS_EVENT,
   type GlobalAlertsEventDetail,
-} from "@/lib/global-alerts-bus";
+} from "@/lib/app/global-alerts-bus";
 
 interface MainLayoutProps {
   children: React.ReactNode;

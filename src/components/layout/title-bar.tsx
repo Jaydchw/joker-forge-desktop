@@ -10,9 +10,9 @@ import {
   ArrowsOut,
   ArrowsIn,
 } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
-import { useModName } from "@/lib/storage";
-import { detectNightlyChannel } from "@/lib/app-channel";
+import { cn } from "@/lib/core/utils";
+import { useModName } from "@/lib/services/storage";
+import { detectNightlyChannel } from "@/lib/app/app-channel";
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);

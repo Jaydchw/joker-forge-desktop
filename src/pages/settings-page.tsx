@@ -74,8 +74,8 @@ import {
   DEFAULT_RULE_BUILDER_SETTINGS,
   type JokerforgeExportSaveMode,
   type ThemePreference,
-} from "@/lib/storage";
-import { LOCALIZATION_LANGUAGE_OPTIONS } from "@/lib/localization";
+} from "@/lib/services/storage";
+import { LOCALIZATION_LANGUAGE_OPTIONS } from "@/lib/core/localization";
 import {
   APP_ZOOM_LEVELS,
   applyThemeFromStorage,
@@ -100,10 +100,10 @@ import {
   type AppThemeDefinition,
   type ThemeFontFamily,
   type ThemeVariable,
-} from "../lib/theme-manager";
+} from "../lib/app/theme-manager";
 import KeybindInput from "@/components/settings/keybind-input";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
-import { fuzzyMatch } from "@/lib/search";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
+import { fuzzyMatch } from "@/lib/core/search";
 
 const cloneTheme = (theme: AppThemeDefinition): AppThemeDefinition => ({
   ...theme,

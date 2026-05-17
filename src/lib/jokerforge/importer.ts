@@ -1,4 +1,4 @@
-import type { ProjectData } from "@/lib/storage";
+import type { ProjectData } from "@/lib/services/storage";
 import {
   isLegacyJokerforgePayload,
   normalizeProjectData,

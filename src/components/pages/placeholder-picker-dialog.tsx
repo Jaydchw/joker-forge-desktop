@@ -22,8 +22,8 @@ import {
   PlaceholderEntry,
   getPlaceholderCategoryLabel,
   getPlaceholderEntriesForCategory,
-} from "@/lib/placeholder-assets.ts";
-import { fuzzyMatchAny } from "@/lib/search";
+} from "@/lib/content/placeholder-assets.ts";
+import { fuzzyMatchAny } from "@/lib/core/search";
 
 type PlaceholderPickerDialogProps = {
   open: boolean;

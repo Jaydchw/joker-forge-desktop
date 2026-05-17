@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { getBalatroGamePath } from "@/lib/storage";
+import { getBalatroGamePath } from "@/lib/services/storage";
 
 interface ExportSuccessDialogProps {
   open: boolean;

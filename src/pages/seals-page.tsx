@@ -7,9 +7,9 @@ import {
   useProjectData,
   useModName,
   getAutoOpenNewItemDialogEnabled,
-} from "@/lib/storage";
-import { Rule, SealData } from "@/lib/types";
-import { fuzzyMatchAny } from "@/lib/search";
+} from "@/lib/services/storage";
+import { Rule, SealData } from "@/lib/core/types";
+import { fuzzyMatchAny } from "@/lib/core/search";
 import {
   PencilSimple,
   Sparkle,
@@ -27,13 +27,13 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
 import { BalatroCard } from "@/components/balatro/balatro-card";
-import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
+import { getRandomPlaceholder } from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
-import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
-import { exportSingleItemRust } from "@/lib/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/global-user-variables";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
+import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
+import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
@@ -42,11 +42,11 @@ import {
   instantiateItemFromTemplate,
   useTemplateStore,
   type ItemTemplateEntry,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import { EditSealDialog } from "@/components/edit-dialogs";
-import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
+import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 
 export default function SealsPage() {
   const { data, updateSeals, isHydrating } = useProjectData();

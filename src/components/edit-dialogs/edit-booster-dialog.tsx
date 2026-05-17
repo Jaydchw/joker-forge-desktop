@@ -6,7 +6,7 @@ import {
 } from "@/components/pages/generic-item-dialog";
 import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
-import type { BoosterData } from "@/lib/types";
+import type { BoosterData } from "@/lib/core/types";
 import { Gear, Image as ImageIcon, TextT } from "@phosphor-icons/react";
 
 interface EditBoosterDialogProps {

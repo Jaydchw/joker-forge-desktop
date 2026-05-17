@@ -14,15 +14,15 @@ import {
   RarityData,
   ConsumableSetData,
   ModMetadata,
-} from "@/lib/types";
+} from "@/lib/core/types";
 import {
   DEFAULT_LOCALIZATION_LANGUAGE,
   ensureLocalizableWithLanguage,
   normalizeLanguageValue,
-} from "@/lib/localization";
-import { updateDataRegistry } from "@/lib/balatro-utils";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
-import { clearThemeStorage } from "./theme-manager";
+} from "@/lib/core/localization";
+import { updateDataRegistry } from "@/lib/balatro/balatro-utils";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
+import { clearThemeStorage } from "@/lib/app/theme-manager";
 
 export interface ProjectStats {
   jokers: number;

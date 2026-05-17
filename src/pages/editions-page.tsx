@@ -9,9 +9,9 @@ import {
   useProjectData,
   useModName,
   getAutoOpenNewItemDialogEnabled,
-} from "@/lib/storage";
-import { EditionData, Rule } from "@/lib/types";
-import { fuzzyMatchAny } from "@/lib/search";
+} from "@/lib/services/storage";
+import { EditionData, Rule } from "@/lib/core/types";
+import { fuzzyMatchAny } from "@/lib/core/search";
 import {
   Palette,
   PencilSimple,
@@ -31,22 +31,22 @@ import {
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
-import { exportSingleItemRust } from "@/lib/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/global-user-variables";
+import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
+import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
-import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import {
   instantiateItemFromTemplate,
   useTemplateStore,
   type ItemTemplateEntry,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import { EditEditionDialog } from "@/components/edit-dialogs";
-import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
+import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 
 export default function EditionsPage() {
   const { data, updateEditions, isHydrating } = useProjectData();

@@ -9,13 +9,13 @@ import {
   COMPARISON_OPERATORS,
   CUSTOM_SHADERS,
   VANILLA_SHADERS,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
-import type { VoucherData } from "@/lib/types";
+import type { VoucherData } from "@/lib/core/types";
 import {
   unlockTriggerOptions,
   vouchersUnlockOptions,
-} from "@/lib/unlock-utils";
+} from "@/lib/items/unlock-utils";
 import {
   Image as ImageIcon,
   LockKey,

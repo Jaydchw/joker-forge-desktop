@@ -13,7 +13,7 @@ import {
   Code,
 } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 export type ContextMenuItemConfig = {
   label: string;

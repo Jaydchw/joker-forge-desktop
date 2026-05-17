@@ -1,6 +1,6 @@
 import type { ItemData } from "@/components/rule-builder/rule-builder";
 import type { Rule } from "@/components/rule-builder/types";
-import type { JokerData, UserVariable } from "@/lib/types";
+import type { JokerData, UserVariable } from "@/lib/core/types";
 
 interface VariableOption {
   value: string;

@@ -4,7 +4,7 @@ import {
   GameVariable,
   GameVariableCategory,
   GameVariableSubcategory,
-} from "@/lib/game-vars";
+} from "@/lib/content/game-vars";
 import {
   Cube,
   MagnifyingGlass,
@@ -12,7 +12,7 @@ import {
   CaretDown,
 } from "@phosphor-icons/react";
 import Panel from "./panel";
-import { fuzzyMatchAny, fuzzyMatch } from "@/lib/search";
+import { fuzzyMatchAny, fuzzyMatch } from "@/lib/core/search";
 
 interface GameVariablesProps {
   position: { x: number; y: number };

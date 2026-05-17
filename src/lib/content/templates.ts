@@ -7,7 +7,7 @@ import {
   getConsumableSetByValue,
   getRarityByKey,
   getRarityByValue,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 
 export type ItemTemplateItemType =
   | "joker"

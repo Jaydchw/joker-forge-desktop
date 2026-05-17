@@ -34,9 +34,9 @@ import {
   closeBracketsKeymap,
   moveCompletionSelection,
 } from "@codemirror/autocomplete";
-import { luaSmodsCompletions } from "@/lib/lua-completions";
-import { reconstructWithMarkers } from "@/lib/code-sections";
-import type { SectionInfo } from "@/lib/code-sections";
+import { luaSmodsCompletions } from "@/lib/content/lua-completions";
+import { reconstructWithMarkers } from "@/lib/content/code-sections";
+import type { SectionInfo } from "@/lib/content/code-sections";
 
 interface LiveCodePanelProps {
   title: string;

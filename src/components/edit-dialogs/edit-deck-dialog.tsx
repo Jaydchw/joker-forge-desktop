@@ -6,7 +6,7 @@ import {
 } from "@/components/pages/generic-item-dialog";
 import { Input } from "@/components/ui/input";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
-import type { DeckData } from "@/lib/types";
+import type { DeckData } from "@/lib/core/types";
 import { Gear, Image as ImageIcon, TextT } from "@phosphor-icons/react";
 
 interface EditDeckDialogProps {

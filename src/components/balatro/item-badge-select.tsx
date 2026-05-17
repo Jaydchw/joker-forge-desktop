@@ -9,8 +9,8 @@ import {
   getAllConsumableSets,
   getAllRarities,
   getRarityBadgeColor,
-} from "@/lib/balatro-utils";
-import { cn } from "@/lib/utils";
+} from "@/lib/balatro/balatro-utils";
+import { cn } from "@/lib/core/utils";
 
 interface ItemBadgeSelectProps {
   kind: "rarity" | "set";

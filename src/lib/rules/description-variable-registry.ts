@@ -1,6 +1,6 @@
 import type { Effect, Rule } from "@/components/rule-builder/types";
-import { GAME_VARIABLE_CATEGORIES } from "@/lib/game-vars";
-import type { UserVariable } from "@/lib/types";
+import { GAME_VARIABLE_CATEGORIES } from "@/lib/content/game-vars";
+import type { UserVariable } from "@/lib/core/types";
 
 export type DescriptionVariableToken = {
   label: string;

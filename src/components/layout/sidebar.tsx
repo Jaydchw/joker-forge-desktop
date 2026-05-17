@@ -21,7 +21,7 @@ import {
   CaretDown,
   BookBookmark
 } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 

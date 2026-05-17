@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { BadgePreview } from "@/components/balatro/badge-preview";
 import { ActionConfig } from "@/components/pages/generic-item-card";
 

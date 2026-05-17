@@ -9,8 +9,8 @@ import type {
   ShowWhenCondition,
   LoopGroup,
 } from "./types";
-import { getModPrefix } from "@/lib/balatro-utils";
-import type { JokerData } from "@/lib/types";
+import { getModPrefix } from "@/lib/balatro/balatro-utils";
+import type { JokerData } from "@/lib/core/types";
 import {
   addSuitVariablesToOptions,
   addRankVariablesToOptions,
@@ -21,11 +21,11 @@ import {
   addKeyVariablesToOptions,
   addTextVariablesToOptions,
 } from "@/lib/rules/user-variable-utils";
-import { useProjectData } from "@/lib/storage";
+import { useProjectData } from "@/lib/services/storage";
 import {
   collectGlobalVariables,
   mergeItemVariablesWithGlobals,
-} from "@/lib/global-user-variables";
+} from "@/lib/app/global-user-variables";
 
 import {
   getTriggerById,
@@ -58,8 +58,8 @@ import {
 import {
   validateVariableName,
   validateCustomMessage,
-} from "@/lib/validation-utils";
-import { GameVariable, getGameVariableById } from "@/lib/game-vars";
+} from "@/lib/core/validation-utils";
+import { GameVariable, getGameVariableById } from "@/lib/content/game-vars";
 import { Cube } from "@phosphor-icons/react";
 import { SelectedItem } from "./types";
 import { Checkbox } from "@/components/ui/checkbox";

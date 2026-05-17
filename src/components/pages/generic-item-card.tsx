@@ -20,16 +20,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { PixelArtEditorDialog } from "@/components/pages/pixel-art-editor-dialog";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { ItemBadgeSelect } from "@/components/balatro/item-badge-select";
 import {
   formatBalatroText,
   applyAutoFormatting,
-} from "@/lib/balatro-text-formatter";
-import { sanitizeDescription } from "@/lib/description-sanitizer";
-import { sanitizeKeyLikeValue } from "@/lib/item-field-validation";
-import type { PixelLayerData } from "@/lib/types";
-import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/storage";
+} from "@/lib/balatro/balatro-text-formatter";
+import { sanitizeDescription } from "@/lib/description/description-sanitizer";
+import { sanitizeKeyLikeValue } from "@/lib/items/item-field-validation";
+import type { PixelLayerData } from "@/lib/core/types";
+import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/services/storage";
 
 const DESCRIPTION_MAX_LENGTH = 260;
 

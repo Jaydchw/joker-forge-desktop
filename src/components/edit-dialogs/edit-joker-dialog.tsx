@@ -10,10 +10,10 @@ import {
   getRarityBadgeColor,
   getRarityDisplayName,
   getRarityDropdownOptions,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
-import type { JokerData } from "@/lib/types";
-import { jokerUnlockOptions, unlockTriggerOptions } from "@/lib/unlock-utils";
+import type { JokerData } from "@/lib/core/types";
+import { jokerUnlockOptions, unlockTriggerOptions } from "@/lib/items/unlock-utils";
 import {
   Gear,
   Image as ImageIcon,

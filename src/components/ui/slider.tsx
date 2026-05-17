@@ -2,7 +2,7 @@ import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { Input } from "@/components/ui/input";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 
 type SliderProps = React.ComponentProps<typeof SliderPrimitive.Root> & {
   variant?: "simple" | "enhanced";

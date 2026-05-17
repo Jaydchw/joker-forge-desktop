@@ -10,8 +10,8 @@ import type {
   ModMetadata,
   SealData,
   VoucherData,
-} from "@/lib/types";
-import { slugify } from "@/lib/balatro-utils";
+} from "@/lib/core/types";
+import { slugify } from "@/lib/balatro/balatro-utils";
 
 type VanillaReforgedRaw = Partial<Mod> & {
   metadata?: Partial<ModMetadata> & Record<string, unknown>;

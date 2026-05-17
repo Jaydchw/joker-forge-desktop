@@ -5,8 +5,8 @@ import {
   type DialogTab,
 } from "@/components/pages/generic-item-dialog";
 import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
-import { CUSTOM_SHADERS, SOUNDS, VANILLA_SHADERS } from "@/lib/balatro-utils";
-import type { EditionData } from "@/lib/types";
+import { CUSTOM_SHADERS, SOUNDS, VANILLA_SHADERS } from "@/lib/balatro/balatro-utils";
+import type { EditionData } from "@/lib/core/types";
 import { Gear, Image as ImageIcon, TextT } from "@phosphor-icons/react";
 
 interface EditEditionDialogProps {

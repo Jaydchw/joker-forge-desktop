@@ -8,10 +8,10 @@ import {
   getConsumableSetByKey,
   getConsumableSetDropdownOptions,
   getCustomConsumableSetData,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
-import { useProjectData } from "@/lib/storage";
-import type { ConsumableData } from "@/lib/types";
+import { useProjectData } from "@/lib/services/storage";
+import type { ConsumableData } from "@/lib/core/types";
 import { Image as ImageIcon, TextT } from "@phosphor-icons/react";
 
 interface EditConsumableDialogProps {

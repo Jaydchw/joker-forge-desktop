@@ -9,14 +9,14 @@ import {
   useProjectData,
   useModName,
   getAutoOpenNewItemDialogEnabled,
-} from "@/lib/storage";
-import { JokerData, Rule } from "@/lib/types";
-import { fuzzyMatchAny } from "@/lib/search";
+} from "@/lib/services/storage";
+import { JokerData, Rule } from "@/lib/core/types";
+import { fuzzyMatchAny } from "@/lib/core/search";
 import {
   getRarityBadgeColor,
   getRarityDisplayName,
   getRarityDropdownOptions,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 import {
   Star,
   Clock,
@@ -39,34 +39,34 @@ import {
   BookmarksSimple,
 } from "@phosphor-icons/react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
-import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
+import { getRandomPlaceholder } from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
-import { exportSingleJokerRust } from "@/lib/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/global-user-variables";
+import { exportSingleJokerRust } from "@/lib/export/rust-codegen-export";
+import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   formatUnsupportedRulesError,
   getUnsupportedRuleParts,
-} from "@/lib/export-compiler-support";
+} from "@/lib/export/export-compiler-support";
 import { getAllVariables } from "@/lib/rules/user-variable-utils";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
-import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import {
   instantiateItemFromTemplate,
   useTemplateStore,
   type ItemTemplateEntry,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import { EditJokerDialog } from "@/components/edit-dialogs";
 import {
   getItemLocVarsFromUserVariables,
   getVariableDisplayValue,
-} from "@/lib/description-loc-vars";
+} from "@/lib/description/description-loc-vars";
 
 export default function JokersPage() {
   const { data, updateJokers, isHydrating } = useProjectData();

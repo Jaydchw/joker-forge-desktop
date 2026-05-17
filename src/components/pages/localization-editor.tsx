@@ -19,7 +19,7 @@ import {
   normalizeLanguageValue,
   sanitizeLocalizationEntries,
   type LocalizationEntry,
-} from "@/lib/localization";
+} from "@/lib/core/localization";
 import {
   CheckCircle,
   CheckSquare,

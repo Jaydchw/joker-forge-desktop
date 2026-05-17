@@ -26,7 +26,7 @@ import type {
   GlobalEffectTypeDefinition,
   GlobalTriggerDefinition,
 } from "./types";
-import { entityBridge } from "@/lib/entity-bridge";
+import { entityBridge } from "@/lib/services/entity-bridge";
 import {
   ALL_JOKERS,
   ALL_CONSUMABLES,
@@ -45,7 +45,7 @@ import {
   TAGS,
   TAROT_CARDS,
   VOUCHERS,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 
 export interface CategoryDefinition {
   label: string;

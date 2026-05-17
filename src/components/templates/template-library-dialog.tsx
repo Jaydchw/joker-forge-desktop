@@ -23,15 +23,15 @@ import {
   Trash,
   Rows,
 } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { cn } from "@/lib/core/utils";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import {
   parseTemplateBundleText,
   serializeTemplateBundle,
   TEMPLATE_FILE_EXTENSION,
   type ItemTemplateEntry,
   type TemplateEntry,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import IconButton from "@/components/ui/icon-button";
 import {
@@ -64,7 +64,7 @@ import type {
   SealData,
   SoundData,
   VoucherData,
-} from "@/lib/types";
+} from "@/lib/core/types";
 
 interface TemplateLibraryDialogProps {
   open: boolean;

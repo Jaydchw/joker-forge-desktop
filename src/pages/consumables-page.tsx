@@ -7,9 +7,9 @@ import {
   useProjectData,
   useModName,
   getAutoOpenNewItemDialogEnabled,
-} from "@/lib/storage";
-import { ConsumableData, Rule } from "@/lib/types";
-import { fuzzyMatchAny } from "@/lib/search";
+} from "@/lib/services/storage";
+import { ConsumableData, Rule } from "@/lib/core/types";
+import { fuzzyMatchAny } from "@/lib/core/search";
 import {
   PencilSimple,
   Sparkle,
@@ -31,14 +31,14 @@ import {
   getConsumableSetByKey,
   getConsumableSetDropdownOptions,
   getCustomConsumableSetData,
-} from "@/lib/balatro-utils";
-import { getRandomPlaceholder } from "@/lib/placeholder-assets.ts";
+} from "@/lib/balatro/balatro-utils";
+import { getRandomPlaceholder } from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
-import { applyItemUpdatesWithOrderSwap } from "@/lib/item-order";
-import { exportSingleItemRust } from "@/lib/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/global-user-variables";
+import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
+import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
+import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
@@ -47,11 +47,11 @@ import {
   instantiateItemFromTemplate,
   useTemplateStore,
   type ItemTemplateEntry,
-} from "@/lib/templates";
+} from "@/lib/content/templates";
 import { TemplatePickerDialog } from "@/components/templates/template-picker-dialog";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import { EditConsumableDialog } from "@/components/edit-dialogs";
-import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
+import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 
 export default function ConsumablesPage() {
   const { data, updateConsumables, isHydrating } = useProjectData();

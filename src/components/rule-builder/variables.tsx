@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import type { ConsumableData, UserVariable } from "@/lib/types";
+import type { ConsumableData, UserVariable } from "@/lib/core/types";
 import { getVariableUsageDetails } from "@/lib/rules/user-variable-utils";
 import {
   SUITS,
@@ -7,7 +7,7 @@ import {
   POKER_HANDS,
   SUIT_VALUES,
   POKER_HAND_VALUES,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 import {
   Terminal,
   Warning,
@@ -28,9 +28,9 @@ import {
 } from "@phosphor-icons/react";
 import { Input as InputField } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { validateVariableName } from "@/lib/validation-utils";
-import { useProjectData } from "@/lib/storage";
-import { collectGlobalVariables } from "@/lib/global-user-variables";
+import { validateVariableName } from "@/lib/core/validation-utils";
+import { useProjectData } from "@/lib/services/storage";
+import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import Panel from "./panel";
 import IconButton from "@/components/ui/icon-button";
 import {

@@ -1,8 +1,8 @@
 import { useState, useEffect, memo } from "react";
 import { Image as ImageIcon } from "@phosphor-icons/react";
-import { BalatroText } from "@/lib/balatro-text-formatter";
-import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/storage";
-import { getItemLocVarsFromUserVariables } from "@/lib/description-loc-vars";
+import { BalatroText } from "@/lib/balatro/balatro-text-formatter";
+import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/services/storage";
+import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 import {
   JokerData,
   ConsumableData,
@@ -12,8 +12,8 @@ import {
   EditionData,
   SealData,
   EnhancementData,
-} from "@/lib/types";
-import { cn } from "@/lib/utils";
+} from "@/lib/core/types";
+import { cn } from "@/lib/core/utils";
 
 type CardData =
   | JokerData

@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/core/utils";
 import { Separator as UiSeparator } from "@/components/ui/separator";
 import {
   Panel,
@@ -57,7 +57,7 @@ import {
   PlaceholderEntry,
   PlaceholderCategory,
   getPlaceholderEntriesForCategory,
-} from "@/lib/placeholder-assets.ts";
+} from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import {
   DEFAULT_LOCALIZATION_LANGUAGE,
@@ -66,13 +66,13 @@ import {
   normalizeLanguageValue,
   sanitizeLocalizationEntries,
   type LocalizationEntry,
-} from "@/lib/localization";
-import { getDefaultLocalizationLanguage } from "@/lib/storage";
+} from "@/lib/core/localization";
+import { getDefaultLocalizationLanguage } from "@/lib/services/storage";
 import {
   sanitizeFieldValue,
   sanitizeKeyLikeValue,
   validateFieldValueBasic,
-} from "@/lib/item-field-validation";
+} from "@/lib/items/item-field-validation";
 
 export type FieldType =
   | "text"

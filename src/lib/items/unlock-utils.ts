@@ -10,7 +10,7 @@ import {
   VOUCHERS,
   JokerData,
   getRarityDropdownOptions,
-} from "@/lib/balatro-utils";
+} from "@/lib/balatro/balatro-utils";
 
 export const unlockTriggerOptions = [
   { value: "hand_contents", label: "Cards Played" },

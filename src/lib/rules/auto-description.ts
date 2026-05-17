@@ -1,5 +1,5 @@
 import type { Rule, Effect, Condition } from "@/components/rule-builder/types";
-import { applyAutoFormatting } from "@/lib/balatro-text-formatter";
+import { applyAutoFormatting } from "@/lib/balatro/balatro-text-formatter";
 import {
   getConditionTypeById,
   getEffectTypeById,

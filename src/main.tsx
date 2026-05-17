@@ -3,8 +3,8 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { initializeRuleCatalogFromRust } from "@/components/rule-builder/rule-catalog";
-import { applyThemeFromStorage, stepAppZoomLevel } from "./lib/theme-manager";
-import { initPostHog } from "./lib/posthog";
+import { applyThemeFromStorage, stepAppZoomLevel } from "./lib/app/theme-manager";
+import { initPostHog } from "./lib/services/posthog";
 
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement,

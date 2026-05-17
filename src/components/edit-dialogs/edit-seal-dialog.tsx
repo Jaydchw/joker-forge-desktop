@@ -5,9 +5,9 @@ import {
   type DialogTab,
 } from "@/components/pages/generic-item-dialog";
 import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
-import { SOUNDS } from "@/lib/balatro-utils";
+import { SOUNDS } from "@/lib/balatro/balatro-utils";
 import { processBalatroCardImage } from "@/lib/media/image-processing-utils";
-import type { SealData } from "@/lib/types";
+import type { SealData } from "@/lib/core/types";
 import { Image as ImageIcon, Palette, TextT } from "@phosphor-icons/react";
 
 interface EditSealDialogProps {

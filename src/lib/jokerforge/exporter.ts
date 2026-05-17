@@ -1,4 +1,4 @@
-import type { ProjectData } from "@/lib/storage";
+import type { ProjectData } from "@/lib/services/storage";
 import { normalizeProjectData } from "@/lib/jokerforge/legacy-transpiler";
 import { save } from "@tauri-apps/plugin-dialog";
 import { exists, mkdir, writeTextFile } from "@tauri-apps/plugin-fs";

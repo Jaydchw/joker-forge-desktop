@@ -52,7 +52,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import {
   PlaceholderCategory,
   PlaceholderEntry,
-} from "@/lib/placeholder-assets.ts";
+} from "@/lib/content/placeholder-assets.ts";
 import {
   Popover,
   PopoverContent,
@@ -65,8 +65,8 @@ import {
 } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
-import type { PixelLayerData } from "@/lib/types";
+import { cn } from "@/lib/core/utils";
+import type { PixelLayerData } from "@/lib/core/types";
 import { CustomContextMenu } from "@/components/ui/custom-context-menu";
 
 type Tool = "pen" | "eraser" | "fill" | "picker" | "shape" | "select";

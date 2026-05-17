@@ -1,4 +1,4 @@
-import { jokerUnlockOptions, vouchersUnlockOptions } from "@/lib/unlock-utils";
+import { jokerUnlockOptions, vouchersUnlockOptions } from "@/lib/items/unlock-utils";
 import type { Rule } from "@/components/rule-builder/types";
 
 export const slugify = (text: string): string => {

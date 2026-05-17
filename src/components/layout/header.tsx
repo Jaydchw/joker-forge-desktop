@@ -33,27 +33,27 @@ import {
   setThemePreference,
   useProjectData,
   type ProjectData,
-} from "@/lib/storage";
+} from "@/lib/services/storage";
 import { exportJokerforgeV2, serializeJokerforgeV2 } from "@/lib/jokerforge/exporter";
 import { importJokerforgeFromText } from "@/lib/jokerforge/importer";
 import {
   exportModRust, type ExportModRustResult
-} from "@/lib/rust-codegen-export";
+} from "@/lib/export/rust-codegen-export";
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
-import { getUnsupportedRuleParts } from "@/lib/export-compiler-support";
+import { getUnsupportedRuleParts } from "@/lib/export/export-compiler-support";
 import {
   applyThemeFromStorage,
   subscribeThemeChanges,
-} from "../../lib/theme-manager";
+} from "@/lib/app/theme-manager";
 import { AnimatePresence, motion } from "framer-motion";
-import { pushGlobalAlert } from "@/lib/global-alerts-bus";
-import { ensureBalatroModSetup } from "@/lib/balatro-mod-setup";
-import type { PreExportIssue } from "@/lib/pre-export-checks";
-import type { NavigationTarget } from "@/lib/navigation-target";
+import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
+import { ensureBalatroModSetup } from "@/lib/balatro/balatro-mod-setup";
+import type { PreExportIssue } from "@/lib/export/pre-export-checks";
+import type { NavigationTarget } from "@/lib/app/navigation-target";
 import { toast } from "sonner";
-import { useTemplateStore } from "@/lib/templates";
+import { useTemplateStore } from "@/lib/content/templates";
 import { TemplateLibraryDialog } from "@/components/templates/template-library-dialog";
 
 interface HeaderProps {
@@ -528,7 +528,7 @@ export function Header({ title }: HeaderProps) {
     let issues: PreExportIssue[] = [];
     try {
       // Keep validation strictly export-triggered: no startup/background checks.
-      const { runPreExportChecks } = await import("@/lib/pre-export-checks");
+      const { runPreExportChecks } = await import("@/lib/export/pre-export-checks");
       issues = runPreExportChecks(data);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
