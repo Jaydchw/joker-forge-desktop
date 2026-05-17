@@ -1,5 +1,6 @@
 use crate::compiler::context::CompileContext;
 use crate::compiler::effects::EffectOutput;
+use crate::compiler::effects::utils::is_literal_one_param;
 use crate::lua_ast::*;
 use crate::types::EffectDef;
 
@@ -64,7 +65,7 @@ pub fn destroy_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOut
 
     let destroy_target = match target {
         "self" => lua_ident("card"),
-        "random" => lua_raw_expr("G.jokers.cards[pseudorandom_element(G.jokers.cards)]"),
+        "random" => lua_raw_expr("pseudorandom_element(G.jokers.cards, pseudoseed('destroy_joker'))"),
         _ => lua_ident("card"),
     };
 
@@ -99,7 +100,7 @@ pub fn destroy_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOut
 /// Destroy Consumable effect: destroys a consumable from the consumable area.
 pub fn destroy_consumable(_effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
     let stmt = lua_raw_stmt(
-        "if #G.consumeables.cards > 0 then local c = pseudorandom_element(G.consumeables.cards, pseudoseed('destroy_consumable')); if c then c:start_dissolve() end end",
+        "if #G.consumeables.cards > 0 then local c = pseudorandom_element(G.consumeables.cards, pseudoseed('destroy_consumable')); if c then SMODS.destroy_cards({c}) end end",
     );
 
     EffectOutput {
@@ -130,10 +131,16 @@ pub fn destroy_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutp
             ctx,
             "destroy_count",
         );
-        lua_raw_stmt(format!(
-            "local destroyed_cards = {{}}; local temp_hand = {{}}; for _, c in ipairs(G.hand.cards or {{}}) do temp_hand[#temp_hand + 1] = c end; pseudoshuffle(temp_hand, 12345); for i = 1, {} do if temp_hand[i] then destroyed_cards[#destroyed_cards + 1] = temp_hand[i] end end; if #destroyed_cards > 0 then SMODS.destroy_cards(destroyed_cards) end",
-            resolved.lua_str
-        ))
+        if is_literal_one_param(effect, "count") {
+            lua_raw_stmt(
+                "if G.hand and G.hand.cards and #G.hand.cards > 0 then local c = pseudorandom_element(G.hand.cards, pseudoseed('destroy_cards')); if c then SMODS.destroy_cards({c}) end end",
+            )
+        } else {
+            lua_raw_stmt(format!(
+                "local destroyed_cards = {{}}; local temp_hand = {{}}; for _, c in ipairs(G.hand.cards or {{}}) do temp_hand[#temp_hand + 1] = c end; pseudoshuffle(temp_hand, pseudoseed('destroy_cards')); for i = 1, {} do if temp_hand[i] then destroyed_cards[#destroyed_cards + 1] = temp_hand[i] end end; if #destroyed_cards > 0 then SMODS.destroy_cards(destroyed_cards) end",
+                resolved.lua_str
+            ))
+        }
     };
 
     EffectOutput {

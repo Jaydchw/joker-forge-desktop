@@ -1,5 +1,6 @@
 use crate::compiler::context::CompileContext;
 use crate::compiler::effects::EffectOutput;
+use crate::compiler::effects::utils::is_literal_one_param;
 use crate::lua_ast::*;
 use crate::types::EffectDef;
 
@@ -13,7 +14,7 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
     let sticker = get_str_param(effect, "sticker");
     let ignore_slots = get_bool_param(effect, "ignoreSlots");
 
-    // Build the SMODS.add_card arguments
+    // Build SMODS.add_card payload using native SMODS fields.
     let mut add_card_entries = vec![TableEntry::KeyValue("set".to_string(), lua_str("Joker"))];
 
     match joker_type {
@@ -37,57 +38,35 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
         _ => {} // "random" , no extra params
     }
 
-    // Build the event body
-    let mut event_body: Vec<Stmt> = Vec::new();
-
-    // Slot limit check
-    let has_slot_check = !ignore_slots;
-    if has_slot_check {
-        // local created_joker = false
-        // if #G.jokers.cards + G.GAME.joker_buffer < G.jokers.config.card_limit then
-        //     created_joker = true
-        //     G.GAME.joker_buffer = G.GAME.joker_buffer + 1
-    }
-
-    // The actual card creation
-    let add_card_call = Expr::Call(
-        Box::new(lua_path(&["SMODS", "add_card"])),
-        vec![lua_table_raw(add_card_entries)],
-    );
-
-    let mut inner_body: Vec<Stmt> = Vec::new();
-    inner_body.push(lua_local("joker_card", add_card_call));
-
-    // Edition application
     if let Some(ed) = edition {
         if !ed.is_empty() && ed != "none" {
-            inner_body.push(lua_if(
-                lua_ident("joker_card"),
-                vec![lua_expr_stmt(lua_method(
-                    lua_ident("joker_card"),
-                    "set_edition",
-                    vec![lua_str(ed), lua_bool(true)],
-                ))],
-            ));
+            let normalized = if ed.starts_with("e_") {
+                ed.to_string()
+            } else {
+                format!("e_{}", ed)
+            };
+            add_card_entries.push(TableEntry::KeyValue("edition".to_string(), lua_str(normalized)));
         }
     }
 
-    // Sticker application
     if let Some(st) = sticker {
         if !st.is_empty() && st != "none" {
-            inner_body.push(lua_if(
-                lua_ident("joker_card"),
-                vec![lua_expr_stmt(lua_method(
-                    lua_ident("joker_card"),
-                    "add_sticker",
-                    vec![lua_str(st), lua_bool(true)],
-                ))],
+            add_card_entries.push(TableEntry::KeyValue(
+                "stickers".to_string(),
+                lua_table_raw(vec![TableEntry::Value(lua_str(st))]),
+            ));
+            add_card_entries.push(TableEntry::KeyValue(
+                "force_stickers".to_string(),
+                lua_table_raw(vec![TableEntry::Value(lua_str(st))]),
             ));
         }
     }
 
+    // Build the event body
+    let mut event_body: Vec<Stmt> = Vec::new();
+    let has_slot_check = !ignore_slots;
+
     if has_slot_check {
-        // Wrap in slot limit check
         event_body.push(lua_local("created_joker", lua_bool(false)));
         event_body.push(lua_if(
             lua_lt(
@@ -97,25 +76,19 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
                 ),
                 lua_path(&["G", "jokers", "config", "card_limit"]),
             ),
-            {
-                let mut slot_body = vec![
-                    lua_assign(lua_ident("created_joker"), lua_bool(true)),
-                    lua_assign(
-                        lua_path(&["G", "GAME", "joker_buffer"]),
-                        lua_add(lua_path(&["G", "GAME", "joker_buffer"]), lua_int(1)),
-                    ),
-                ];
-                slot_body.extend(inner_body);
-                // Reset buffer
-                slot_body.push(lua_assign(
-                    lua_path(&["G", "GAME", "joker_buffer"]),
-                    lua_sub(lua_path(&["G", "GAME", "joker_buffer"]), lua_int(1)),
-                ));
-                slot_body
-            },
+            vec![
+                lua_assign(lua_ident("created_joker"), lua_bool(true)),
+                lua_expr_stmt(lua_call(
+                    "SMODS.add_card",
+                    vec![lua_table_raw(add_card_entries.clone())],
+                )),
+            ],
         ));
     } else {
-        event_body.extend(inner_body);
+        event_body.push(lua_expr_stmt(lua_call(
+            "SMODS.add_card",
+            vec![lua_table_raw(add_card_entries)],
+        )));
     }
 
     event_body.push(lua_return(lua_bool(true)));
@@ -185,72 +158,70 @@ pub fn create_consumable(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
     )
     .lua_str;
 
-    let variable_set_expr = if !key_variable.is_empty() && ctx.has_user_var(&key_variable) {
-        ctx.user_var_path(&key_variable)
+    let slot_guard = !ignore_slots && !is_negative;
+    let has_set_var = set_mode == "keyvar" && !key_variable.is_empty() && ctx.has_user_var(&key_variable);
+    let has_random_set = set_mode == "random";
+    let has_specific_key = !specific_card.is_empty()
+        && specific_card != "random"
+        && !specific_card.starts_with("random_set:");
+    let has_random_set_override = specific_card.starts_with("random_set:");
+
+    let mut payload_parts: Vec<String> = vec!["area = G.consumeables".to_string()];
+    if is_negative {
+        payload_parts.push("edition = 'e_negative'".to_string());
+    }
+    if soulable {
+        payload_parts.push("soulable = true".to_string());
+    }
+    if has_specific_key {
+        payload_parts.push(format!("key = '{}'", specific_card.replace('\'', "\\'")));
+    }
+    if !has_set_var && !has_random_set && !has_random_set_override && !set_mode.is_empty() {
+        payload_parts.push(format!("set = '{}'", set_mode.replace('\'', "\\'")));
+    }
+    let base_payload = format!("{{ {} }}", payload_parts.join(", "));
+
+    let add_stmt = if !has_set_var && !has_random_set && !has_random_set_override {
+        format!("SMODS.add_card({})", base_payload)
     } else {
-        "\"random\"".to_string()
+        let set_expr = if has_set_var {
+            ctx.user_var_path(&key_variable)
+        } else if has_random_set_override {
+            format!("'{}'", specific_card[11..].replace('\'', "\\'"))
+        } else {
+            "pseudorandom_element({'Tarot', 'Planet', 'Spectral'}, pseudoseed('create_consumable_set'))"
+                .to_string()
+        };
+        let mut dyn_payload_parts: Vec<String> = vec![
+            "area = G.consumeables".to_string(),
+            format!("set = {}", set_expr),
+        ];
+        if is_negative {
+            dyn_payload_parts.push("edition = 'e_negative'".to_string());
+        }
+        if soulable {
+            dyn_payload_parts.push("soulable = true".to_string());
+        }
+        if has_specific_key {
+            dyn_payload_parts.push(format!("key = '{}'", specific_card.replace('\'', "\\'")));
+        }
+        format!("SMODS.add_card({{ {} }})", dyn_payload_parts.join(", "))
     };
 
-    let set_mode_lua = format!("\"{}\"", set_mode.replace('\"', "\\\""));
-    let specific_card_lua = format!("\"{}\"", specific_card.replace('\"', "\\\""));
-    let negative_fragment = if is_negative {
-        "            edition = 'e_negative',\n"
+    let add_stmt = if slot_guard {
+        format!(
+            "if #G.consumeables.cards + (G.GAME.consumeable_buffer or 0) < G.consumeables.config.card_limit then {} end",
+            add_stmt
+        )
     } else {
-        ""
-    };
-    let soulable_fragment = if soulable {
-        "            soulable = true,\n"
-    } else {
-        ""
-    };
-    let slot_guard = if ignore_slots || is_negative {
-        "true".to_string()
-    } else {
-        "#G.consumeables.cards + (G.GAME.consumeable_buffer or 0) < G.consumeables.config.card_limit".to_string()
+        add_stmt
     };
 
-    let lua = format!(
-        "local _jf_set_mode = {set_mode}\n\
-         if _jf_set_mode == 'keyvar' then\n\
-             _jf_set_mode = {variable_set_expr}\n\
-         end\n\
-         if not _jf_set_mode or _jf_set_mode == '' then\n\
-             _jf_set_mode = 'random'\n\
-         end\n\
-         local _jf_specific = {specific}\n\
-         local _jf_spawn_count = {count}\n\
-         local _jf_sets = {{'Tarot', 'Planet', 'Spectral'}}\n\
-         for _ = 1, _jf_spawn_count do\n\
-             if {slot_guard} then\n\
-                 local _jf_set_to_use = _jf_set_mode\n\
-                 if _jf_set_to_use == 'random' then\n\
-                     _jf_set_to_use = pseudorandom_element(_jf_sets, pseudoseed('create_consumable_set'))\n\
-                 end\n\
-                 local _jf_key = nil\n\
-                 if string.sub(_jf_specific, 1, 11) == 'random_set:' then\n\
-                     local _requested = string.sub(_jf_specific, 12)\n\
-                     if _requested and _requested ~= '' then\n\
-                         _jf_set_to_use = _requested\n\
-                     end\n\
-                 elseif _jf_specific ~= 'random' then\n\
-                     _jf_key = _jf_specific\n\
-                 end\n\
-                 local _jf_payload = {{\n\
-                     set = _jf_set_to_use,\n\
-{negative_fragment}{soulable_fragment}\
-                 }}\n\
-                 if _jf_key then _jf_payload.key = _jf_key end\n\
-                 SMODS.add_card(_jf_payload)\n\
-             end\n\
-         end",
-        set_mode = set_mode_lua,
-        variable_set_expr = variable_set_expr,
-        specific = specific_card_lua,
-        count = count,
-        slot_guard = slot_guard,
-        negative_fragment = negative_fragment,
-        soulable_fragment = soulable_fragment,
-    );
+    let lua = if is_literal_one_param(effect, "count") {
+        add_stmt
+    } else {
+        format!("for _ = 1, {} do {} end", count, add_stmt)
+    };
 
     EffectOutput {
         return_fields: vec![],
@@ -292,10 +263,14 @@ pub fn create_playing_cards(effect: &EffectDef, ctx: &mut CompileContext) -> Eff
         "create_cards_count",
     );
 
-    let pre = vec![lua_raw_stmt(format!(
-        "for _ = 1, {} do SMODS.add_card({{ set = 'Base' }}) end",
-        resolved.lua_str
-    ))];
+    let pre = if is_literal_one_param(effect, "count") {
+        vec![lua_raw_stmt("SMODS.add_card({ set = 'Base' })")]
+    } else {
+        vec![lua_raw_stmt(format!(
+            "for _ = 1, {} do SMODS.add_card({{ set = 'Base' }}) end",
+            resolved.lua_str
+        ))]
+    };
 
     EffectOutput {
         return_fields: vec![],
