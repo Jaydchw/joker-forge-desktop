@@ -91,6 +91,7 @@ import {
   setAppZoomLevel,
   setActiveThemeId,
   subscribeThemeChanges,
+  subscribeAppZoomChanges,
   THEME_FONT_OPTIONS,
   THEME_VARIABLE_GROUPS,
   THEME_VARIABLE_USAGE,
@@ -457,12 +458,21 @@ export default function SettingsPage() {
     setThemeEditorMode(getThemePreference());
     refreshThemes();
 
-    return subscribeThemeChanges(() => {
+    const unsubscribeThemeChanges = subscribeThemeChanges(() => {
       const nextTheme = getThemePreference();
       setThemeMode(nextTheme);
       setThemeEditorMode(nextTheme);
       refreshThemes(selectedThemeId);
     });
+
+    const unsubscribeAppZoomChanges = subscribeAppZoomChanges(() => {
+      setAppZoomLevelState(getAppZoomLevel());
+    });
+
+    return () => {
+      unsubscribeThemeChanges();
+      unsubscribeAppZoomChanges();
+    };
   }, [selectedThemeId]);
 
   const selectedTheme = useMemo(

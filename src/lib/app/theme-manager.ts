@@ -2,6 +2,7 @@ import type { ThemePreference } from "@/lib/services/storage";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 export const THEME_CHANGE_EVENT = "joker_forge_theme_change";
+export const APP_ZOOM_CHANGE_EVENT = "joker_forge_app_zoom_change";
 
 const THEME_LIBRARY_KEY = "joker_forge_theme_library";
 const ACTIVE_THEME_KEY = "joker_forge_active_theme_id";
@@ -214,6 +215,9 @@ export const setAppZoomLevel = (zoomLevel: AppZoomLevel) => {
   window.localStorage.setItem(APP_ZOOM_LEVEL_KEY, zoomLevel);
   void applyWebviewZoom(getAppZoomScale(zoomLevel));
   applyThemeFromStorage();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(APP_ZOOM_CHANGE_EVENT));
+  }
 };
 
 export const stepAppZoomLevel = (direction: "in" | "out"): AppZoomLevel => {
@@ -1197,6 +1201,13 @@ export const subscribeThemeChanges = (onChange: () => void) => {
   const handler = () => onChange();
   window.addEventListener(THEME_CHANGE_EVENT, handler);
   return () => window.removeEventListener(THEME_CHANGE_EVENT, handler);
+};
+
+export const subscribeAppZoomChanges = (onChange: () => void) => {
+  if (typeof window === "undefined") return () => {};
+  const handler = () => onChange();
+  window.addEventListener(APP_ZOOM_CHANGE_EVENT, handler);
+  return () => window.removeEventListener(APP_ZOOM_CHANGE_EVENT, handler);
 };
 
 export const toThemeFilePayload = (
