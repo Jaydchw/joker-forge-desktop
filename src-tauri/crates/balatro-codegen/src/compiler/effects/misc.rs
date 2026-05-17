@@ -1,26 +1,9 @@
 use crate::compiler::context::CompileContext;
 use crate::compiler::effects::EffectOutput;
+use crate::compiler::effects::utils::{get_str_default, get_str_opt, is_literal_one_param};
 use crate::compiler::values::resolve_config_value;
 use crate::lua_ast::*;
 use crate::types::EffectDef;
-
-fn get_str_default(effect: &EffectDef, key: &str, default: &str) -> String {
-    match effect.params.get(key) {
-        Some(v) => {
-            let s = v.to_string_lossy();
-            if s.is_empty() {
-                default.to_string()
-            } else {
-                s
-            }
-        }
-        None => default.to_string(),
-    }
-}
-
-fn get_str_opt(effect: &EffectDef, key: &str) -> Option<String> {
-    effect.params.get(key).map(|v| v.to_string_lossy())
-}
 
 /// Show Message effect: displays a status message.
 pub fn show_message(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
@@ -214,7 +197,7 @@ pub fn level_up_hand(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutp
         .unwrap_or_else(|| "context.scoring_name".to_string());
 
     let level_call = lua_raw_stmt(format!(
-        "level_up_hand(card, {}, false, {})",
+        "SMODS.smart_level_up_hand(card, {}, false, {})",
         hand_expr, resolved.lua_str
     ));
 
@@ -971,10 +954,7 @@ pub fn draw_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
         .and_then(|v| v.as_str())
         .map(str::to_owned);
 
-    let draw_stmt = lua_raw_stmt(format!(
-        "if G.hand and #G.hand.cards > 0 then\n    SMODS.draw_cards({})\nend",
-        resolved.lua_str
-    ));
+    let draw_stmt = lua_raw_stmt(format!("SMODS.draw_cards({})", resolved.lua_str));
 
     let message = custom_message.map(lua_str).unwrap_or_else(|| {
         lua_raw_expr(format!(
@@ -1587,7 +1567,7 @@ pub fn edit_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput
 
     if edition != "none" && !edition.is_empty() {
         if edition == "remove" {
-            code_parts.push(format!("{}.edition = nil", target));
+            code_parts.push(format!("{}:set_edition(nil, true)", target));
         } else {
             let e = if edition.starts_with("e_") {
                 edition.clone()
@@ -1724,12 +1704,13 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
 
     let mut code = String::new();
 
-    if method == "random" {
+    let single_random_target = method == "random" && is_literal_one_param(effect, "count");
+    if method == "random" && !single_random_target {
         code.push_str(&format!(
             "local affected_cards = {{}}\n\
             local temp_hand = {{}}\n\
             for _, playing_card in ipairs(G.hand.cards) do temp_hand[#temp_hand + 1] = playing_card end\n\
-            pseudoshuffle(temp_hand, 12345)\n\
+            pseudoshuffle(temp_hand, pseudoseed('edit_cards'))\n\
             for i = 1, math.min({}, #temp_hand) do\n\
                 affected_cards[#affected_cards + 1] = temp_hand[i]\n\
             end\n",
@@ -1737,22 +1718,31 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
         ));
     }
 
+    if single_random_target {
+        code.push_str(
+            "local _card = pseudorandom_element(G.hand.cards, pseudoseed('edit_cards'))\n\
+            if not _card then return end\n",
+        );
+    }
+
     // Flip animation
-    code.push_str(&format!(
-        "G.E_MANAGER:add_event(Event({{\n\
-            trigger = 'after', delay = 0.4,\n\
-            func = function() play_sound('tarot1'); used_card:juice_up(0.3, 0.5); return true end\n\
-        }}))\n\
-        for i = 1, #{t} do\n\
-            local percent = 1.15 - (i - 0.999) / (#{t} - 0.998) * 0.3\n\
-            G.E_MANAGER:add_event(Event({{\n\
-                trigger = 'after', delay = 0.15,\n\
-                func = function() {t}[i]:flip(); play_sound('card1', percent); {t}[i]:juice_up(0.3, 0.3); return true end\n\
+    if !single_random_target {
+        code.push_str(&format!(
+            "G.E_MANAGER:add_event(Event({{\n\
+                trigger = 'after', delay = 0.4,\n\
+                func = function() play_sound('tarot1'); used_card:juice_up(0.3, 0.5); return true end\n\
             }}))\n\
-        end\n\
-        delay(0.2)\n",
-        t = target
-    ));
+            for i = 1, #{t} do\n\
+                local percent = 1.15 - (i - 0.999) / (#{t} - 0.998) * 0.3\n\
+                G.E_MANAGER:add_event(Event({{\n\
+                    trigger = 'after', delay = 0.15,\n\
+                    func = function() {t}[i]:flip(); play_sound('card1', percent); {t}[i]:juice_up(0.3, 0.3); return true end\n\
+                }}))\n\
+            end\n\
+            delay(0.2)\n",
+            t = target
+        ));
+    }
 
     // Enhancement
     if enhancement != "none" {
@@ -1760,11 +1750,8 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
             format!("{t}[i]:set_ability(G.P_CENTERS.c_base)", t = target)
         } else if enhancement == "random" {
             format!(
-                "local cen_pool = {{}}\n\
-                for _, ec in pairs(G.P_CENTER_POOLS['Enhanced']) do\n\
-                    if ec.key ~= 'm_stone' then cen_pool[#cen_pool + 1] = ec end\n\
-                end\n\
-                {t}[i]:set_ability(pseudorandom_element(cen_pool, 'random_enhance'))",
+                "local random_enhancement = SMODS.poll_enhancement({{ key = 'random_enhance', guaranteed = true, no_replace = true }})\n\
+                if random_enhancement then {t}[i]:set_ability(G.P_CENTERS[random_enhancement]) end",
                 t = target
             )
         } else {
@@ -1774,16 +1761,22 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
                 e = enhancement
             )
         };
-        code.push_str(&format!(
-            "for i = 1, #{t} do\n\
-                G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
-                    {c}\n\
-                    return true\n\
-                end}}))\n\
-            end\n",
-            t = target,
-            c = enh_code
-        ));
+        if single_random_target {
+            let single_enh_code = enh_code.replace(&format!("{}[i]", target), "_card");
+            code.push_str(&single_enh_code);
+            code.push('\n');
+        } else {
+            code.push_str(&format!(
+                "for i = 1, #{t} do\n\
+                    G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
+                        {c}\n\
+                        return true\n\
+                    end}}))\n\
+                end\n",
+                t = target,
+                c = enh_code
+            ));
+        }
     }
 
     // Seal
@@ -1792,23 +1785,29 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
             format!("{t}[i]:set_seal(nil, nil, true)", t = target)
         } else if seal == "random" {
             format!(
-                "local seal_pool = {{'Gold', 'Red', 'Blue', 'Purple'}}\n\
-                {t}[i]:set_seal(pseudorandom_element(seal_pool, 'random_seal'), nil, true)",
+                "local random_seal = SMODS.poll_seal({{mod = 10, guaranteed = true}})\n\
+                if random_seal then {t}[i]:set_seal(random_seal, nil, true) end",
                 t = target
             )
         } else {
             format!("{t}[i]:set_seal('{s}', nil, true)", t = target, s = seal)
         };
-        code.push_str(&format!(
-            "for i = 1, #{t} do\n\
-                G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
-                    {c}\n\
-                    return true\n\
-                end}}))\n\
-            end\n",
-            t = target,
-            c = seal_code
-        ));
+        if single_random_target {
+            let single_seal_code = seal_code.replace(&format!("{}[i]", target), "_card");
+            code.push_str(&single_seal_code);
+            code.push('\n');
+        } else {
+            code.push_str(&format!(
+                "for i = 1, #{t} do\n\
+                    G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
+                        {c}\n\
+                        return true\n\
+                    end}}))\n\
+                end\n",
+                t = target,
+                c = seal_code
+            ));
+        }
     }
 
     // Edition
@@ -1817,8 +1816,8 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
             format!("{t}[i]:set_edition(nil, true)", t = target)
         } else if edition == "random" {
             format!(
-                "local edition = pseudorandom_element({{'e_foil', 'e_holo', 'e_polychrome'}}, 'random edition')\n\
-                {t}[i]:set_edition(edition, true)",
+                "local random_edition = SMODS.poll_edition({{ key = 'random_edition', no_negative = true, guaranteed = true }})\n\
+                if random_edition then {t}[i]:set_edition(random_edition, true) end",
                 t = target
             )
         } else {
@@ -1829,16 +1828,22 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
             };
             format!("{t}[i]:set_edition('{e}', true)", t = target, e = e)
         };
-        code.push_str(&format!(
-            "for i = 1, #{t} do\n\
-                G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
-                    {c}\n\
-                    return true\n\
-                end}}))\n\
-            end\n",
-            t = target,
-            c = ed_code
-        ));
+        if single_random_target {
+            let single_ed_code = ed_code.replace(&format!("{}[i]", target), "_card");
+            code.push_str(&single_ed_code);
+            code.push('\n');
+        } else {
+            code.push_str(&format!(
+                "for i = 1, #{t} do\n\
+                    G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
+                        {c}\n\
+                        return true\n\
+                    end}}))\n\
+                end\n",
+                t = target,
+                c = ed_code
+            ));
+        }
     }
 
     // Suit
@@ -1856,16 +1861,22 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
                 s = suit
             )
         };
-        code.push_str(&format!(
-            "for i = 1, #{t} do\n\
-                G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
-                    {c}\n\
-                    return true\n\
-                end}}))\n\
-            end\n",
-            t = target,
-            c = suit_code
-        ));
+        if single_random_target {
+            let single_suit_code = suit_code.replace(&format!("{}[i]", target), "_card");
+            code.push_str(&single_suit_code);
+            code.push('\n');
+        } else {
+            code.push_str(&format!(
+                "for i = 1, #{t} do\n\
+                    G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
+                        {c}\n\
+                        return true\n\
+                    end}}))\n\
+                end\n",
+                t = target,
+                c = suit_code
+            ));
+        }
     }
 
     // Rank
@@ -1883,32 +1894,40 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
                 r = rank
             )
         };
-        code.push_str(&format!(
-            "for i = 1, #{t} do\n\
-                G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
-                    {c}\n\
-                    return true\n\
-                end}}))\n\
-            end\n",
-            t = target,
-            c = rank_code
-        ));
+        if single_random_target {
+            let single_rank_code = rank_code.replace(&format!("{}[i]", target), "_card");
+            code.push_str(&single_rank_code);
+            code.push('\n');
+        } else {
+            code.push_str(&format!(
+                "for i = 1, #{t} do\n\
+                    G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.1, func = function()\n\
+                        {c}\n\
+                        return true\n\
+                    end}}))\n\
+                end\n",
+                t = target,
+                c = rank_code
+            ));
+        }
     }
 
     // Unflip animation
-    code.push_str(&format!(
-        "for i = 1, #{t} do\n\
-            local percent = 0.85 + (i - 0.999) / (#{t} - 0.998) * 0.3\n\
-            G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.15,\n\
-                func = function() {t}[i]:flip(); play_sound('tarot2', percent, 0.6); {t}[i]:juice_up(0.3, 0.3); return true end\n\
+    if !single_random_target {
+        code.push_str(&format!(
+            "for i = 1, #{t} do\n\
+                local percent = 0.85 + (i - 0.999) / (#{t} - 0.998) * 0.3\n\
+                G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.15,\n\
+                    func = function() {t}[i]:flip(); play_sound('tarot2', percent, 0.6); {t}[i]:juice_up(0.3, 0.3); return true end\n\
+                }}))\n\
+            end\n\
+            G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.2,\n\
+                func = function() G.hand:unhighlight_all(); return true end\n\
             }}))\n\
-        end\n\
-        G.E_MANAGER:add_event(Event({{trigger = 'after', delay = 0.2,\n\
-            func = function() G.hand:unhighlight_all(); return true end\n\
-        }}))\n\
-        delay(0.5)",
-        t = target
-    ));
+            delay(0.5)",
+            t = target
+        ));
+    }
 
     EffectOutput {
         return_fields: vec![],
