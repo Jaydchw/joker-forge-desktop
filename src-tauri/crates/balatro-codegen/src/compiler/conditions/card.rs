@@ -1,4 +1,5 @@
 use crate::compiler::context::CompileContext;
+use crate::compiler::conditions::utils::{rank_to_id, typed_user_var_name};
 use crate::compiler::values::resolve_condition_value;
 use crate::lua_ast::*;
 use crate::types::ConditionDef;
@@ -75,16 +76,6 @@ pub fn card_index(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
             lua_path(&["context", "other_card"]),
             lua_raw_expr("context.scoring_hand[1]"),
         )),
-    }
-}
-
-fn rank_to_id(rank: &str) -> &str {
-    match rank {
-        "Ace" => "14",
-        "King" => "13",
-        "Queen" => "12",
-        "Jack" => "11",
-        _ => rank,
     }
 }
 
@@ -179,33 +170,9 @@ fn suit_check_expr(condition: &ConditionDef) -> String {
 }
 
 fn suit_var_name(condition: &ConditionDef) -> Option<&str> {
-    let suit_type = condition.params.get("suit_type")?;
-    if let crate::types::ParamValue::Typed(typed) = suit_type {
-        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
-            return typed.value.as_str();
-        }
-    }
-    let specific = condition.params.get("specific_suit")?;
-    if let crate::types::ParamValue::Typed(typed) = specific {
-        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
-            return typed.value.as_str();
-        }
-    }
-    None
+    typed_user_var_name(condition, "suit_type", "specific_suit")
 }
 
 fn rank_var_name(condition: &ConditionDef) -> Option<&str> {
-    let rank_type = condition.params.get("rank_type")?;
-    if let crate::types::ParamValue::Typed(typed) = rank_type {
-        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
-            return typed.value.as_str();
-        }
-    }
-    let specific = condition.params.get("specific_rank")?;
-    if let crate::types::ParamValue::Typed(typed) = specific {
-        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
-            return typed.value.as_str();
-        }
-    }
-    None
+    typed_user_var_name(condition, "rank_type", "specific_rank")
 }

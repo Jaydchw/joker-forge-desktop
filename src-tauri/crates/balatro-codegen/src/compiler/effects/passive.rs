@@ -86,16 +86,8 @@ pub fn allow_debt(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffect
 // ---------------------------------------------------------------------------
 
 pub fn shortcut(_effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
-    // Shortcut uses the SMODS hook system, the joker key enables the behavior
-    let key = ctx.smods_key();
-    PassiveEffectOutput {
-        add_to_deck: vec![lua_raw_stmt(format!(
-            "-- Shortcut straights enabled ({})",
-            key
-        ))],
-        remove_from_deck: vec![lua_raw_stmt("-- Shortcut straights disabled".to_string())],
-        ..Default::default()
-    }
+    let _ = ctx;
+    PassiveEffectOutput::default()
 }
 
 // ---------------------------------------------------------------------------
@@ -103,12 +95,8 @@ pub fn shortcut(_effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectO
 // ---------------------------------------------------------------------------
 
 pub fn showman(_effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
-    let key = ctx.smods_key();
-    PassiveEffectOutput {
-        add_to_deck: vec![lua_raw_stmt(format!("-- Showman effect enabled ({})", key))],
-        remove_from_deck: vec![lua_raw_stmt("-- Showman effect disabled".to_string())],
-        ..Default::default()
-    }
+    let _ = ctx;
+    PassiveEffectOutput::default()
 }
 
 // ---------------------------------------------------------------------------
@@ -129,15 +117,7 @@ pub fn combine_ranks(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEff
 
     ctx.add_config_str("target_rank", target_rank);
 
-    let key = ctx.smods_key();
-    PassiveEffectOutput {
-        add_to_deck: vec![lua_raw_stmt(format!(
-            "-- Combine ranks effect enabled ({})",
-            key
-        ))],
-        remove_from_deck: vec![lua_raw_stmt("-- Combine ranks effect disabled".to_string())],
-        ..Default::default()
-    }
+    PassiveEffectOutput::default()
 }
 
 // ---------------------------------------------------------------------------
@@ -145,15 +125,8 @@ pub fn combine_ranks(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEff
 // ---------------------------------------------------------------------------
 
 pub fn combine_suits(_effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
-    let key = ctx.smods_key();
-    PassiveEffectOutput {
-        add_to_deck: vec![lua_raw_stmt(format!(
-            "-- Combine suits effect enabled ({})",
-            key
-        ))],
-        remove_from_deck: vec![lua_raw_stmt("-- Combine suits effect disabled".to_string())],
-        ..Default::default()
-    }
+    let _ = ctx;
+    PassiveEffectOutput::default()
 }
 
 // ---------------------------------------------------------------------------
@@ -170,18 +143,8 @@ pub fn reduce_flush_straight_requirement(
         ctx,
         "reduction_value",
     );
-    let key = ctx.smods_key();
-
-    PassiveEffectOutput {
-        add_to_deck: vec![lua_raw_stmt(format!(
-            "-- Flush/Straight requirements reduced by {} ({})",
-            resolved.lua_str, key
-        ))],
-        remove_from_deck: vec![lua_raw_stmt(
-            "-- Flush/Straight requirements restored".to_string(),
-        )],
-        ..Default::default()
-    }
+    let _ = resolved;
+    PassiveEffectOutput::default()
 }
 
 // ---------------------------------------------------------------------------

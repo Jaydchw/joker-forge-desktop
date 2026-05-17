@@ -1,6 +1,6 @@
 use crate::compiler::context::CompileContext;
 use crate::compiler::effects::{passive::PassiveEffectOutput, EffectOutput};
-use crate::compiler::values::is_user_variable_type;
+use crate::compiler::effects::utils::{get_str, get_str_default, value_to_lua_str};
 use crate::lua_ast::*;
 use crate::types::{EffectDef, ParamValue};
 
@@ -8,86 +8,8 @@ use crate::types::{EffectDef, ParamValue};
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn get_str_default(effect: &EffectDef, key: &str, default: &str) -> String {
-    match effect.params.get(key) {
-        Some(v) => {
-            let s = v.to_string_lossy();
-            if s.is_empty() {
-                default.to_string()
-            } else {
-                s
-            }
-        }
-        None => default.to_string(),
-    }
-}
-
-fn get_str(effect: &EffectDef, key: &str) -> Option<String> {
-    effect.params.get(key).map(|v| v.to_string_lossy())
-}
-
 /// Resolve a value param to a Lua expression string: registering a config var
 /// for literal numbers.
-fn value_to_lua_str(
-    effect: &EffectDef,
-    param_key: &str,
-    ctx: &mut CompileContext,
-    var_base: &str,
-) -> String {
-    let count = ctx.next_effect_count(var_base);
-    let var_name = ctx.unique_var_name(var_base, count);
-
-    match effect.params.get(param_key) {
-        Some(ParamValue::Int(n)) => {
-            ctx.add_config_int(&var_name, *n);
-            format!("{}.{}", ctx.ability_path(), var_name)
-        }
-        Some(ParamValue::Float(n)) => {
-            ctx.add_config_num(&var_name, *n);
-            format!("{}.{}", ctx.ability_path(), var_name)
-        }
-        Some(ParamValue::Typed(t)) => {
-            if is_user_variable_type(&t.value_type) {
-                if let Some(name) = t.value.as_str() {
-                    ctx.user_var_path(name)
-                } else {
-                    "1".to_string()
-                }
-            } else {
-                if let Some(n) = t.value.as_f64() {
-                    if n.fract() == 0.0 {
-                        ctx.add_config_int(&var_name, n as i64);
-                    } else {
-                        ctx.add_config_num(&var_name, n);
-                    }
-                    format!("{}.{}", ctx.ability_path(), var_name)
-                } else if let Some(s) = t.value.as_str() {
-                    if let Ok(n) = s.parse::<f64>() {
-                        if n.fract() == 0.0 {
-                            ctx.add_config_int(&var_name, n as i64);
-                        } else {
-                            ctx.add_config_num(&var_name, n);
-                        }
-                        format!("{}.{}", ctx.ability_path(), var_name)
-                    } else {
-                        use crate::compiler::values::game_var_lua_code;
-                        if let Some(code) = game_var_lua_code(s) {
-                            code.to_string()
-                        } else if ctx.has_user_var(s) {
-                            ctx.user_var_path(s)
-                        } else {
-                            s.to_string()
-                        }
-                    }
-                } else {
-                    "1".to_string()
-                }
-            }
-        }
-        Some(ParamValue::Str(s)) if ctx.has_user_var(s) => ctx.user_var_path(s),
-        _ => "1".to_string(),
-    }
-}
 
 // ---------------------------------------------------------------------------
 // edit_joker_slots  (modifies G.jokers.config.card_limit)
@@ -360,20 +282,12 @@ pub fn edit_consumable_slots(effect: &EffectDef, ctx: &mut CompileContext) -> Ef
             _ => format!("\"+\"..tostring({})..' Consumable Slot'", value_str),
         });
 
-    let inner_event = format!(
-        "G.E_MANAGER:add_event(Event({{func = function()\n\
-            {}\n\
-            return true\n\
-        end }}))",
-        slots_code
-    );
-
     let func_body = vec![
         lua_raw_stmt(format!(
             "{}\n\
             card_eval_status_text(context.blueprint_card or card, 'extra', nil, nil, nil, {{message = {}, colour = {}}})\n\
             return true",
-            inner_event, msg_lua, colour_str
+            slots_code, msg_lua, colour_str
         )),
     ];
 
@@ -413,49 +327,39 @@ pub fn edit_consumable_slots_passive(
         _ => "1".to_string(),
     };
 
-    let make_event = |code: &str| -> String {
-        format!(
-            "G.E_MANAGER:add_event(Event({{func = function()\n\
-                {}\n\
-                return true\n\
-            end }}))",
-            code
-        )
-    };
-
     let (add_to_deck, remove_from_deck) = match operation.as_str() {
         "subtract" => (
-            make_event(&format!(
+            format!(
                 "G.consumeables.config.card_limit = math.max(0, G.consumeables.config.card_limit - {})",
                 value_str
-            )),
-            make_event(&format!(
+            ),
+            format!(
                 "G.consumeables.config.card_limit = G.consumeables.config.card_limit + {}",
                 value_str
-            )),
+            ),
         ),
         "set" => (
             format!(
                 "original_slots = G.consumeables.config.card_limit\n{}",
-                make_event(&format!(
+                format!(
                     "G.consumeables.config.card_limit = {}",
                     value_str
-                ))
+                )
             ),
             format!(
                 "if original_slots then\n    {}\nend",
-                make_event("G.consumeables.config.card_limit = original_slots")
+                "G.consumeables.config.card_limit = original_slots"
             ),
         ),
         _ => (
-            make_event(&format!(
+            format!(
                 "G.consumeables.config.card_limit = G.consumeables.config.card_limit + {}",
                 value_str
-            )),
-            make_event(&format!(
+            ),
+            format!(
                 "G.consumeables.config.card_limit = G.consumeables.config.card_limit - {}",
                 value_str
-            )),
+            ),
         ),
     };
 

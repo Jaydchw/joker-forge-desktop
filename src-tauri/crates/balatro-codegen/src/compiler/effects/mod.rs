@@ -6,6 +6,7 @@ pub mod misc;
 pub mod passive;
 pub mod scoring;
 pub mod slot_management;
+pub mod utils;
 pub mod variables;
 
 use crate::compiler::context::CompileContext;

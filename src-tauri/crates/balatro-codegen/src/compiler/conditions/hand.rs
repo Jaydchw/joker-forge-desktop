@@ -1,4 +1,5 @@
 use crate::compiler::context::CompileContext;
+use crate::compiler::conditions::utils::{rank_to_id, typed_user_var_name};
 use crate::compiler::values::{comparison_op, resolve_condition_value};
 use crate::lua_ast::*;
 use crate::types::ConditionDef;
@@ -529,25 +530,6 @@ pub fn rank_id_from_name(rank: &str) -> &str {
     rank_to_id(rank)
 }
 
-fn rank_to_id(rank: &str) -> &str {
-    match rank {
-        "Ace" => "14",
-        "King" => "13",
-        "Queen" => "12",
-        "Jack" => "11",
-        "10" => "10",
-        "9" => "9",
-        "8" => "8",
-        "7" => "7",
-        "6" => "6",
-        "5" => "5",
-        "4" => "4",
-        "3" => "3",
-        "2" => "2",
-        _ => rank,
-    }
-}
-
 fn suit_check_expr(condition: &ConditionDef) -> String {
     if let Some(var_name) = suit_var_name(condition) {
         return format!(
@@ -628,35 +610,11 @@ fn rank_check_expr(condition: &ConditionDef) -> String {
 }
 
 fn suit_var_name(condition: &ConditionDef) -> Option<&str> {
-    let suit_type = condition.params.get("suit_type")?;
-    if let crate::types::ParamValue::Typed(typed) = suit_type {
-        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
-            return typed.value.as_str();
-        }
-    }
-    let specific = condition.params.get("specific_suit")?;
-    if let crate::types::ParamValue::Typed(typed) = specific {
-        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
-            return typed.value.as_str();
-        }
-    }
-    None
+    typed_user_var_name(condition, "suit_type", "specific_suit")
 }
 
 fn rank_var_name(condition: &ConditionDef) -> Option<&str> {
-    let rank_type = condition.params.get("rank_type")?;
-    if let crate::types::ParamValue::Typed(typed) = rank_type {
-        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
-            return typed.value.as_str();
-        }
-    }
-    let specific = condition.params.get("specific_rank")?;
-    if let crate::types::ParamValue::Typed(typed) = specific {
-        if typed.value_type == "user_var" || typed.value_type == "userVariable" {
-            return typed.value.as_str();
-        }
-    }
-    None
+    typed_user_var_name(condition, "rank_type", "specific_rank")
 }
 
 /// Convert quantifier to comparison operator string.

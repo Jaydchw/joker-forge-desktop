@@ -43,7 +43,6 @@ SMODS.Consumable {
         end
     end,
     use = function(self, card, area, copier)
-        local used_card = copier or card
         return {
             mult = card.ability.extra.mult0
         }

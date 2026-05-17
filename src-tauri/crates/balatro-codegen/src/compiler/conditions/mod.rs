@@ -2,6 +2,7 @@ pub mod card;
 pub mod game_state;
 pub mod hand;
 pub mod joker;
+pub mod utils;
 pub mod variables;
 
 use crate::compiler::context::CompileContext;

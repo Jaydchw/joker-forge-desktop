@@ -202,10 +202,17 @@ fn build_use_function(rule_outputs: &[super::RuleOutput], _ctx: &CompileContext)
         return None;
     }
 
-    let mut body: Vec<Stmt> = vec![Stmt::Local(
-        "used_card".to_string(),
-        Some(lua_or(lua_ident("copier"), lua_ident("card"))),
-    )];
+    let mut body: Vec<Stmt> = Vec::new();
+    if use_rules
+        .iter()
+        .flat_map(|r| r.effect_stmts.iter())
+        .any(stmt_references_used_card)
+    {
+        body.push(Stmt::Local(
+            "used_card".to_string(),
+            Some(lua_or(lua_ident("copier"), lua_ident("card"))),
+        ));
+    }
 
     super::append_rule_chain_with_fallback(&mut body, &use_rules, |ro| ro.effect_stmts.clone());
 
@@ -243,4 +250,82 @@ fn build_can_use_function(rule_outputs: &[super::RuleOutput], _ctx: &CompileCont
 
 fn kv(key: &str, val: Expr) -> TableEntry {
     TableEntry::KeyValue(key.to_string(), val)
+}
+
+fn stmt_references_used_card(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Raw(s) => s.contains("used_card"),
+        Stmt::Local(_, init) => init.as_ref().is_some_and(expr_references_used_card),
+        Stmt::Assign(lhs, rhs) => {
+            expr_references_used_card(lhs) || expr_references_used_card(rhs)
+        }
+        Stmt::MultiAssign(lhs, rhs) => {
+            lhs.iter().any(expr_references_used_card) || rhs.iter().any(expr_references_used_card)
+        }
+        Stmt::If {
+            branches,
+            else_body,
+        } => {
+            branches.iter().any(|(cond, body)| {
+                expr_references_used_card(cond) || body.iter().any(stmt_references_used_card)
+            }) || else_body
+                .as_ref()
+                .is_some_and(|body| body.iter().any(stmt_references_used_card))
+        }
+        Stmt::Return(expr) => expr.as_ref().is_some_and(expr_references_used_card),
+        Stmt::ExprStmt(expr) => expr_references_used_card(expr),
+        Stmt::ForRange {
+            start,
+            stop,
+            step,
+            body,
+            ..
+        } => {
+            expr_references_used_card(start)
+                || expr_references_used_card(stop)
+                || step.as_ref().is_some_and(expr_references_used_card)
+                || body.iter().any(stmt_references_used_card)
+        }
+        Stmt::ForIn {
+            iterators, body, ..
+        } => {
+            iterators.iter().any(expr_references_used_card)
+                || body.iter().any(stmt_references_used_card)
+        }
+        Stmt::DoBlock(body) => body.iter().any(stmt_references_used_card),
+        Stmt::Comment(_) | Stmt::Blank => false,
+    }
+}
+
+fn expr_references_used_card(expr: &Expr) -> bool {
+    match expr {
+        Expr::Raw(s) => s.contains("used_card"),
+        Expr::Ident(s) => s == "used_card",
+        Expr::Field(base, key) => key == "used_card" || expr_references_used_card(base),
+        Expr::Index(base, key) => expr_references_used_card(base) || expr_references_used_card(key),
+        Expr::BinOp(lhs, _, rhs) => {
+            expr_references_used_card(lhs) || expr_references_used_card(rhs)
+        }
+        Expr::UnaryOp(_, inner) => expr_references_used_card(inner),
+        Expr::Call(func, args) => {
+            expr_references_used_card(func) || args.iter().any(expr_references_used_card)
+        }
+        Expr::MethodCall(obj, _, args) => {
+            expr_references_used_card(obj) || args.iter().any(expr_references_used_card)
+        }
+        Expr::Table(entries) | Expr::TableCall(_, entries) => {
+            entries.iter().any(table_entry_references_used_card)
+                || matches!(expr, Expr::TableCall(func, _) if expr_references_used_card(func))
+        }
+        Expr::Function { body, .. } => body.iter().any(stmt_references_used_card),
+        Expr::Nil | Expr::Bool(_) | Expr::Int(_) | Expr::Number(_) | Expr::Str(_) | Expr::LongStr(_) => false,
+    }
+}
+
+fn table_entry_references_used_card(entry: &TableEntry) -> bool {
+    match entry {
+        TableEntry::KeyValue(_, expr) | TableEntry::Value(expr) => expr_references_used_card(expr),
+        TableEntry::IndexValue(k, v) => expr_references_used_card(k) || expr_references_used_card(v),
+        TableEntry::Comment(_) => false,
+    }
 }
