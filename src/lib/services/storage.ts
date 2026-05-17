@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { appDataDir, dirname, join } from "@tauri-apps/api/path";
-import { mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { appDataDir, join } from "@tauri-apps/api/path";
+import {
+  exists,
+  mkdir,
+  readDir,
+  readTextFile,
+  remove,
+  writeTextFile,
+} from "@tauri-apps/plugin-fs";
 import {
   JokerData,
   ConsumableData,
@@ -77,7 +84,10 @@ interface ProjectStore {
 }
 
 const STORAGE_KEY = "joker_forge_project_data";
-const STORAGE_FILE_NAME = "joker_forge_project_data.json";
+const LEGACY_STORAGE_FILE_NAME = "joker_forge_project_data.json";
+const TAURI_STORAGE_DIR_NAME = "joker_forge_storage";
+const SETTINGS_FILE_NAME = "settings.json";
+const PROJECTS_DIR_NAME = "projects";
 const EVENT_KEY = "joker_forge_update";
 const CONFIRM_DELETE_KEY = "joker_forge_confirm_delete";
 const BALATRO_APPDATA_PATH_KEY = "joker_forge_balatro_appdata_path";
@@ -108,7 +118,12 @@ const STORAGE_ERROR_ALERT_THROTTLE_MS = 4000;
 const RECENT_ACTIVITY_LIMIT = 10;
 
 let lastStorageErrorAlertAt = 0;
-let tauriStorePathPromise: Promise<string> | null = null;
+let tauriStorePathsPromise: Promise<{
+  rootDir: string;
+  legacyStorePath: string;
+  settingsPath: string;
+  projectsDir: string;
+}> | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 
 type StoreUpdateEventDetail = {
@@ -125,19 +140,30 @@ const isTauriRuntime = (): boolean => {
   return Boolean(tauriWindow.__TAURI_INTERNALS__ || tauriWindow.__TAURI__);
 };
 
-const getTauriStorePath = async (): Promise<string> => {
-  if (!tauriStorePathPromise) {
-    tauriStorePathPromise = appDataDir().then((dir) =>
-      join(dir, STORAGE_FILE_NAME),
-    );
+const getTauriStorePaths = async (): Promise<{
+  rootDir: string;
+  legacyStorePath: string;
+  settingsPath: string;
+  projectsDir: string;
+}> => {
+  if (!tauriStorePathsPromise) {
+    tauriStorePathsPromise = appDataDir().then(async (dir) => {
+      const rootDir = await join(dir, TAURI_STORAGE_DIR_NAME);
+      return {
+        rootDir,
+        legacyStorePath: await join(dir, LEGACY_STORAGE_FILE_NAME),
+        settingsPath: await join(rootDir, SETTINGS_FILE_NAME),
+        projectsDir: await join(rootDir, PROJECTS_DIR_NAME),
+      };
+    });
   }
-  return tauriStorePathPromise;
+  return tauriStorePathsPromise;
 };
 
-const ensureTauriStoreDirectory = async (): Promise<void> => {
-  const storePath = await getTauriStorePath();
-  const parentDir = await dirname(storePath);
-  await mkdir(parentDir, { recursive: true });
+const ensureTauriStoreDirectories = async (): Promise<void> => {
+  const paths = await getTauriStorePaths();
+  await mkdir(paths.rootDir, { recursive: true });
+  await mkdir(paths.projectsDir, { recursive: true });
 };
 
 const isQuotaExceededError = (error: unknown): boolean => {
@@ -681,6 +707,68 @@ const createDefaultStore = (): ProjectStore => ({
   projects: { [DEFAULT_METADATA.id]: DEFAULT_DATA },
 });
 
+type SegmentedSettingsStore = {
+  version: 1;
+  currentProjectId: string;
+};
+
+const serializeStoreToSegmented = (
+  store: ProjectStore,
+): {
+  settings: SegmentedSettingsStore;
+  projects: Record<string, ProjectData>;
+} => ({
+  settings: {
+    version: 1,
+    currentProjectId: store.currentProjectId,
+  },
+  projects: store.projects,
+});
+
+const toSafeFileStem = (value: string): string => {
+  const normalized = value.trim().replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+  return normalized || "project";
+};
+
+const persistStoreToTauriFiles = async (store: ProjectStore): Promise<void> => {
+  const paths = await getTauriStorePaths();
+  await ensureTauriStoreDirectories();
+
+  const segmented = serializeStoreToSegmented(store);
+  await writeTextFile(paths.settingsPath, JSON.stringify(segmented.settings));
+
+  const existingEntries = await readDir(paths.projectsDir);
+  const existingProjectFiles = existingEntries
+    .filter((entry) => !entry.isDirectory && typeof entry.name === "string")
+    .map((entry) => entry.name as string)
+    .filter((name) => name.toLowerCase().endsWith(".json"));
+
+  const expectedFiles = new Set<string>();
+  for (const [projectId, project] of Object.entries(segmented.projects)) {
+    const fileName = `${toSafeFileStem(projectId)}.json`;
+    expectedFiles.add(fileName);
+    const path = await join(paths.projectsDir, fileName);
+    await writeTextFile(
+      path,
+      JSON.stringify({
+        version: 1,
+        projectId,
+        project,
+      }),
+    );
+  }
+
+  for (const existingFile of existingProjectFiles) {
+    if (expectedFiles.has(existingFile)) continue;
+    const obsoletePath = await join(paths.projectsDir, existingFile);
+    try {
+      await remove(obsoletePath);
+    } catch {
+      // Ignore cleanup failures.
+    }
+  }
+};
+
 // --- Sanitization Logic ---
 
 const forceStringArray = (val: any): string[] => {
@@ -899,9 +987,47 @@ const loadStoreFromTauriFile = async (): Promise<ProjectStore | null> => {
   if (!isTauriRuntime()) return null;
 
   try {
-    const path = await getTauriStorePath();
-    const raw = await readTextFile(path);
-    return sanitizeStoreFromUnknown(JSON.parse(raw));
+    const paths = await getTauriStorePaths();
+    const settingsRaw = await readTextFile(paths.settingsPath);
+    const settingsParsed = JSON.parse(settingsRaw) as Partial<SegmentedSettingsStore>;
+
+    const projectEntries = await readDir(paths.projectsDir);
+    const projects: Record<string, ProjectData> = {};
+
+    for (const entry of projectEntries) {
+      if (entry.isDirectory || !entry.name || !entry.name.endsWith(".json")) continue;
+      try {
+        const filePath = await join(paths.projectsDir, entry.name);
+        const raw = await readTextFile(filePath);
+        const parsed = JSON.parse(raw) as {
+          projectId?: unknown;
+          project?: unknown;
+        };
+        if (typeof parsed.projectId !== "string") continue;
+        const project = sanitizeProjectData(parsed.project);
+        projects[parsed.projectId] = {
+          ...project,
+          metadata: { ...project.metadata, id: parsed.projectId },
+        };
+      } catch {
+        // Ignore broken project files and continue loading others.
+      }
+    }
+
+    const projectIds = Object.keys(projects);
+    if (projectIds.length === 0) return null;
+    const fallbackId = projectIds[0];
+    const currentProjectId =
+      typeof settingsParsed.currentProjectId === "string" &&
+      projects[settingsParsed.currentProjectId]
+        ? settingsParsed.currentProjectId
+        : fallbackId;
+
+    return {
+      version: 2,
+      currentProjectId,
+      projects,
+    };
   } catch {
     return null;
   }
@@ -910,6 +1036,19 @@ const loadStoreFromTauriFile = async (): Promise<ProjectStore | null> => {
 const loadStoredStore = async (): Promise<ProjectStore> => {
   const tauriStore = await loadStoreFromTauriFile();
   if (tauriStore) return tauriStore;
+
+  if (isTauriRuntime()) {
+    try {
+      const paths = await getTauriStorePaths();
+      const legacyRaw = await readTextFile(paths.legacyStorePath);
+      const migrated = sanitizeStoreFromUnknown(JSON.parse(legacyRaw));
+      await persistStoreToTauriFiles(migrated);
+      return migrated;
+    } catch {
+      // No legacy file or invalid legacy data.
+    }
+  }
+
   return loadStoreFromLocalStorage();
 };
 
@@ -989,9 +1128,7 @@ export const useProjectData = () => {
       .then(async () => {
         if (isTauriRuntime()) {
           try {
-            const path = await getTauriStorePath();
-            await ensureTauriStoreDirectory();
-            await writeTextFile(path, JSON.stringify(nextStore));
+            await persistStoreToTauriFiles(nextStore);
             setTimeout(emitLocalStoreUpdate, 0);
             return;
           } catch (error) {
@@ -1302,9 +1439,11 @@ export const resetProjectData = () => {
     persistQueue = persistQueue
       .then(async () => {
         try {
-          const path = await getTauriStorePath();
-          await ensureTauriStoreDirectory();
-          await writeTextFile(path, JSON.stringify(defaultStore));
+          const paths = await getTauriStorePaths();
+          if (await exists(paths.projectsDir)) {
+            await remove(paths.projectsDir, { recursive: true });
+          }
+          await persistStoreToTauriFiles(defaultStore);
         } catch (error) {
           console.warn("Error resetting file-backed store", error);
         }

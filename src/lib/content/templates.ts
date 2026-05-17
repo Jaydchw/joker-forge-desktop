@@ -67,10 +67,16 @@ export interface TemplateBundle {
 }
 
 const STORAGE_KEY = "joker_forge_template_store";
-const STORAGE_FILE_NAME = "joker_forge_templates.json";
+const LEGACY_STORAGE_FILE_NAME = "joker_forge_templates.json";
+const TAURI_STORAGE_DIR_NAME = "joker_forge_storage";
+const STORAGE_FILE_NAME = "templates.json";
 const TEMPLATE_EVENT_KEY = "joker_forge_template_update";
 
-let tauriStorePathPromise: Promise<string> | null = null;
+let tauriStorePathPromise: Promise<{
+  rootDir: string;
+  currentStorePath: string;
+  legacyStorePath: string;
+}> | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 
 const DEFAULT_TEMPLATE_STORE: TemplateStore = {
@@ -119,18 +125,27 @@ const isTauriRuntime = (): boolean => {
   return Boolean(tauriWindow.__TAURI_INTERNALS__ || tauriWindow.__TAURI__);
 };
 
-const getTauriStorePath = async (): Promise<string> => {
+const getTauriStorePaths = async (): Promise<{
+  rootDir: string;
+  currentStorePath: string;
+  legacyStorePath: string;
+}> => {
   if (!tauriStorePathPromise) {
-    tauriStorePathPromise = appDataDir().then((dir) =>
-      join(dir, STORAGE_FILE_NAME),
-    );
+    tauriStorePathPromise = appDataDir().then(async (dir) => {
+      const rootDir = await join(dir, TAURI_STORAGE_DIR_NAME);
+      return {
+        rootDir,
+        currentStorePath: await join(rootDir, STORAGE_FILE_NAME),
+        legacyStorePath: await join(dir, LEGACY_STORAGE_FILE_NAME),
+      };
+    });
   }
   return tauriStorePathPromise;
 };
 
 const ensureTauriStoreDirectory = async (): Promise<void> => {
-  const storePath = await getTauriStorePath();
-  const parentDir = await dirname(storePath);
+  const paths = await getTauriStorePaths();
+  const parentDir = await dirname(paths.currentStorePath);
   await mkdir(parentDir, { recursive: true });
 };
 
@@ -311,19 +326,28 @@ const persistStore = async (store: TemplateStore): Promise<void> => {
 
   if (!isTauriRuntime()) return;
 
-  const path = await getTauriStorePath();
+  const { currentStorePath } = await getTauriStorePaths();
   await ensureTauriStoreDirectory();
-  await writeTextFile(path, JSON.stringify(store));
+  await writeTextFile(currentStorePath, JSON.stringify(store));
 };
 
 const loadStoreFromDisk = async (): Promise<TemplateStore> => {
   if (isTauriRuntime()) {
     try {
-      const path = await getTauriStorePath();
-      const fileContent = await readTextFile(path);
+      const { currentStorePath } = await getTauriStorePaths();
+      const fileContent = await readTextFile(currentStorePath);
       return sanitizeTemplateStore(JSON.parse(fileContent));
     } catch {
-      // fallback to local storage below
+      try {
+        const { legacyStorePath } = await getTauriStorePaths();
+        const legacyContent = await readTextFile(legacyStorePath);
+        const migrated =
+          parseRawTemplateText(legacyContent) ?? DEFAULT_TEMPLATE_STORE;
+        await persistStore(migrated);
+        return migrated;
+      } catch {
+        // fallback to local storage below
+      }
     }
   }
 
