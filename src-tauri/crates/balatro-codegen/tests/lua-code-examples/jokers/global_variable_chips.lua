@@ -2,21 +2,16 @@
 
 SMODS.Joker {
     key = 'j_global_variable_chips',
-    
-    
-    
     loc_txt = {
         ['name'] = 'Global Variable Chips',
         ['text'] = {
             [1] = 'Adds chips from a global variable.'
         }
     },
-    
     pos = {
         x = 0,
         y = 0
     },
-    
     cost = 4,
     rarity = 1,
     blueprint_compat = true,
@@ -25,8 +20,6 @@ SMODS.Joker {
     unlocked = true,
     discovered = true,
     atlas = 'Joker',
-    
-    
     loc_vars = function(self, info_queue, card)
         return {
             vars = {
@@ -34,7 +27,6 @@ SMODS.Joker {
             }
         }
     end,
-    
     calculate = function(self, card, context)
         if context.joker_main then
             return {

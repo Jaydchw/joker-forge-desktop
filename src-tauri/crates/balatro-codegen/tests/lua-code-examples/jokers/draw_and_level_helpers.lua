@@ -2,27 +2,22 @@
 
 SMODS.Joker {
     key = 'j_draw_and_level_helpers',
-    
     config = {
         extra = {
             card_draw0 = 2,
             level_amount0 = 1
         }
     },
-    
-    
     loc_txt = {
         ['name'] = 'Draw And Level Helpers',
         ['text'] = {
             [1] = 'Uses SMODS helper functions.'
         }
     },
-    
     pos = {
         x = 0,
         y = 0
     },
-    
     cost = 4,
     rarity = 1,
     blueprint_compat = true,
@@ -31,8 +26,6 @@ SMODS.Joker {
     unlocked = true,
     discovered = true,
     atlas = 'Joker',
-    
-    
     loc_vars = function(self, info_queue, card)
         return {
             vars = {
@@ -41,7 +34,6 @@ SMODS.Joker {
             }
         }
     end,
-    
     calculate = function(self, card, context)
         if context.joker_main then
             SMODS.draw_cards(card.ability.extra.card_draw0)

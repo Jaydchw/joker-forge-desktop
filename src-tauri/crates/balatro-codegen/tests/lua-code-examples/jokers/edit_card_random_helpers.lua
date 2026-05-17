@@ -2,21 +2,16 @@
 
 SMODS.Joker {
     key = 'j_edit_card_random_helpers',
-    
-    
-    
     loc_txt = {
         ['name'] = 'Edit Card Random Helpers',
         ['text'] = {
             [1] = 'Uses SMODS random polling helpers.'
         }
     },
-    
     pos = {
         x = 0,
         y = 0
     },
-    
     cost = 4,
     rarity = 1,
     blueprint_compat = true,
@@ -25,9 +20,6 @@ SMODS.Joker {
     unlocked = true,
     discovered = true,
     atlas = 'Joker',
-    
-    
-    
     calculate = function(self, card, context)
         if context.joker_main then
             local scored_card = context.other_card
