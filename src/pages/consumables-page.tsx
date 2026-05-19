@@ -75,10 +75,10 @@ export default function ConsumablesPage() {
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<ConsumableData>) =>
-      updateConsumables(
-        applyItemUpdatesWithOrderSwap(data.consumables, id, updates),
+      updateConsumables((previous) =>
+        applyItemUpdatesWithOrderSwap(previous, id, updates),
       ),
-    [data.consumables, updateConsumables],
+    [updateConsumables],
   );
 
   const handleInfoSave = useCallback(
@@ -290,6 +290,7 @@ export default function ConsumablesPage() {
         consumableSet={item.set}
         imageLayers={item.imageLayers}
         overlayImage={item.overlayImage}
+        hasManualEdits={Boolean((item as { customCode?: unknown }).customCode)}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
         onDuplicate={() => {
           const duplicatedItem: ConsumableData = {

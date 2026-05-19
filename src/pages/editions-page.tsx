@@ -70,11 +70,11 @@ export default function EditionsPage() {
         ...updates,
         shader: updates.shader === "" ? false : updates.shader,
       };
-      updateEditions(
-        applyItemUpdatesWithOrderSwap(data.editions, id, normalizedUpdates),
+      updateEditions((previous) =>
+        applyItemUpdatesWithOrderSwap(previous, id, normalizedUpdates),
       );
     },
-    [data.editions, updateEditions],
+    [updateEditions],
   );
 
   const handleInfoSave = useCallback(

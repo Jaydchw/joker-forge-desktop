@@ -57,8 +57,10 @@ export default function BoostersPage() {
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<BoosterData>) =>
-      updateBoosters(applyItemUpdatesWithOrderSwap(data.boosters, id, updates)),
-    [data.boosters, updateBoosters],
+      updateBoosters((previous) =>
+        applyItemUpdatesWithOrderSwap(previous, id, updates),
+      ),
+    [updateBoosters],
   );
 
   const handleInfoSave = useCallback(

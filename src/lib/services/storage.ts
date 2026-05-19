@@ -1196,13 +1196,24 @@ export const useProjectData = () => {
   );
 
   const updateCollection = useCallback(
-    <K extends keyof ProjectData>(key: K, items: ProjectData[K]) => {
+    <K extends keyof ProjectData>(
+      key: K,
+      itemsOrUpdater:
+        | ProjectData[K]
+        | ((previous: ProjectData[K]) => ProjectData[K]),
+    ) => {
       setStore((prev) => {
         const currentId = prev.currentProjectId;
         const current = prev.projects[currentId] || DEFAULT_DATA;
+        const resolvedItems =
+          typeof itemsOrUpdater === "function"
+            ? (
+                itemsOrUpdater as (previous: ProjectData[K]) => ProjectData[K]
+              )(current[key])
+            : itemsOrUpdater;
         const normalizedItems =
-          isLocalizableCollectionKey(key) && Array.isArray(items)
-            ? (items.map((item) =>
+          isLocalizableCollectionKey(key) && Array.isArray(resolvedItems)
+            ? (resolvedItems.map((item) =>
                 ensureLocalizableWithLanguage(
                   item as {
                     name?: unknown;
@@ -1212,7 +1223,7 @@ export const useProjectData = () => {
                   DEFAULT_LOCALIZATION_LANGUAGE,
                 ),
               ) as ProjectData[K])
-            : items;
+            : resolvedItems;
         const activityEntries =
           isTrackableCollectionKey(key) &&
           Array.isArray(current[key]) &&
@@ -1384,6 +1395,8 @@ export const useProjectData = () => {
     version: project.metadata.version,
   }));
 
+  type CollectionUpdateArg<T> = T[] | ((previous: T[]) => T[]);
+
   return {
     isHydrating,
     data: currentProject,
@@ -1394,24 +1407,28 @@ export const useProjectData = () => {
     deleteProject,
     importProject,
     updateMetadata,
-    updateJokers: (items: JokerData[]) => updateCollection("jokers", items),
-    updateConsumables: (items: ConsumableData[]) =>
+    updateJokers: (items: CollectionUpdateArg<JokerData>) =>
+      updateCollection("jokers", items),
+    updateConsumables: (items: CollectionUpdateArg<ConsumableData>) =>
       updateCollection("consumables", items),
-    updateRarities: (items: RarityData[]) =>
+    updateRarities: (items: CollectionUpdateArg<RarityData>) =>
       updateCollection("rarities", items),
-    updateConsumableSets: (items: ConsumableSetData[]) =>
+    updateConsumableSets: (items: CollectionUpdateArg<ConsumableSetData>) =>
       updateCollection("consumableSets", items),
-    updateDecks: (items: DeckData[]) => updateCollection("decks", items),
-    updateVouchers: (items: VoucherData[]) =>
+    updateDecks: (items: CollectionUpdateArg<DeckData>) =>
+      updateCollection("decks", items),
+    updateVouchers: (items: CollectionUpdateArg<VoucherData>) =>
       updateCollection("vouchers", items),
-    updateBoosters: (items: BoosterData[]) =>
+    updateBoosters: (items: CollectionUpdateArg<BoosterData>) =>
       updateCollection("boosters", items),
-    updateSeals: (items: SealData[]) => updateCollection("seals", items),
-    updateEditions: (items: EditionData[]) =>
+    updateSeals: (items: CollectionUpdateArg<SealData>) =>
+      updateCollection("seals", items),
+    updateEditions: (items: CollectionUpdateArg<EditionData>) =>
       updateCollection("editions", items),
-    updateEnhancements: (items: EnhancementData[]) =>
+    updateEnhancements: (items: CollectionUpdateArg<EnhancementData>) =>
       updateCollection("enhancements", items),
-    updateSounds: (items: SoundData[]) => updateCollection("sounds", items),
+    updateSounds: (items: CollectionUpdateArg<SoundData>) =>
+      updateCollection("sounds", items),
   };
 };
 

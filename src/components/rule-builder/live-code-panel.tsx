@@ -32,6 +32,7 @@ import { StreamLanguage } from "@codemirror/language";
 import { lua } from "@codemirror/legacy-modes/mode/lua";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { searchKeymap } from "@codemirror/search";
+import { linter, type Diagnostic } from "@codemirror/lint";
 import {
   autocompletion,
   acceptCompletion,
@@ -128,10 +129,10 @@ const editorTheme = EditorView.theme({
   },
   // Autocomplete tooltip styling
   ".cm-tooltip.cm-tooltip-autocomplete": {
-    backgroundColor: "hsl(var(--card))",
-    border: "1px solid hsl(var(--border))",
+    backgroundColor: "hsl(var(--card) / 1)",
+    border: "1px solid hsl(var(--border) / 0.9)",
     borderRadius: "8px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+    boxShadow: "0 10px 28px rgba(0,0,0,0.55)",
   },
   ".cm-tooltip.cm-tooltip-autocomplete > ul": {
     fontFamily:
@@ -141,10 +142,12 @@ const editorTheme = EditorView.theme({
     padding: "3px 8px",
   },
   ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": {
-    backgroundColor: "hsl(var(--primary) / 0.3)",
-    color: "hsl(var(--foreground))",
-    outline: "1px solid hsl(var(--primary) / 0.75)",
-    boxShadow: "inset 0 0 0 1px hsl(var(--primary) / 0.35)",
+    backgroundColor: "hsl(var(--primary) / 0.58)",
+    color: "hsl(var(--primary-foreground))",
+    outline: "2px solid hsl(var(--primary))",
+    boxShadow:
+      "inset 4px 0 0 hsl(var(--primary-foreground) / 0.95), inset 0 0 0 1px hsl(var(--primary) / 0.35)",
+    fontWeight: "700",
   },
   ".cm-completionLabel": {
     color: "hsl(var(--foreground))",
@@ -202,6 +205,167 @@ const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 24;
 const DEFAULT_FONT_SIZE = 12;
 const MAX_SEGMENT_LINE_DECORATIONS = 1200;
+
+const OPEN_BLOCK_RE = /(?:\{|\(|\[|(?:^|\s)(do|then|function|repeat)\s*)$/;
+const DEDENT_LINE_RE = /^\s*(?:end|until|else|elseif)\b/;
+const INCREASE_LINE_RE =
+  /^\s*(?:if\b.*\bthen\b|for\b.*\bdo\b|while\b.*\bdo\b|function\b|repeat\b|do\b|else\b|elseif\b)/;
+
+const getIndentUnit = (lineIndent: string): string => {
+  if (lineIndent.includes("\t")) return "\t";
+  return "  ";
+};
+
+const getCurrentLineIndent = (lineText: string): string => {
+  const match = lineText.match(/^\s*/);
+  return match?.[0] ?? "";
+};
+
+const getPreviousLineIndentContext = (
+  doc: EditorState["doc"],
+  lineNo: number,
+): { indent: string; unit: string } => {
+  for (let ln = lineNo - 1; ln >= 1; ln -= 1) {
+    const text = doc.line(ln).text;
+    if (!text.trim()) continue;
+    const indent = getCurrentLineIndent(text);
+    const unit = getIndentUnit(indent);
+    const inc = INCREASE_LINE_RE.test(text);
+    return { indent: inc ? indent + unit : indent, unit };
+  }
+  return { indent: "", unit: "  " };
+};
+
+const shouldIncreaseIndent = (beforeCursor: string): boolean => {
+  const trimmed = beforeCursor.trimEnd();
+  if (!trimmed) return false;
+  return OPEN_BLOCK_RE.test(trimmed);
+};
+
+const stripLuaStringsAndComments = (source: string): string => {
+  return source
+    .replace(/--\[\[[\s\S]*?\]\]/g, " ")
+    .replace(/--[^\n]*/g, " ")
+    .replace(/"(?:\\.|[^"\\])*"/g, '""')
+    .replace(/'(?:\\.|[^'\\])*'/g, "''");
+};
+
+const luaBasicLinter = linter((view) => {
+  const diagnostics: Diagnostic[] = [];
+  const text = view.state.doc.toString();
+  const clean = stripLuaStringsAndComments(text);
+
+  const openerToCloser: Record<string, string> = {
+    "(": ")",
+    "[": "]",
+    "{": "}",
+  };
+  const closerToOpener: Record<string, string> = {
+    ")": "(",
+    "]": "[",
+    "}": "{",
+  };
+
+  const delimStack: Array<{ ch: string; pos: number }> = [];
+  for (let i = 0; i < clean.length; i += 1) {
+    const ch = clean[i];
+    if (openerToCloser[ch]) {
+      delimStack.push({ ch, pos: i });
+      continue;
+    }
+    if (closerToOpener[ch]) {
+      const expectedOpen = closerToOpener[ch];
+      const top = delimStack[delimStack.length - 1];
+      if (!top || top.ch !== expectedOpen) {
+        diagnostics.push({
+          from: i,
+          to: i + 1,
+          severity: "error",
+          message: `Unexpected '${ch}'`,
+        });
+      } else {
+        delimStack.pop();
+      }
+    }
+  }
+  for (const unclosed of delimStack) {
+    diagnostics.push({
+      from: unclosed.pos,
+      to: unclosed.pos + 1,
+      severity: "error",
+      message: `Unclosed '${unclosed.ch}'`,
+    });
+  }
+
+  const blockTokenRe = /\b(function|if|for|while|do|repeat|end|until)\b/g;
+  const blockStack: Array<{ token: string; pos: number }> = [];
+  for (const match of clean.matchAll(blockTokenRe)) {
+    const token = match[1];
+    const pos = match.index ?? 0;
+    if (
+      token === "function" ||
+      token === "if" ||
+      token === "for" ||
+      token === "while" ||
+      token === "do" ||
+      token === "repeat"
+    ) {
+      blockStack.push({ token, pos });
+      continue;
+    }
+    if (token === "end") {
+      let matched = false;
+      for (let i = blockStack.length - 1; i >= 0; i -= 1) {
+        const t = blockStack[i].token;
+        if (t !== "repeat") {
+          blockStack.splice(i, 1);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        diagnostics.push({
+          from: pos,
+          to: pos + token.length,
+          severity: "error",
+          message: "Unexpected 'end'",
+        });
+      }
+      continue;
+    }
+    if (token === "until") {
+      let matched = false;
+      for (let i = blockStack.length - 1; i >= 0; i -= 1) {
+        if (blockStack[i].token === "repeat") {
+          blockStack.splice(i, 1);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        diagnostics.push({
+          from: pos,
+          to: pos + token.length,
+          severity: "error",
+          message: "Unexpected 'until' (missing matching 'repeat')",
+        });
+      }
+    }
+  }
+  for (const unclosed of blockStack) {
+    diagnostics.push({
+      from: unclosed.pos,
+      to: unclosed.pos + unclosed.token.length,
+      severity: "warning",
+      message:
+        unclosed.token === "repeat"
+          ? "Missing matching 'until'"
+          : `Missing matching 'end' for '${unclosed.token}' block`,
+    });
+  }
+
+  return diagnostics;
+});
 
 const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
   title,
@@ -387,7 +551,44 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
             key: "Enter",
             run: (view) => {
               if (completionStatus(view.state) !== "active") {
-                return false;
+                const { state } = view;
+                const selection = state.selection.main;
+                const line = state.doc.lineAt(selection.from);
+                const lineText = line.text;
+                const cursorInLine = selection.from - line.from;
+                const beforeCursor = lineText.slice(0, cursorInLine);
+                const lineIndent = getCurrentLineIndent(lineText);
+                const lineIsWhitespaceOnly = lineText.trim().length === 0;
+                const prevContext = getPreviousLineIndentContext(
+                  state.doc,
+                  line.number,
+                );
+                let baseIndent = lineIsWhitespaceOnly
+                  ? prevContext.indent
+                  : lineIndent;
+                if (DEDENT_LINE_RE.test(beforeCursor)) {
+                  const unit = getIndentUnit(baseIndent);
+                  if (baseIndent.endsWith(unit)) {
+                    baseIndent = baseIndent.slice(0, -unit.length);
+                  }
+                }
+                const extraIndent = shouldIncreaseIndent(beforeCursor)
+                  ? getIndentUnit(baseIndent || prevContext.unit)
+                  : "";
+                const insertText = `\n${baseIndent}${extraIndent}`;
+                const anchor = selection.from + insertText.length;
+
+                view.dispatch({
+                  changes: {
+                    from: selection.from,
+                    to: selection.to,
+                    insert: insertText,
+                  },
+                  selection: { anchor },
+                  scrollIntoView: true,
+                  userEvent: "input",
+                });
+                return true;
               }
               return acceptCompletion(view);
             },
@@ -427,6 +628,7 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
           activateOnTyping: true,
           maxRenderedOptions: 30,
         }),
+        luaBasicLinter,
         EditorState.allowMultipleSelections.of(true),
         readOnlyCompartment.of(EditorState.readOnly.of(!isEditable)),
         segmentHighlightField,

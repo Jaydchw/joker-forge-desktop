@@ -68,8 +68,10 @@ export default function SealsPage() {
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<SealData>) =>
-      updateSeals(applyItemUpdatesWithOrderSwap(data.seals, id, updates)),
-    [data.seals, updateSeals],
+      updateSeals((previous) =>
+        applyItemUpdatesWithOrderSwap(previous, id, updates),
+      ),
+    [updateSeals],
   );
 
   const handleInfoSave = useCallback(

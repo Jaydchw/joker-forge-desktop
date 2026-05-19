@@ -76,10 +76,10 @@ export default function EnhancementsPage() {
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<EnhancementData>) =>
-      updateEnhancements(
-        applyItemUpdatesWithOrderSwap(data.enhancements, id, updates),
+      updateEnhancements((previous) =>
+        applyItemUpdatesWithOrderSwap(previous, id, updates),
       ),
-    [data.enhancements, updateEnhancements],
+    [updateEnhancements],
   );
 
   const handleInfoSave = useCallback(

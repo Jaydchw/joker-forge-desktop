@@ -572,6 +572,129 @@ const ALL_COMPLETIONS: Completion[] = [
   ...BALATRO_HELPERS,
 ];
 
+const SMODS_LSP_BASE_PATH = "/other/smods-main/lsp_def";
+const SMODS_LSP_FILES = [
+  "smods_core.lua",
+  "vanilla.lua",
+  "ui.lua",
+  "utils.lua",
+  "classes/achievement.lua",
+  "classes/atlas.lua",
+  "classes/back.lua",
+  "classes/blind.lua",
+  "classes/booster.lua",
+  "classes/center.lua",
+  "classes/challenge.lua",
+  "classes/consumable.lua",
+  "classes/consumable_type.lua",
+  "classes/deck_skin.lua",
+  "classes/draw_step.lua",
+  "classes/dynatexteffect.lua",
+  "classes/edition.lua",
+  "classes/enhancement.lua",
+  "classes/font.lua",
+  "classes/game_object.lua",
+  "classes/gradient.lua",
+  "classes/jimbo_quip.lua",
+  "classes/joker.lua",
+  "classes/keybind.lua",
+  "classes/language.lua",
+  "classes/object_type.lua",
+  "classes/poker_hand.lua",
+  "classes/rank.lua",
+  "classes/rarity.lua",
+  "classes/scoring_calculation.lua",
+  "classes/screenshader.lua",
+  "classes/seal.lua",
+  "classes/shader.lua",
+  "classes/sound.lua",
+  "classes/stake.lua",
+  "classes/sticker.lua",
+  "classes/suit.lua",
+  "classes/tag.lua",
+  "classes/undiscovered_sprite.lua",
+  "classes/voucher.lua",
+];
+
+let smodsLspCompletionsCache: Completion[] | null = null;
+let smodsLspLoadPromise: Promise<Completion[]> | null = null;
+
+const CLASS_RE = /---@class\s+([A-Za-z0-9_.:]+)/g;
+const FIELD_RE = /---@field\s+([A-Za-z0-9_]+)\??\s+/g;
+const FN_RE = /function\s+((?:SMODS|G)\.[A-Za-z0-9_.:]+)\s*\(/g;
+
+function parseSmodsLspDoc(source: string): Completion[] {
+  const out: Completion[] = [];
+  const seen = new Set<string>();
+
+  const push = (label: string, type: Completion["type"], detail?: string) => {
+    if (!label || seen.has(label)) return;
+    seen.add(label);
+    out.push({ label, type, detail });
+  };
+
+  for (const match of source.matchAll(CLASS_RE)) {
+    const className = match[1];
+    push(className, "class", "SMODS LSP");
+  }
+
+  const classMatches = Array.from(source.matchAll(CLASS_RE));
+  for (let i = 0; i < classMatches.length; i += 1) {
+    const classMatch = classMatches[i];
+    const className = classMatch[1];
+    const start = classMatch.index ?? 0;
+    const end = classMatches[i + 1]?.index ?? source.length;
+    const classChunk = source.slice(start, end);
+    FIELD_RE.lastIndex = 0;
+    for (const fieldMatch of classChunk.matchAll(FIELD_RE)) {
+      const fieldName = fieldMatch[1];
+      if (className.includes(".")) {
+        push(`${className}.${fieldName}`, "property", "SMODS LSP");
+      }
+    }
+  }
+
+  for (const fnMatch of source.matchAll(FN_RE)) {
+    const fnName = fnMatch[1];
+    push(fnName, "function", "SMODS LSP");
+  }
+
+  return out;
+}
+
+async function loadSmodsLspCompletions(): Promise<Completion[]> {
+  if (smodsLspCompletionsCache) return smodsLspCompletionsCache;
+  if (smodsLspLoadPromise) return smodsLspLoadPromise;
+
+  smodsLspLoadPromise = (async () => {
+    const docs = await Promise.allSettled(
+      SMODS_LSP_FILES.map(async (filePath) => {
+        const response = await fetch(`${SMODS_LSP_BASE_PATH}/${filePath}`);
+        if (!response.ok) {
+          throw new Error(`Failed to load ${filePath}`);
+        }
+        return response.text();
+      }),
+    );
+
+    const completions: Completion[] = [];
+    const seen = new Set<string>();
+    for (const result of docs) {
+      if (result.status !== "fulfilled") continue;
+      for (const completion of parseSmodsLspDoc(result.value)) {
+        if (seen.has(completion.label)) continue;
+        seen.add(completion.label);
+        completions.push(completion);
+      }
+    }
+
+    smodsLspCompletionsCache = completions;
+    return completions;
+  })();
+
+  return smodsLspLoadPromise;
+}
+
 // Dynamic document tokens, scan current code for identifiers
 
 // Matches dotted identifiers like card.ability.extra.dollars0
@@ -624,9 +747,57 @@ function extractDocumentTokens(state: EditorState): Completion[] {
 // Match word characters and dots (for G.GAME.dollars, SMODS.Joker, etc.)
 const WORD_RE = /[\w.]+$/;
 
-export function luaSmodsCompletions(
+const PARAM_SPLIT_RE = /\s*[,|]\s*/;
+
+function buildFunctionApplyText(detail?: string): string {
+  if (!detail || !detail.startsWith("(")) return "()";
+  const signaturePart = detail.split("→")[0]?.trim();
+  if (!signaturePart?.startsWith("(")) return "()";
+
+  const closeIdx = signaturePart.lastIndexOf(")");
+  const inner =
+    closeIdx > 0
+      ? signaturePart.slice(1, closeIdx).trim()
+      : signaturePart.slice(1).trim();
+
+  if (!inner || inner === "..." || inner === "[]") return "()";
+
+  const params = inner
+    .split(PARAM_SPLIT_RE)
+    .map((param) =>
+      param
+        .replace(/^\[|\]$/g, "")
+        .replace(/\?$/g, "")
+        .trim(),
+    )
+    .filter(Boolean);
+
+  if (params.length === 0) return "()";
+  return `(${params.join(", ")})`;
+}
+
+function withFunctionApply(completion: Completion): Completion {
+  if (completion.type !== "function") return completion;
+  const applySuffix = buildFunctionApplyText(completion.detail);
+  return {
+    ...completion,
+    apply: (view, _completion, from, to) => {
+      const insertText = `${completion.label}${applySuffix}`;
+      const cursorOffset = completion.detail ? 0 : -1;
+      const anchor = from + insertText.length + cursorOffset;
+      view.dispatch({
+        changes: { from, to, insert: insertText },
+        selection: { anchor },
+        scrollIntoView: true,
+        userEvent: "input.complete",
+      });
+    },
+  };
+}
+
+export async function luaSmodsCompletions(
   context: CompletionContext,
-): CompletionResult | null {
+): Promise<CompletionResult | null> {
   const word = context.matchBefore(WORD_RE);
   if (!word) return null;
   // Only activate after at least 2 characters or explicit request
@@ -637,7 +808,8 @@ export function luaSmodsCompletions(
 
   // Combine static + dynamic document completions
   const docTokens = extractDocumentTokens(context.state);
-  let candidates = [...ALL_COMPLETIONS, ...docTokens];
+  const lspTokens = await loadSmodsLspCompletions();
+  let candidates = [...ALL_COMPLETIONS, ...lspTokens, ...docTokens];
 
   // If typing after a dot, narrow to relevant property completions
   if (prefix.includes(".")) {
@@ -653,7 +825,7 @@ export function luaSmodsCompletions(
 
   return {
     from: word.from,
-    options: candidates,
+    options: candidates.map(withFunctionApply),
     validFor: WORD_RE,
   };
 }

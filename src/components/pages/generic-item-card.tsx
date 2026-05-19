@@ -11,6 +11,7 @@ import {
   CurrencyDollar,
   Image,
   PaintBrush,
+  Sparkle,
   Trash,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,7 @@ interface GenericItemCardProps {
   editableImageSrc?: string;
   showPlaceholderPickerButton?: boolean;
   onOpenPlaceholderPicker?: () => void;
+  hasManualEdits?: boolean;
 }
 
 const extractFirstImageSrc = (node: ReactNode): string | undefined => {
@@ -134,6 +136,7 @@ export const GenericItemCard = memo(function GenericItemCard({
   imageLayers,
   showPlaceholderPickerButton = false,
   onOpenPlaceholderPicker,
+  hasManualEdits = false,
 }: GenericItemCardProps) {
   const isReadOnly = reforged;
   const resolvedEditableImageSrc =
@@ -500,30 +503,46 @@ export const GenericItemCard = memo(function GenericItemCard({
           )}
 
           <div className="flex-1 min-w-0 overflow-hidden">
-            {editingField === "name" ? (
-              <input
-                ref={inputRef as React.RefObject<HTMLInputElement>}
-                type="text"
-                value={tempValue}
-                onChange={(e) => setTempValue(e.target.value)}
-                onBlur={saveEdit}
-                onKeyDown={handleKeyDown}
-                className="text-3xl font-bold tracking-tight text-foreground bg-transparent border-none p-0 outline-none focus:outline-none w-full"
-              />
-            ) : (
-              <h3
-                className={cn(
-                  "text-3xl font-bold tracking-tight text-foreground truncate block w-full max-w-full transition-opacity select-none",
-                  isReadOnly
-                    ? "cursor-default"
-                    : "cursor-pointer hover:opacity-70",
-                )}
-                onClick={isReadOnly ? undefined : () => startEdit("name", name)}
-                title={name}
-              >
-                {name}
-              </h3>
-            )}
+            <div className="flex items-center gap-2 min-w-0">
+              {editingField === "name" ? (
+                <input
+                  ref={inputRef as React.RefObject<HTMLInputElement>}
+                  type="text"
+                  value={tempValue}
+                  onChange={(e) => setTempValue(e.target.value)}
+                  onBlur={saveEdit}
+                  onKeyDown={handleKeyDown}
+                  className="text-3xl font-bold tracking-tight text-foreground bg-transparent border-none p-0 outline-none focus:outline-none w-full"
+                />
+              ) : (
+                <h3
+                  className={cn(
+                    "text-3xl font-bold tracking-tight text-foreground truncate block w-full max-w-full transition-opacity select-none",
+                    isReadOnly
+                      ? "cursor-default"
+                      : "cursor-pointer hover:opacity-70",
+                  )}
+                  onClick={
+                    isReadOnly ? undefined : () => startEdit("name", name)
+                  }
+                  title={name}
+                >
+                  {name}
+                </h3>
+              )}
+              {hasManualEdits && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="shrink-0 inline-flex items-center justify-center rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/35 p-1">
+                      <Sparkle className="h-3 w-3" weight="fill" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="font-bold">
+                    Has manual code edits
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           </div>
         </div>
 

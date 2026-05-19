@@ -72,8 +72,10 @@ export default function DecksPage() {
 
   const handleUpdate = useCallback(
     (id: string, updates: Partial<DeckData>) =>
-      updateDecks(applyItemUpdatesWithOrderSwap(data.decks, id, updates)),
-    [data.decks, updateDecks],
+      updateDecks((previous) =>
+        applyItemUpdatesWithOrderSwap(previous, id, updates),
+      ),
+    [updateDecks],
   );
 
   const handleInfoSave = useCallback(

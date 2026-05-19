@@ -78,11 +78,11 @@ export default function VouchersPage() {
             ? false
             : updates.draw_shader_sprite,
       };
-      updateVouchers(
-        applyItemUpdatesWithOrderSwap(data.vouchers, id, normalizedUpdates),
+      updateVouchers((previous) =>
+        applyItemUpdatesWithOrderSwap(previous, id, normalizedUpdates),
       );
     },
-    [data.vouchers, updateVouchers],
+    [updateVouchers],
   );
 
   const handleInfoSave = useCallback(
@@ -249,6 +249,7 @@ export default function VouchersPage() {
         idValue={item.orderValue}
         imageLayers={item.imageLayers}
         overlayImage={item.overlayImage}
+        hasManualEdits={Boolean((item as { customCode?: unknown }).customCode)}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
         onDuplicate={() => {
           const duplicatedItem: VoucherData = {

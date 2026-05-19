@@ -482,6 +482,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     null,
   );
   const customCodeRef = useRef(customCode);
+  const pendingEditorCodeRef = useRef<string | null>(null);
   customCodeRef.current = customCode;
   const globalUserVariables = useMemo(
     () => collectGlobalVariables(data).map((entry) => entry.variable),
@@ -648,6 +649,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const handleCodeChange = useCallback(
     (newCode: string) => {
       if (!lastGeneratedCleanRef.current) return;
+      pendingEditorCodeRef.current = newCode;
 
       // Keep the displayed snippet in sync so the external-update effect
       // in LiveCodePanel doesn't overwrite the user's edits on re-render.
@@ -671,6 +673,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
         setCustomCode(newCustomCode);
         onUpdateItem({ customCode: newCustomCode });
+        pendingEditorCodeRef.current = null;
       }, 300);
     },
     [onUpdateItem],
@@ -682,6 +685,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       clearTimeout(customCodeDebounceRef.current);
     }
     setCustomCode(undefined);
+    pendingEditorCodeRef.current = null;
     onUpdateItem({ customCode: undefined });
     if (lastGeneratedCleanRef.current) {
       setLiveCodeSnippet(lastGeneratedCleanRef.current);
@@ -3921,10 +3925,14 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
         let displayCode = freshClean || "-- no snippet output";
 
-        // If user has custom code, merge with the new generation
-        if (customCodeRef.current?.fullCode) {
+        const pendingEditorCode = pendingEditorCodeRef.current;
+        const savedCustomCode = customCodeRef.current?.fullCode;
+        const editableCurrentCode = pendingEditorCode ?? savedCustomCode;
+
+        // If user has custom code (persisted or pending in-editor), merge with the new generation
+        if (editableCurrentCode) {
           const oldSegments =
-            customCodeRef.current.segments ?? lastSegmentsRef.current;
+            customCodeRef.current?.segments ?? lastSegmentsRef.current;
 
           // On first load (no previous generation yet), use saved
           // lastGeneratedCode from the custom code state for comparison.
@@ -3932,15 +3940,16 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           // just display the user's saved code directly.
           const prevClean =
             lastGeneratedCleanRef.current ||
-            customCodeRef.current.lastGeneratedCode;
+            customCodeRef.current?.lastGeneratedCode ||
+            freshClean;
 
           if (prevClean === freshClean) {
             // Nothing changed in generation, show user's code as-is
-            displayCode = customCodeRef.current.fullCode;
+            displayCode = editableCurrentCode;
           } else if (oldSegments.length > 0) {
             try {
               displayCode = mergeWithGeneratedSegments(
-                customCodeRef.current.fullCode,
+                editableCurrentCode,
                 prevClean,
                 oldSegments,
                 freshClean,
@@ -3961,7 +3970,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
             }
           } else {
             // No section info available, show user's saved code
-            displayCode = customCodeRef.current.fullCode;
+            displayCode = editableCurrentCode;
           }
         }
 

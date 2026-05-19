@@ -91,8 +91,10 @@ export default function JokersPage() {
   // 2. Stable Handlers
   const handleUpdate = useCallback(
     (id: string, updates: Partial<JokerData>) =>
-      updateJokers(applyItemUpdatesWithOrderSwap(data.jokers, id, updates)),
-    [data.jokers, updateJokers],
+      updateJokers((previous) =>
+        applyItemUpdatesWithOrderSwap(previous, id, updates),
+      ),
+    [updateJokers],
   );
 
   const handleInfoSave = useCallback(
@@ -315,6 +317,7 @@ export default function JokersPage() {
         rarity={joker.rarity}
         imageLayers={joker.imageLayers}
         overlayImage={joker.overlayImage}
+        hasManualEdits={Boolean((joker as { customCode?: unknown }).customCode)}
         onUpdate={(updates) => handleUpdate(joker.id, updates)}
         onDuplicate={() => {
           const duplicatedJoker: JokerData = {
