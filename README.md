@@ -70,6 +70,38 @@ npm run build-nightly
 
 Both commands automatically prepare the correct channel identity and version before invoking `tauri build`. The nightly build uses a `-nightly.local` version suffix. In CI, the nightly version is injected via the `RELEASE_VERSION` environment variable.
 
+## Terminal Code Generation Command
+
+You can compile one item payload to Lua directly from terminal:
+
+```bash
+npm run codegen:item -- --json '<payload-json>'
+```
+
+or
+
+```bash
+npm run codegen:item -- --json-file ./payload.json
+```
+
+Payload shape:
+
+```json
+{
+  "itemType": "joker",
+  "itemData": {},
+  "modPrefix": "mod",
+  "includeLocTxt": true,
+  "pos": { "x": 0, "y": 0 },
+  "soulPos": { "x": 0, "y": 0 },
+  "globalUserVariables": []
+}
+```
+
+- `itemType` supports: `joker`, `consumable`, `voucher`, `deck`, `enhancement`, `seal`, `edition`
+- `itemData` must match the normal item data shape used by the app for that item type
+- `pos`, `soulPos`, and `globalUserVariables` are optional
+
 ## Versioning
 
 - Global app version lives in `app-version.json` — this is the single source of truth.

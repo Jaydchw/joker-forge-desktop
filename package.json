@@ -15,6 +15,7 @@
     "build-nightly": "npm run prepare:nightly && npx tauri build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "codegen:item": "cargo run --manifest-path src-tauri/Cargo.toml -- codegen-item",
     "reset": "npm run prepare:stable"
   },
   "dependencies": {
