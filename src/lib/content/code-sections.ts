@@ -28,6 +28,30 @@ const lineColToIndex = (
   return Math.min(codeLength, Math.max(0, lineStart + Math.max(0, column - 1)));
 };
 
+const indexToLineCol = (
+  offsets: number[],
+  index: number,
+): { line: number; column: number } => {
+  let low = 0;
+  let high = offsets.length - 1;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const start = offsets[mid];
+    const next = offsets[mid + 1] ?? Number.POSITIVE_INFINITY;
+    if (index < start) {
+      high = mid - 1;
+      continue;
+    }
+    if (index >= next) {
+      low = mid + 1;
+      continue;
+    }
+    return { line: mid + 1, column: index - start + 1 };
+  }
+  const last = Math.max(0, offsets.length - 1);
+  return { line: last + 1, column: 1 };
+};
+
 interface SegmentRange {
   id: string;
   start: number;
@@ -128,4 +152,56 @@ export function mergeWithGeneratedSegments(
   }
 
   return merged;
+}
+
+export function remapSegmentsToCode(
+  displayCode: string,
+  generatedCode: string,
+  generatedSegments: CodeSegment[],
+): CodeSegment[] {
+  if (!displayCode || !generatedCode || generatedSegments.length === 0) {
+    return generatedSegments;
+  }
+
+  const generatedRanges = toRanges(generatedCode, generatedSegments);
+  const displayOffsets = lineOffsets(displayCode);
+  const remapped: CodeSegment[] = [];
+  let searchFrom = 0;
+
+  for (let i = 0; i < generatedSegments.length; i += 1) {
+    const segment = generatedSegments[i];
+    const range = generatedRanges[i];
+    if (!range) {
+      remapped.push(segment);
+      continue;
+    }
+
+    const snippet = generatedCode.slice(range.start, range.end);
+    if (!snippet) {
+      remapped.push(segment);
+      continue;
+    }
+
+    const matchIndex = displayCode.indexOf(snippet, searchFrom);
+    if (matchIndex < 0) {
+      remapped.push(segment);
+      continue;
+    }
+
+    const start = indexToLineCol(displayOffsets, matchIndex);
+    const end = indexToLineCol(
+      displayOffsets,
+      Math.max(matchIndex, matchIndex + snippet.length - 1),
+    );
+    remapped.push({
+      ...segment,
+      startLine: start.line,
+      startColumn: start.column,
+      endLine: end.line,
+      endColumn: end.column,
+    });
+    searchFrom = matchIndex + snippet.length;
+  }
+
+  return remapped;
 }

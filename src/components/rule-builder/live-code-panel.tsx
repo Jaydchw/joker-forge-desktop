@@ -62,6 +62,7 @@ interface LiveCodePanelProps {
   segments?: CodeSegment[];
   selectedSegmentId?: string;
   hoveredSegmentId?: string;
+  conditionClauseIndexBySegmentId?: Record<string, number>;
 }
 
 // Theme that inherits the panel background (transparent)
@@ -169,6 +170,15 @@ const editorTheme = EditorView.theme({
   ".cm-line.jf-segment-selected-line": {
     backgroundColor: "rgba(34, 197, 94, 0.12) !important",
     boxShadow: "inset 2px 0 0 rgba(34, 197, 94, 0.62)",
+  },
+  ".cm-jf-segment-hover-range": {
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    borderRadius: "2px",
+  },
+  ".cm-jf-segment-selected-range": {
+    backgroundColor: "rgba(34, 197, 94, 0.2)",
+    boxShadow: "inset 0 0 0 1px rgba(34, 197, 94, 0.45)",
+    borderRadius: "2px",
   },
 });
 
@@ -384,6 +394,7 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
   segments: _segments,
   selectedSegmentId,
   hoveredSegmentId,
+  conditionClauseIndexBySegmentId = {},
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -485,6 +496,102 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
       return null;
     };
 
+    const splitTopLevelBooleanClauses = (
+      expr: string,
+    ): Array<{ start: number; end: number }> => {
+      const out: Array<{ start: number; end: number }> = [];
+      let depth = 0;
+      let clauseStart = 0;
+      let i = 0;
+      while (i < expr.length) {
+        const ch = expr[i];
+        if (ch === "(") {
+          depth += 1;
+          i += 1;
+          continue;
+        }
+        if (ch === ")") {
+          depth = Math.max(0, depth - 1);
+          i += 1;
+          continue;
+        }
+        if (depth === 0) {
+          const andMatch = expr.slice(i).match(/^(?:\s+)and(?:\s+)/);
+          const orMatch = expr.slice(i).match(/^(?:\s+)or(?:\s+)/);
+          const m = andMatch ?? orMatch;
+          if (m) {
+            out.push({ start: clauseStart, end: i });
+            clauseStart = i + m[0].length;
+            i += m[0].length;
+            continue;
+          }
+        }
+        i += 1;
+      }
+      out.push({ start: clauseStart, end: expr.length });
+      return out;
+    };
+
+    const trimOuterParens = (expr: string): { start: number; end: number } => {
+      let start = 0;
+      let end = expr.length;
+      while (start < end && /\s/.test(expr[start] ?? "")) start += 1;
+      while (end > start && /\s/.test(expr[end - 1] ?? "")) end -= 1;
+      let changed = true;
+      while (changed && end - start >= 2 && expr[start] === "(" && expr[end - 1] === ")") {
+        changed = false;
+        let depth = 0;
+        let wrapsWhole = true;
+        for (let i = start; i < end; i += 1) {
+          const ch = expr[i];
+          if (ch === "(") depth += 1;
+          else if (ch === ")") depth -= 1;
+          if (depth === 0 && i < end - 1) {
+            wrapsWhole = false;
+            break;
+          }
+        }
+        if (wrapsWhole) {
+          start += 1;
+          end -= 1;
+          while (start < end && /\s/.test(expr[start] ?? "")) start += 1;
+          while (end > start && /\s/.test(expr[end - 1] ?? "")) end -= 1;
+          changed = true;
+        }
+      }
+      return { start, end };
+    };
+
+    const splitBooleanAtoms = (
+      expr: string,
+      baseOffset = 0,
+    ): Array<{ start: number; end: number }> => {
+      const top = splitTopLevelBooleanClauses(expr);
+      if (top.length > 1) {
+        const out: Array<{ start: number; end: number }> = [];
+        for (const part of top) {
+          const piece = expr.slice(part.start, part.end);
+          out.push(...splitBooleanAtoms(piece, baseOffset + part.start));
+        }
+        return out;
+      }
+
+      const t = trimOuterParens(expr);
+      if (t.end <= t.start) return [];
+      const inner = expr.slice(t.start, t.end);
+      const innerTop = splitTopLevelBooleanClauses(inner);
+      if (innerTop.length > 1) {
+        const out: Array<{ start: number; end: number }> = [];
+        for (const part of innerTop) {
+          const piece = inner.slice(part.start, part.end);
+          out.push(...splitBooleanAtoms(piece, baseOffset + t.start + part.start));
+        }
+        return out;
+      }
+
+      return [{ start: baseOffset + t.start, end: baseOffset + t.end }];
+    };
+
     const ranges: Range<Decoration>[] = [];
     let targetedSegments = 0;
     let lineDecorationCount = 0;
@@ -499,30 +606,168 @@ const LiveCodePanel: React.FC<LiveCodePanelProps> = ({
       targetedSegments += 1;
 
       const startLine = numericField(segment, "startLine", "start_line");
+      const startColumn = numericField(segment, "startColumn", "start_column");
       const endLine = numericField(segment, "endLine", "end_line");
+      const endColumn = numericField(segment, "endColumn", "end_column");
       if (startLine === null || endLine === null) {
         continue;
       }
+      const segmentTypeRaw =
+        (segment as unknown as Record<string, unknown>).segmentType ??
+        (segment as unknown as Record<string, unknown>).segment_type;
+      const segmentType =
+        typeof segmentTypeRaw === "string" ? segmentTypeRaw : "";
 
       const normalizedStartLine = Math.max(1, Math.floor(startLine));
       const normalizedEndLine = Math.max(1, Math.floor(endLine));
+      const normalizedStartColumn = Math.max(
+        1,
+        Math.floor(startColumn ?? 1),
+      );
+      const normalizedEndColumn = Math.max(1, Math.floor(endColumn ?? 1));
 
       const maxLine = lineStarts.length;
       const fromLine = Math.max(1, Math.min(maxLine, normalizedStartLine));
       const toLine = Math.max(fromLine, Math.min(maxLine, normalizedEndLine));
-      for (let line = fromLine; line <= toLine; line += 1) {
-        if (lineDecorationCount >= MAX_SEGMENT_LINE_DECORATIONS) {
-          break;
+
+      const fromLineStart = lineStarts[fromLine - 1];
+      const afterToLineStart =
+        toLine < maxLine ? lineStarts[toLine] : displayCode.length;
+      if (fromLineStart === undefined || afterToLineStart === undefined) {
+        continue;
+      }
+
+      const fromIndex = Math.min(
+        displayCode.length,
+        Math.max(0, fromLineStart + (normalizedStartColumn - 1)),
+      );
+      const toLineStart = lineStarts[toLine - 1] ?? fromLineStart;
+      const toIndexInclusive = Math.min(
+        displayCode.length,
+        Math.max(0, toLineStart + (normalizedEndColumn - 1)),
+      );
+      const toIndex = Math.max(fromIndex + 1, toIndexInclusive + 1);
+      let clippedFromIndex = fromIndex;
+      let clippedToIndex = Math.min(afterToLineStart, toIndex);
+
+      if (segmentType === "condition") {
+        const clauseIndex = Math.max(
+          0,
+          conditionClauseIndexBySegmentId[segment.id] ?? 0,
+        );
+        const searchLineStart = Math.max(1, fromLine - 2);
+        const searchLineEnd = Math.min(maxLine, fromLine + 4);
+        let bestClauseRange: { start: number; end: number; score: number } | null = null;
+        for (let ln = searchLineStart; ln <= searchLineEnd; ln += 1) {
+          const ls = lineStarts[ln - 1];
+          const le = ln < maxLine ? lineStarts[ln] - 1 : displayCode.length;
+          if (ls === undefined || le <= ls) continue;
+          const lineText = displayCode.slice(ls, le);
+          const ifPos = lineText.indexOf("if ");
+          const elseifPos = lineText.indexOf("elseif ");
+          const thenPos = lineText.lastIndexOf(" then");
+          const headPos = ifPos >= 0 ? ifPos + 3 : elseifPos >= 0 ? elseifPos + 7 : -1;
+          if (headPos < 0 || thenPos <= headPos) continue;
+          const expr = lineText.slice(headPos, thenPos);
+          const trimmedExpr = expr.trim();
+          const isTriggerContextGate =
+            /^context\./.test(trimmedExpr) || /\bcontext\.[a-zA-Z_]/.test(trimmedExpr);
+          const lineTrimmed = lineText.trim();
+          const isReturnRegionLine =
+            /\breturn\b/.test(lineTrimmed) ||
+            /\bextra\s*=\s*\{/.test(lineTrimmed) ||
+            /\bmessage\s*=/.test(lineTrimmed) ||
+            /\bjf_/.test(lineTrimmed);
+          const distancePenalty = Math.abs(ln - fromLine) * 100;
+          const booleanHint = /\band\b|\bor\b/.test(trimmedExpr) ? 20 : 0;
+          const atoms = splitBooleanAtoms(expr);
+          const target = atoms[Math.min(clauseIndex, atoms.length - 1)];
+          if (!target) continue;
+          const score =
+            booleanHint -
+            distancePenalty -
+            (isTriggerContextGate ? 120 : 0) -
+            (isReturnRegionLine ? 400 : 0);
+          const candidate = {
+            start: ls + headPos + target.start,
+            end: ls + headPos + target.end,
+            score,
+          };
+          if (!bestClauseRange || candidate.score > bestClauseRange.score) {
+            bestClauseRange = candidate;
+          }
         }
-        const lineStart = lineStarts[line - 1];
-        if (lineStart === undefined) continue;
-        ranges.push(Decoration.line({ class: lineClass }).range(lineStart));
-        lineDecorationCount += 1;
+        if (bestClauseRange) {
+          clippedFromIndex = bestClauseRange.start;
+          clippedToIndex = bestClauseRange.end;
+        }
+      }
+
+      // Trim leading/trailing whitespace so we only highlight text.
+      while (
+        clippedFromIndex < clippedToIndex &&
+        /\s/.test(displayCode[clippedFromIndex] ?? "")
+      ) {
+        clippedFromIndex += 1;
+      }
+      while (
+        clippedToIndex > clippedFromIndex &&
+        /\s/.test(displayCode[clippedToIndex - 1] ?? "")
+      ) {
+        clippedToIndex -= 1;
+      }
+
+      if (clippedFromIndex >= clippedToIndex) {
+        continue;
+      }
+
+      const startLineIdx = (() => {
+        let idx = 0;
+        while (idx + 1 < lineStarts.length && lineStarts[idx + 1] <= clippedFromIndex) {
+          idx += 1;
+        }
+        return idx + 1;
+      })();
+      const endLineIdx = (() => {
+        let idx = 0;
+        const inclusiveEnd = Math.max(clippedFromIndex, clippedToIndex - 1);
+        while (idx + 1 < lineStarts.length && lineStarts[idx + 1] <= inclusiveEnd) {
+          idx += 1;
+        }
+        return idx + 1;
+      })();
+
+      if (lineDecorationCount < MAX_SEGMENT_LINE_DECORATIONS) {
+        if (startLineIdx === endLineIdx) {
+          ranges.push(
+            Decoration.mark({
+              class:
+                lineClass === "jf-segment-selected-line"
+                  ? "cm-jf-segment-selected-range"
+                  : "cm-jf-segment-hover-range",
+            }).range(clippedFromIndex, clippedToIndex),
+          );
+          lineDecorationCount += 1;
+        } else {
+          for (let line = startLineIdx; line <= endLineIdx; line += 1) {
+            if (lineDecorationCount >= MAX_SEGMENT_LINE_DECORATIONS) break;
+            const lineStart = lineStarts[line - 1];
+            if (lineStart === undefined) continue;
+            ranges.push(Decoration.line({ class: lineClass }).range(lineStart));
+            lineDecorationCount += 1;
+          }
+        }
       }
     }
 
     return Decoration.set(ranges, true);
-  }, [displayCode, hoveredSegmentId, segments, selectedSegmentId]);
+  }, [
+    conditionClauseIndexBySegmentId,
+    displayCode,
+    hoveredSegmentId,
+    segments,
+    selectedSegmentId,
+  ]);
 
   // Create editor on mount
   useEffect(() => {

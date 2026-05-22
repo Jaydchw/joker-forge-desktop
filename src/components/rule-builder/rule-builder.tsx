@@ -54,6 +54,7 @@ import {
 } from "@/lib/export/rust-codegen-export";
 import {
   mergeWithGeneratedSegments,
+  remapSegmentsToCode,
   type CodeSegment,
 } from "@/lib/content/code-sections";
 import type { CustomCodeState } from "@/lib/core/types";
@@ -3623,6 +3624,20 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const hoveredSegmentId =
     segmentIdFromContextTarget(hoveredContextTarget) ?? selectedSegmentId;
 
+  const conditionClauseIndexBySegmentId = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const rule of rules) {
+      let clauseIndex = 0;
+      for (const group of rule.conditionGroups || []) {
+        for (const condition of group.conditions || []) {
+          out[`condition:${rule.id}:${condition.id}`] = clauseIndex;
+          clauseIndex += 1;
+        }
+      }
+    }
+    return out;
+  }, [rules]);
+
   const contextTargetTitle =
     contextTarget.type === "canvas"
       ? "Canvas"
@@ -3961,7 +3976,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
               const mergedCustom: CustomCodeState = {
                 fullCode: displayCode,
                 lastGeneratedCode: freshClean,
-                segments: freshSegments,
+                segments: remapSegmentsToCode(
+                  displayCode,
+                  freshClean,
+                  freshSegments,
+                ),
               };
               setCustomCode(mergedCustom);
               onUpdateItem({ customCode: mergedCustom });
@@ -3974,8 +3993,14 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           }
         }
 
+        const displaySegments = remapSegmentsToCode(
+          displayCode,
+          freshClean,
+          freshSegments,
+        );
+
         lastGeneratedCleanRef.current = freshClean;
-        lastSegmentsRef.current = freshSegments;
+        lastSegmentsRef.current = displaySegments;
 
         setLiveCodeSnippet(displayCode);
         setLiveCodeStatusMessage(
@@ -4735,6 +4760,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                     ruleBuilderSettings.enableLiveCodeHighlighting
                       ? hoveredSegmentId
                       : undefined
+                  }
+                  conditionClauseIndexBySegmentId={
+                    conditionClauseIndexBySegmentId
                   }
                 />
               )}
