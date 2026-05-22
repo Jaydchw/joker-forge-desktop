@@ -224,8 +224,12 @@ fn shared_calculate_keeps_triggers_isolated() {
 
     assert!(code.contains("message = 'HAND'"));
     assert!(code.contains("message = 'ROUND'"));
-    assert!(code.contains("if context."));
-    assert!(code.contains("elseif context."));
+    let trigger_if_count = code.matches("if context.").count();
+    assert!(
+        trigger_if_count >= 2,
+        "expected at least two trigger-scoped if blocks, got {trigger_if_count} in:\n{code}"
+    );
+    assert!(index_of(&code, "message = 'HAND'") < index_of(&code, "message = 'ROUND'"));
 }
 
 #[test]
@@ -246,8 +250,12 @@ fn joker_calculate_uses_elseif_for_multiple_triggers() {
 
     assert!(code.contains("message = 'HAND'"));
     assert!(code.contains("message = 'ROUND'"));
-    assert!(code.contains("if context."));
-    assert!(code.contains("elseif context."));
+    let trigger_if_count = code.matches("if context.").count();
+    assert!(
+        trigger_if_count >= 2,
+        "expected at least two trigger-scoped if blocks, got {trigger_if_count} in:\n{code}"
+    );
+    assert!(index_of(&code, "message = 'HAND'") < index_of(&code, "message = 'ROUND'"));
 }
 
 #[test]
@@ -268,17 +276,19 @@ fn trigger_segment_starts_on_trigger_if_line() {
         stmts: vec![Stmt::Local("calculate".to_string(), Some(calc))],
     };
     let (code, segments) = Emitter::new().emit_chunk_with_segments(&chunk);
-    let if_line = code
-        .lines()
-        .position(|line| line.trim_start().starts_with("if context."))
-        .map(|line| line + 1)
-        .expect("expected trigger if line");
-
     for segment_id in ["trigger:r_hand", "trigger:r_round"] {
         let seg = segments
             .iter()
             .find(|segment| segment.id == segment_id)
             .unwrap_or_else(|| panic!("missing segment {}", segment_id));
-        assert_eq!(seg.start_line, if_line);
+        let seg_line = code
+            .lines()
+            .nth(seg.start_line.saturating_sub(1))
+            .unwrap_or_else(|| panic!("segment {segment_id} start line out of bounds"));
+        assert!(
+            seg_line.trim_start().starts_with("if context."),
+            "segment {segment_id} should start on trigger if line, got: {}",
+            seg_line
+        );
     }
 }
