@@ -128,9 +128,10 @@ pub fn compile_condition(
 
 /// Compile a full condition chain from condition groups.
 ///
-/// Groups are ANDed together. Within each group: conditions are joined
-/// by the group's logic operator (AND or OR). Numeric parameters in
-/// conditions are registered in `config.extra` via the compile context.
+/// Within each group, conditions are joined by per-condition operators
+/// (falling back to the group operator). Between groups, the operator
+/// is taken from the *preceding* group, matching the rule-builder UI
+/// where the toggle appears between group blocks.
 pub fn compile_condition_chain(
     groups: &[ConditionGroupDef],
     object_type: ObjectType,
@@ -140,16 +141,29 @@ pub fn compile_condition_chain(
         return None;
     }
 
-    let group_exprs: Vec<Expr> = groups
+    let compiled_groups: Vec<(Expr, LogicOp)> = groups
         .iter()
-        .filter_map(|group| compile_condition_group(group, object_type, ctx))
+        .filter_map(|group| {
+            compile_condition_group(group, object_type, ctx)
+                .map(|expr| (expr, group.logic_operator))
+        })
         .collect();
 
-    if group_exprs.is_empty() {
+    if compiled_groups.is_empty() {
         return None;
     }
 
-    Some(lua_and_chain(group_exprs))
+    let mut iter = compiled_groups.into_iter();
+    let (mut combined, mut pending_group_op) = iter.next()?;
+    for (next_expr, next_group_op) in iter {
+        combined = match pending_group_op {
+            LogicOp::And => lua_and(combined, next_expr),
+            LogicOp::Or => lua_or(combined, next_expr),
+        };
+        pending_group_op = next_group_op;
+    }
+
+    Some(combined)
 }
 
 /// Compile a single condition group.

@@ -689,7 +689,6 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
         }
     }
 
-    let mut trigger_branches: Vec<(Expr, Vec<Stmt>)> = Vec::new();
     for trigger in &triggers_seen {
         let rules_for_trigger: Vec<&RuleOutput> = non_passive
             .iter()
@@ -733,19 +732,12 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
         });
 
         if !trigger_body.is_empty() {
-            trigger_branches.push((trigger_ctx, trigger_body));
+            let trigger_if = Stmt::If {
+                branches: vec![(trigger_ctx, trigger_body)],
+                else_body: None,
+            };
+            body.extend(wrap_trigger_stmt_for_rules(&rules_for_trigger, trigger_if));
         }
-    }
-
-    if !trigger_branches.is_empty() {
-        let trigger_if = Stmt::If {
-            branches: trigger_branches,
-            else_body: None,
-        };
-        body.extend(wrap_trigger_stmt_for_rules(
-            &non_passive,
-            trigger_if,
-        ));
     }
 
     if body.is_empty() {
@@ -1401,7 +1393,6 @@ pub(crate) fn build_shared_calculate_function(
         }
     }
 
-    let mut trigger_branches: Vec<(Expr, Vec<Stmt>)> = Vec::new();
     for trigger in &triggers_seen {
         let rules_for_trigger: Vec<&RuleOutput> = non_passive
             .iter()
@@ -1417,19 +1408,12 @@ pub(crate) fn build_shared_calculate_function(
         });
 
         if !trigger_body.is_empty() {
-            trigger_branches.push((trigger_ctx, trigger_body));
+            let trigger_if = Stmt::If {
+                branches: vec![(trigger_ctx, trigger_body)],
+                else_body: None,
+            };
+            body.extend(wrap_trigger_stmt_for_rules(&rules_for_trigger, trigger_if));
         }
-    }
-
-    if !trigger_branches.is_empty() {
-        let trigger_if = Stmt::If {
-            branches: trigger_branches,
-            else_body: None,
-        };
-        body.extend(wrap_trigger_stmt_for_rules(
-            &non_passive,
-            trigger_if,
-        ));
     }
 
     if body.is_empty() {
