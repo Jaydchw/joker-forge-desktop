@@ -100,7 +100,6 @@ import HelpTooltipIcon from "@/components/ui/help-tooltip-icon";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import ItemTypeBadge from "./item-type-badge";
 import { CustomContextMenu, type ContextMenuGroupConfig } from "@/components/ui/custom-context-menu";
-import { cn } from "@/lib/core/utils";
 import {
   getRuleBuilderSettings,
   setRuleBuilderSettings,
@@ -649,7 +648,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   // Handle user edits in the code editor (debounced auto-save)
   const handleCodeChange = useCallback(
     (newCode: string) => {
-      if (!lastGeneratedCleanRef.current) return;
       pendingEditorCodeRef.current = newCode;
 
       // Keep the displayed snippet in sync so the external-update effect
@@ -661,13 +659,14 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       }
 
       customCodeDebounceRef.current = setTimeout(() => {
+        const baselineCode = lastGeneratedCleanRef.current || liveCodeSnippet;
         const hasChanges =
-          newCode.trim() !== lastGeneratedCleanRef.current.trim();
+          newCode.trim() !== baselineCode.trim();
 
         const newCustomCode: CustomCodeState | undefined = hasChanges
           ? {
               fullCode: newCode,
-              lastGeneratedCode: lastGeneratedCleanRef.current,
+              lastGeneratedCode: baselineCode,
               segments: lastSegmentsRef.current,
             }
           : undefined;
@@ -677,7 +676,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         pendingEditorCodeRef.current = null;
       }, 300);
     },
-    [onUpdateItem],
+    [liveCodeSnippet, onUpdateItem],
   );
 
   // Reset all custom code back to generated
@@ -1087,6 +1086,42 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       document.execCommand("copy");
     }
   }, [getLiveCodeSelectedText]);
+
+  const handleCopyItemJson = useCallback(async () => {
+    try {
+      const { image: _image, ...itemWithoutImage } = (item ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const formattedItemJson = JSON.stringify(itemWithoutImage, null, 2);
+      if (!formattedItemJson) {
+        pushGlobalAlert({
+          type: "danger",
+          title: "Copy Failed",
+          message: "Unable to serialize item JSON.",
+        });
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(formattedItemJson);
+      } catch {
+        document.execCommand("copy");
+      }
+
+      pushGlobalAlert({
+        type: "success",
+        title: "Copied",
+        message: "Item JSON copied to clipboard.",
+      });
+    } catch {
+      pushGlobalAlert({
+        type: "danger",
+        title: "Copy Failed",
+        message: "Unable to serialize item JSON.",
+      });
+    }
+  }, [item]);
 
   const normalizeShortcutKey = useCallback((key: string): string => {
     const normalized = key.toLowerCase();
@@ -4349,6 +4384,13 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   onClick={() => handleGridZoomChange("in")}
                   tooltip="Zoom In"
                   shortcut="+"
+                  className="rounded-xl"
+                  iconClassName="h-5 w-5"
+                />
+                <IconButton
+                  icon={Copy}
+                  onClick={handleCopyItemJson}
+                  tooltip="Copy Item JSON"
                   className="rounded-xl"
                   iconClassName="h-5 w-5"
                 />
