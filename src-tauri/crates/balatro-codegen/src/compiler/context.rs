@@ -24,6 +24,15 @@ pub struct CompileContext {
 
     /// User-defined variables.
     user_vars: Vec<UserVariableDef>,
+
+    /// Monotonic index for deterministic probability config variable names.
+    probability_var_index: usize,
+
+    /// Monotonic index for deterministic loop count config variable names.
+    loop_var_index: usize,
+
+    /// Monotonic index for deterministic random-group probability identifiers.
+    random_group_index: usize,
 }
 
 impl CompileContext {
@@ -45,6 +54,9 @@ impl CompileContext {
             effect_type_counts: HashMap::new(),
             config_vars: Vec::new(),
             user_vars: Vec::new(),
+            probability_var_index: 0,
+            loop_var_index: 0,
+            random_group_index: 0,
         }
     }
 
@@ -124,6 +136,27 @@ impl CompileContext {
     /// Always appends the count: `chips0`, `chips1`, `chips2`...
     pub fn unique_var_name(&self, base_name: &str, same_type_count: usize) -> String {
         format!("{}{}", base_name, same_type_count)
+    }
+
+    /// Return the next deterministic probability variable index.
+    pub fn next_probability_var_index(&mut self) -> usize {
+        let idx = self.probability_var_index;
+        self.probability_var_index += 1;
+        idx
+    }
+
+    /// Return the next deterministic loop variable index.
+    pub fn next_loop_var_index(&mut self) -> usize {
+        let idx = self.loop_var_index;
+        self.loop_var_index += 1;
+        idx
+    }
+
+    /// Return the next deterministic random-group identifier index.
+    pub fn next_random_group_index(&mut self) -> usize {
+        let idx = self.random_group_index;
+        self.random_group_index += 1;
+        idx
     }
 
     /// Add a config variable.

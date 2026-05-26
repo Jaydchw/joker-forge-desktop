@@ -386,14 +386,15 @@ fn compile_random_group(
 
     // Wrap in probability check:
     // if SMODS.pseudorandom_probability(...) then <inner> end
-    let clean_id = rg.id.replace('-', "_");
-    let odds_var = format!("odds_{}", clean_id);
-    let numerator_var = format!("numerator_{}", clean_id);
+    let probability_index = ctx.next_probability_var_index();
+    let random_group_index = ctx.next_random_group_index();
+    let odds_var = format!("odds_{}", probability_index);
+    let numerator_var = format!("numerator_{}", probability_index);
     let prob_check = lua_call(
         "SMODS.pseudorandom_probability",
         vec![
             lua_ident("card"),
-            lua_str(format!("group_{}", rg.id)),
+            lua_str(format!("group{}", random_group_index)),
             lua_field(lua_raw_expr(ctx.ability_path()), &numerator_var),
             lua_field(lua_raw_expr(ctx.ability_path()), &odds_var),
             lua_str(ctx.smods_key()),
@@ -443,12 +444,13 @@ fn compile_loop_group(
         return vec![];
     }
 
-    let loop_var_name = format!("loop_count_{}", lg.id.replace('-', "_"));
+    let loop_index = ctx.next_loop_var_index();
+    let loop_var_name = format!("loop_count_{}", loop_index);
     let loop_count = lg.count.as_i64().unwrap_or(1).max(1);
     ctx.add_config_int(&loop_var_name, loop_count);
 
     let loop_stmt = Stmt::ForRange {
-        var: "_jf_loop_i".to_string(),
+        var: "i".to_string(),
         start: lua_int(1),
         stop: lua_field(lua_raw_expr(ctx.ability_path()), &loop_var_name),
         step: None,
@@ -922,11 +924,7 @@ fn build_loc_vars(
     probability_pairs.dedup();
 
     for (index, (num, den)) in probability_pairs.into_iter().enumerate() {
-        let suffix = if index == 0 {
-            String::new()
-        } else {
-            (index + 1).to_string()
-        };
+        let suffix = index.to_string();
         body.push(lua_raw_stmt(format!(
             "local new_numerator{suffix}, new_denominator{suffix} = SMODS.get_probability_vars(card, self.config.extra.{num}, self.config.extra.{den}, '{key}')",
             suffix = suffix,
@@ -1618,11 +1616,7 @@ pub(crate) fn build_shared_loc_vars(
     probability_pairs.dedup();
 
     for (index, (num, den)) in probability_pairs.into_iter().enumerate() {
-        let suffix = if index == 0 {
-            String::new()
-        } else {
-            (index + 1).to_string()
-        };
+        let suffix = index.to_string();
         body.push(lua_raw_stmt(format!(
             "local new_numerator{suffix}, new_denominator{suffix} = SMODS.get_probability_vars(card, self.config.extra.{num}, self.config.extra.{den}, '{key}')",
             suffix = suffix,
