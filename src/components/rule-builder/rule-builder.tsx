@@ -1089,11 +1089,28 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   const handleCopyItemJson = useCallback(async () => {
     try {
-      const { image: _image, ...itemWithoutImage } = (item ?? {}) as Record<
-        string,
-        unknown
-      >;
-      const formattedItemJson = JSON.stringify(itemWithoutImage, null, 2);
+      const stripImagePayloads = (value: unknown): unknown => {
+        if (Array.isArray(value)) {
+          return value.map((entry) => stripImagePayloads(entry));
+        }
+        if (!value || typeof value !== "object") {
+          return value;
+        }
+
+        const source = value as Record<string, unknown>;
+        const next: Record<string, unknown> = {};
+        for (const [key, entry] of Object.entries(source)) {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey === "image" || lowerKey === "images" || lowerKey === "layers") {
+            continue;
+          }
+          next[key] = stripImagePayloads(entry);
+        }
+        return next;
+      };
+
+      const sanitizedItem = stripImagePayloads(item ?? {});
+      const formattedItemJson = JSON.stringify(sanitizedItem, null, 2);
       if (!formattedItemJson) {
         pushGlobalAlert({
           type: "danger",
