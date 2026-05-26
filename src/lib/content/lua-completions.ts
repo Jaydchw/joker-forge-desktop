@@ -614,6 +614,10 @@ const SMODS_LSP_FILES = [
   "classes/tag.lua",
   "classes/undiscovered_sprite.lua",
   "classes/voucher.lua",
+  "lib/json.lua",
+  "lib/lovely.lua",
+  "lib/nativefs.lua",
+  "lib/smods-https.lua",
 ];
 
 let smodsLspCompletionsCache: Completion[] | null = null;
@@ -701,6 +705,17 @@ async function loadSmodsLspCompletions(): Promise<Completion[]> {
 const DOC_TOKEN_RE = /[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*/g;
 
 const STATIC_LABELS = new Set(ALL_COMPLETIONS.map((c) => c.label));
+
+function dedupeCompletions(completions: Completion[]): Completion[] {
+  const seen = new Set<string>();
+  const deduped: Completion[] = [];
+  for (const completion of completions) {
+    if (seen.has(completion.label)) continue;
+    seen.add(completion.label);
+    deduped.push(completion);
+  }
+  return deduped;
+}
 
 function extractDocumentTokens(state: EditorState): Completion[] {
   const text = state.doc.toString();
@@ -809,7 +824,11 @@ export async function luaSmodsCompletions(
   // Combine static + dynamic document completions
   const docTokens = extractDocumentTokens(context.state);
   const lspTokens = await loadSmodsLspCompletions();
-  let candidates = [...ALL_COMPLETIONS, ...lspTokens, ...docTokens];
+  // Prefer official SMODS LSP defs when available; keep static data as fallback.
+  const hasLspTokens = lspTokens.length > 0;
+  let candidates = hasLspTokens
+    ? dedupeCompletions([...lspTokens, ...ALL_COMPLETIONS, ...docTokens])
+    : dedupeCompletions([...ALL_COMPLETIONS, ...docTokens]);
 
   // If typing after a dot, narrow to relevant property completions
   if (prefix.includes(".")) {
