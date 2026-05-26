@@ -1,105 +1,17 @@
+mod cli_codegen_item;
 mod mod_engine;
 
 use mod_engine::{commands, state::AppState};
-use mod_engine::export::{AtlasPosInput, UserVariableInput};
-use serde::Deserialize;
-use serde_json::Value;
-use std::{env, fs, process};
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CliCodegenItemRequest {
-    item_type: String,
-    item_data: Value,
-    #[serde(default)]
-    pos: Option<AtlasPosInput>,
-    #[serde(default)]
-    soul_pos: Option<AtlasPosInput>,
-    #[serde(default = "default_mod_prefix")]
-    mod_prefix: String,
-    #[serde(default = "default_include_loc_txt")]
-    include_loc_txt: bool,
-    #[serde(default)]
-    global_user_variables: Option<Vec<UserVariableInput>>,
-}
-
-fn default_mod_prefix() -> String {
-    "mod".to_string()
-}
-
-fn default_include_loc_txt() -> bool {
-    true
-}
-
-fn print_codegen_item_usage() {
-    eprintln!(
-        "Usage:\n  joker-forge-desktop codegen-item --json '<payload>'\n  joker-forge-desktop codegen-item --json-file <path>"
-    );
-}
-
-fn run_codegen_item_command(args: &[String]) -> Result<(), String> {
-    let mut json_payload: Option<String> = None;
-    let mut json_file: Option<String> = None;
-
-    let mut index = 0;
-    while index < args.len() {
-        match args[index].as_str() {
-            "--json" => {
-                index += 1;
-                let value = args
-                    .get(index)
-                    .ok_or_else(|| "Missing value for --json".to_string())?;
-                json_payload = Some(value.clone());
-            }
-            "--json-file" => {
-                index += 1;
-                let value = args
-                    .get(index)
-                    .ok_or_else(|| "Missing value for --json-file".to_string())?;
-                json_file = Some(value.clone());
-            }
-            unknown => {
-                return Err(format!("Unknown argument: {}", unknown));
-            }
-        }
-        index += 1;
-    }
-
-    if json_payload.is_some() == json_file.is_some() {
-        return Err("Provide exactly one of --json or --json-file".to_string());
-    }
-
-    let raw_json = if let Some(path) = json_file {
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read JSON file '{}': {}", path, e))?
-    } else {
-        json_payload.expect("checked above")
-    };
-
-    let request: CliCodegenItemRequest = serde_json::from_str(&raw_json)
-        .map_err(|e| format!("Invalid JSON payload: {}", e))?;
-
-    let lua = commands::compile_item_from_data(
-        request.item_type,
-        request.item_data,
-        request.pos,
-        request.soul_pos,
-        request.mod_prefix,
-        request.include_loc_txt,
-        request.global_user_variables,
-    )?;
-
-    println!("{}", lua);
-    Ok(())
-}
+use std::{env, process};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let args: Vec<String> = env::args().collect();
     if let Some(command) = args.get(1) {
         if command == "codegen-item" {
-            if let Err(error) = run_codegen_item_command(&args[2..]) {
+            if let Err(error) = cli_codegen_item::run_codegen_item_command(&args[2..]) {
                 eprintln!("codegen-item error: {}", error);
-                print_codegen_item_usage();
+                cli_codegen_item::print_codegen_item_usage();
                 process::exit(1);
             }
             process::exit(0);
