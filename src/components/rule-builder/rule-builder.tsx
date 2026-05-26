@@ -4304,13 +4304,15 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   icon={CornersIn}
                   onClick={handleRecenter}
                   tooltip="Recenter View"
-                  className="cursor-pointer"
+                  className="rounded-xl"
+                  iconClassName="h-5 w-5"
                 />
                 <IconButton
                   icon={SquaresFour}
                   onClick={handleAutoLayoutRules}
                   tooltip="Auto Layout Rules"
-                  className="cursor-pointer"
+                  className="rounded-xl"
+                  iconClassName="h-5 w-5"
                 />
                 <IconButton
                   icon={GridFour}
@@ -4331,26 +4333,24 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   tooltip="Toggle Grid Snapping"
                   shortcut="S"
                   isActive={gridSnapping}
-                  className={cn(
-                    "cursor-pointer",
-                    gridSnapping
-                      ? "text-mint-light hover:text-mint-lighter"
-                      : undefined
-                  )}
+                  className="rounded-xl"
+                  iconClassName="h-5 w-5"
                 />
                 <IconButton
                   icon={MagnifyingGlassMinus}
                   onClick={() => handleGridZoomChange("out")}
                   tooltip="Zoom Out"
                   shortcut="-"
-                  className="cursor-pointer"
+                  className="rounded-xl"
+                  iconClassName="h-5 w-5"
                 />
                 <IconButton
                   icon={MagnifyingGlassPlus}
                   onClick={() => handleGridZoomChange("in")}
                   tooltip="Zoom In"
                   shortcut="+"
-                  className="cursor-pointer"
+                  className="rounded-xl"
+                  iconClassName="h-5 w-5"
                 />
                 <span className="text-[11px] text-muted-foreground w-12 text-center">
                   {Math.round(panState.scale * 100)}%
