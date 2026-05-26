@@ -16,6 +16,10 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "codegen:item": "cargo run --manifest-path src-tauri/Cargo.toml -- codegen-item",
+    "codegen": "npm run codegen:item --",
+    "codegen:help": "npm run codegen:item -- -h",
+    "codegen:quick": "npm run codegen:item -- quick",
+    "codegen:json": "npm run codegen:item -- json",
     "reset": "npm run prepare:stable"
   },
   "dependencies": {
