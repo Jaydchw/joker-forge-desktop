@@ -7,7 +7,6 @@ use std::fs;
 
 #[derive(Debug, Clone)]
 struct ParamSchema {
-    id: String,
     param_type: String,
     select_values: Option<HashSet<String>>,
 }
@@ -271,67 +270,6 @@ fn parse_json_map(raw: &str, context: &str) -> Result<serde_json::Map<String, Va
         .ok_or_else(|| format!("{} must be a JSON object", context))
 }
 
-fn split_unescaped(raw: &str, delimiter: char) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let mut current = String::new();
-    let mut escape = false;
-    for ch in raw.chars() {
-        if escape {
-            current.push(ch);
-            escape = false;
-            continue;
-        }
-        if ch == '\\' {
-            escape = true;
-            continue;
-        }
-        if ch == delimiter {
-            out.push(current.trim().to_string());
-            current.clear();
-            continue;
-        }
-        current.push(ch);
-    }
-    out.push(current.trim().to_string());
-    out
-}
-
-fn split_first_unescaped(raw: &str, delimiter: char) -> Option<(String, String)> {
-    let mut left = String::new();
-    let mut right = String::new();
-    let mut found = false;
-    let mut escape = false;
-    for ch in raw.chars() {
-        if escape {
-            if found {
-                right.push(ch);
-            } else {
-                left.push(ch);
-            }
-            escape = false;
-            continue;
-        }
-        if ch == '\\' {
-            escape = true;
-            continue;
-        }
-        if ch == delimiter && !found {
-            found = true;
-            continue;
-        }
-        if found {
-            right.push(ch);
-        } else {
-            left.push(ch);
-        }
-    }
-    if found {
-        Some((left.trim().to_string(), right.trim().to_string()))
-    } else {
-        None
-    }
-}
-
 fn load_catalog_schema(json_str: &str) -> HashMap<String, NodeSchema> {
     let mut out: HashMap<String, NodeSchema> = HashMap::new();
     let parsed: Value = serde_json::from_str(json_str).unwrap_or_else(|_| Value::Array(vec![]));
@@ -369,7 +307,6 @@ fn load_catalog_schema(json_str: &str) -> HashMap<String, NodeSchema> {
                 params_map.insert(
                     pid.clone(),
                     ParamSchema {
-                        id: pid,
                         param_type: ptype,
                         select_values,
                     },
