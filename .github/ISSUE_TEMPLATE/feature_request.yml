@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an improvement for Joker Forge Desktop
+title: "[Feature]: "
+labels:
+  - feature
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What feature do you want?
+      description: Briefly describe the feature and the problem it solves.
+      placeholder: "Add a one-click export preset for common card image sizes."
+    validations:
+      required: true
+
+  - type: textarea
+    id: value
+    attributes:
+      label: Why is this useful?
+      placeholder: "This saves repeated manual resizing and reduces mistakes."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Code Generation
+        - UI
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Extra context (optional)
+      description: Mockup, screenshot, or anything else helpful.

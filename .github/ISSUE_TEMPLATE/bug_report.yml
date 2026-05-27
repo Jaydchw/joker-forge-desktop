@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible issue in Joker Forge Desktop
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Briefly describe the problem and what action triggered it.
+      placeholder: "After importing a Joker Forge file, card previews render blank."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+      placeholder: "Card previews should render with the imported data."
+    validations:
+      required: true
+
+  - type: textarea
+    id: config_file
+    attributes:
+      label: Joker Forge JSON file
+      description: Attach your `.json` file by dragging it into this issue, or paste a minimal redacted snippet if you cannot share the full file.
+      placeholder: "Attach file here, or paste JSON snippet..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release_channel
+    attributes:
+      label: App release channel
+      options:
+        - Stable
+        - Nightly
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Code Generation
+        - UI
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "e.g. Windows 11 24H2 / macOS 14.5"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error message, logs, or screenshot (optional)
+      description: Paste console output, stack trace, or add a screenshot.

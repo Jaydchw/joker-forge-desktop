@@ -1,0 +1,59 @@
+name: Issue Area Labels
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  apply-area-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply area labels from issue form
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || '';
+            const labelsToAdd = [];
+            const labelsToRemove = [];
+
+            const areaMatch = body.match(/###\s*Area\s*\r?\n+([^\r\n]+)/i);
+            const areaValue = areaMatch ? areaMatch[1].trim().toLowerCase() : '';
+            const hasCodeGen = areaValue === 'code generation';
+            const hasUi = areaValue === 'ui';
+
+            if (hasCodeGen) {
+              labelsToAdd.push('code-generation');
+              labelsToRemove.push('ui');
+            } else if (hasUi) {
+              labelsToAdd.push('ui');
+              labelsToRemove.push('code-generation');
+            } else {
+              labelsToRemove.push('code-generation', 'ui');
+            }
+
+            if (labelsToRemove.length > 0) {
+              for (const label of labelsToRemove) {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: context.issue.number,
+                    name: label,
+                  });
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                }
+              }
+            }
+
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: labelsToAdd,
+              });
+            }
