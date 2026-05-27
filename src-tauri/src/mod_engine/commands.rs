@@ -1221,6 +1221,12 @@ fn resolve_bundled_path(app: &AppHandle, relative: &str) -> Option<PathBuf> {
     None
 }
 
+fn resolve_bundled_any(app: &AppHandle, candidates: &[&str]) -> Option<PathBuf> {
+    candidates
+        .iter()
+        .find_map(|candidate| resolve_bundled_path(app, candidate))
+}
+
 fn path_name_eq(path: &Path, expected: &str) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
@@ -1612,13 +1618,22 @@ pub fn ensure_balatro_mod_setup(
         resolved_game.ok_or_else(|| "Unable to find Balatro game folder.".to_string())?;
 
     let version_dll_target = game_dir.join("version.dll");
-    let version_dll_source = resolve_bundled_path(&app, "other/version.dll")
-        .ok_or_else(|| "Missing bundled Lovely file: other/version.dll".to_string())?;
     if let Some(parent) = version_dll_target.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
     }
     if !version_dll_target.exists() {
+        let version_dll_source = resolve_bundled_any(
+            &app,
+            &[
+                "other/version.dll",
+                "_up_/public/other/version.dll",
+                "version.dll",
+            ],
+        )
+        .ok_or_else(|| {
+            "Missing bundled Lovely file: expected one of `other/version.dll`, `_up_/public/other/version.dll`, or `version.dll`".to_string()
+        })?;
         fs::copy(&version_dll_source, &version_dll_target).map_err(|e| {
             format!(
                 "Failed to install Lovely (copy {} to {}): {}",
@@ -1651,8 +1666,17 @@ pub fn ensure_balatro_mod_setup(
     let should_sync_smods =
         !smods_target.exists() || !smods_manifest.exists() || !smods_src_dir.is_dir();
     if should_sync_smods {
-        let smods_source = resolve_bundled_path(&app, "other/smods-main")
-            .ok_or_else(|| "Missing bundled Steamodded folder: other/smods-main".to_string())?;
+        let smods_source = resolve_bundled_any(
+            &app,
+            &[
+                "other/smods-main",
+                "_up_/public/other/smods-main",
+                "smods-main",
+            ],
+        )
+        .ok_or_else(|| {
+            "Missing bundled Steamodded folder: expected one of `other/smods-main`, `_up_/public/other/smods-main`, or `smods-main`".to_string()
+        })?;
         copy_dir_recursive(&smods_source, &smods_target)?;
     }
 

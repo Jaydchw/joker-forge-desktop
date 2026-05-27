@@ -49,8 +49,8 @@
         "headerImage": "icons/installer-header.bmp"
       }
     },
-    "resources": [
-      "../public/other"
-    ]
+    "resources": {
+      "../public/other/": "other/"
+    }
   }
 }
