@@ -72,6 +72,12 @@ export function TitleBar() {
     const setupShortcut = async () => {
       try {
         await register("F11", async () => {
+          try {
+            const isFocused = await appWindow.isFocused();
+            if (!isFocused) return;
+          } catch (e) {
+            return;
+          }
           if (f11LockRef.current) return;
           f11LockRef.current = true;
           if (f11UnlockTimeoutRef.current) {
