@@ -44,10 +44,6 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { exportSingleJokerRust } from "@/lib/export/rust-codegen-export";
 import { collectGlobalVariables } from "@/lib/app/global-user-variables";
-import {
-  formatUnsupportedRulesError,
-  getUnsupportedRuleParts,
-} from "@/lib/export/export-compiler-support";
 import { getAllVariables } from "@/lib/rules/user-variable-utils";
 import {
   generateDescriptionFromRules,
@@ -203,12 +199,6 @@ export default function JokersPage() {
 
   const handleExport = useCallback(
     async (joker: JokerData) => {
-      const unsupported = getUnsupportedRuleParts(joker.rules, "joker");
-      if (unsupported.length > 0) {
-        window.alert(formatUnsupportedRulesError(unsupported, "Joker"));
-        return;
-      }
-
       try {
         await exportSingleJokerRust(joker as any, data.metadata.prefix, {
           globalUserVariables: collectGlobalVariables(data).map(

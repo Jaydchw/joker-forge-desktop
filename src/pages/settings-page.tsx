@@ -46,7 +46,6 @@ import {
   getAutoOpenNewItemDialogEnabled,
   getDescriptionVariablePlaceholdersEnabled,
   getDefaultLocalizationLanguage,
-  getBypassUnsupportedRulesDialogEnabled,
   getConfirmDeleteEnabled,
   getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
@@ -60,7 +59,6 @@ import {
   setAutoOpenNewItemDialogEnabled,
   setDescriptionVariablePlaceholdersEnabled,
   setDefaultLocalizationLanguage,
-  setBypassUnsupportedRulesDialogEnabled,
   setConfirmDeleteEnabled,
   setJokerforgeExportSaveMode,
   setJokerforgeExportAsJsonEnabled,
@@ -406,8 +404,6 @@ export default function SettingsPage() {
   const [showDescriptionVariablePlaceholders, setShowDescriptionVariablePlaceholders] =
     useState(true);
   const [appZoomLevel, setAppZoomLevelState] = useState<AppZoomLevel>("medium");
-  const [bypassUnsupportedRulesDialog, setBypassUnsupportedRulesDialog] =
-    useState(false);
   const [ruleBuilderSettings, setRuleBuilderSettingsState] =
     useState<RuleBuilderSettings>(DEFAULT_RULE_BUILDER_SETTINGS);
   const [isResetDataDialogOpen, setIsResetDataDialogOpen] = useState(false);
@@ -452,7 +448,6 @@ export default function SettingsPage() {
       getDescriptionVariablePlaceholdersEnabled(),
     );
     setAppZoomLevelState(getAppZoomLevel());
-    setBypassUnsupportedRulesDialog(getBypassUnsupportedRulesDialogEnabled());
     setRuleBuilderSettingsState(getRuleBuilderSettings());
     setThemeMode(getThemePreference());
     setThemeEditorMode(getThemePreference());
@@ -774,7 +769,6 @@ export default function SettingsPage() {
       theme: ["Theme Studio", "Light", "Dark", "Export", "Import", "Theme"],
       dev: [
         "Developer Tools",
-        "Bypass Unsupported Rules Dialog",
         "Copy Mod Data to Clipboard",
         "Alert Testing",
         "Open DevTools",
@@ -1689,25 +1683,6 @@ export default function SettingsPage() {
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Project Data
                 </h4>
-                <div className="flex items-center justify-between py-2">
-                  <div>
-                    <Label htmlFor="dev-bypass-unsupported-rules">
-                      Bypass Unsupported Rules Dialog
-                    </Label>
-                    <p className="text-[11px] text-muted-foreground">
-                      Allows Export Mod even when unsupported rules are present.
-                    </p>
-                  </div>
-                  <Switch
-                    id="dev-bypass-unsupported-rules"
-                    checked={bypassUnsupportedRulesDialog}
-                    onCheckedChange={(value) => {
-                      setBypassUnsupportedRulesDialog(value);
-                      setBypassUnsupportedRulesDialogEnabled(value);
-                    }}
-                    className="cursor-pointer"
-                  />
-                </div>
                 <div className="grid gap-3 py-1 sm:grid-cols-2 md:grid-cols-3">
                   <Button
                     variant="outline"

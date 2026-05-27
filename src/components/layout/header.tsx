@@ -15,14 +15,12 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { ExportSuccessDialog } from "@/components/layout/export-success-dialog";
-import { UnsupportedRulesDialog } from "@/components/layout/unsupported-rules-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   getBalatroAppdataPath,
   getBalatroGamePath,
   getExportDestinationMode,
   getDefaultLocalizationLanguage,
-  getBypassUnsupportedRulesDialogEnabled,
   getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
   getSingleManagedModExportEnabled,
@@ -42,7 +40,6 @@ import {
 import { join } from "@tauri-apps/api/path";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
-import { getUnsupportedRuleParts } from "@/lib/export/export-compiler-support";
 import {
   applyThemeFromStorage,
   subscribeThemeChanges,
@@ -76,8 +73,6 @@ export function Header({ title }: HeaderProps) {
   const [exportResult, setExportResult] = useState<ExportModRustResult | null>(
     null,
   );
-  const [unsupportedParts, setUnsupportedParts] = useState<string[]>([]);
-  const [showUnsupportedDialog, setShowUnsupportedDialog] = useState(false);
   const [isDeleteProblematicConfirmOpen, setIsDeleteProblematicConfirmOpen] =
     useState(false);
   const [problematicTargetsToDelete, setProblematicTargetsToDelete] = useState<
@@ -547,30 +542,6 @@ export function Header({ title }: HeaderProps) {
       return;
     }
 
-    const unsupported = new Set<string>([
-      ...data.jokers.flatMap((item) =>
-        getUnsupportedRuleParts(item.rules, "joker"),
-      ),
-      ...data.consumables.flatMap((item) =>
-        getUnsupportedRuleParts(item.rules, "consumable"),
-      ),
-      ...data.vouchers.flatMap((item) =>
-        getUnsupportedRuleParts(item.rules, "voucher"),
-      ),
-      ...data.decks.flatMap((item) =>
-        getUnsupportedRuleParts(item.rules, "deck"),
-      ),
-      ...data.enhancements.flatMap((item) =>
-        getUnsupportedRuleParts(item.rules, "card"),
-      ),
-    ]);
-
-    if (unsupported.size > 0 && !getBypassUnsupportedRulesDialogEnabled()) {
-      setUnsupportedParts(Array.from(unsupported));
-      setShowUnsupportedDialog(true);
-      return;
-    }
-
     await doExport();
   };
 
@@ -726,12 +697,6 @@ export function Header({ title }: HeaderProps) {
         fileCount={exportResult?.fileCount ?? 0}
       />
 
-      <UnsupportedRulesDialog
-        open={showUnsupportedDialog}
-        onOpenChange={setShowUnsupportedDialog}
-        unsupportedParts={unsupportedParts}
-        onExportAnyway={doExport}
-      />
       <ConfirmDialog
         open={isDeleteProblematicConfirmOpen}
         onOpenChange={setIsDeleteProblematicConfirmOpen}

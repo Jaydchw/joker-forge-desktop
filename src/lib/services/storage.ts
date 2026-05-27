@@ -109,8 +109,6 @@ const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";
 const AUTO_OPEN_NEW_ITEM_DIALOG_KEY = "joker_forge_auto_open_new_item_dialog";
 const DESCRIPTION_VARIABLE_PLACEHOLDERS_KEY =
   "joker_forge_description_variable_placeholders";
-const BYPASS_UNSUPPORTED_RULES_DIALOG_KEY =
-  "joker_forge_bypass_unsupported_rules_dialog";
 const RULE_BUILDER_SETTINGS_KEY = "joker_forge_rule_builder_settings";
 const THEME_PREFERENCE_KEY = "joker_forge_theme_preference";
 const THEME_CHANGE_EVENT = "joker_forge_theme_change";
@@ -1448,7 +1446,6 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(SINGLE_MANAGED_MOD_EXPORT_KEY);
   window.localStorage.removeItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY);
   window.localStorage.removeItem(LAUNCH_GAME_ON_EXPORT_KEY);
-  window.localStorage.removeItem(BYPASS_UNSUPPORTED_RULES_DIALOG_KEY);
   window.localStorage.removeItem(DESCRIPTION_VARIABLE_PLACEHOLDERS_KEY);
   window.localStorage.removeItem(RULE_BUILDER_SETTINGS_KEY);
   window.localStorage.removeItem(THEME_PREFERENCE_KEY);
@@ -1899,21 +1896,6 @@ export const setSingleManagedModExportEnabled = (value: boolean) => {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
     SINGLE_MANAGED_MOD_EXPORT_KEY,
-    value ? "true" : "false",
-  );
-};
-
-export const getBypassUnsupportedRulesDialogEnabled = (): boolean => {
-  if (typeof window === "undefined") return false;
-  return (
-    window.localStorage.getItem(BYPASS_UNSUPPORTED_RULES_DIALOG_KEY) === "true"
-  );
-};
-
-export const setBypassUnsupportedRulesDialogEnabled = (value: boolean) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    BYPASS_UNSUPPORTED_RULES_DIALOG_KEY,
     value ? "true" : "false",
   );
 };
