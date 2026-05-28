@@ -35,6 +35,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
 import { Slider } from "@/components/ui/slider";
 import { invoke } from "@tauri-apps/api/core";
+import { useNavigate } from "react-router-dom";
 import {
   Tooltip,
   TooltipContent,
@@ -385,6 +386,7 @@ function ThemeEditorFields({
 }
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const { data } = useProjectData();
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategory>("all");
@@ -1776,6 +1778,13 @@ export default function SettingsPage() {
                   onClick={() => void invoke("open_devtools")}
                 >
                   Open DevTools
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full cursor-pointer"
+                  onClick={() => navigate("/__dev/404-test")}
+                >
+                  Open 404 Page
                 </Button>
                 <Button
                   variant="outline"

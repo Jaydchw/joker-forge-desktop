@@ -22,6 +22,7 @@ import VanillaReforgedSealsPage from "@/pages/vanilla-reforged/vanilla-reforged-
 import VanillaReforgedEditionsPage from "@/pages/vanilla-reforged/vanilla-reforged-editions-page";
 import VanillaReforgedVouchersPage from "@/pages/vanilla-reforged/vanilla-reforged-vouchers-page";
 import VanillaReforgedDecksPage from "@/pages/vanilla-reforged/vanilla-reforged-decks-page";
+import NotFoundPage from "@/pages/not-found-page";
 import { EntityBridgeListener } from "@/components/bridge/entity-bridge-listener";
 import { CustomContextMenu } from "@/components/ui/custom-context-menu";
 import { useEffect } from "react";
@@ -94,6 +95,7 @@ function App() {
                 path="/vanilla-reforged/decks"
                 element={<VanillaReforgedDecksPage />}
               />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </MainLayout>
         </div>
