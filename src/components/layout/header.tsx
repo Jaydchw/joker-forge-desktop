@@ -332,6 +332,8 @@ export function Header({ title }: HeaderProps) {
   };
 
   const navigateToTarget = (target: NavigationTarget) => {
+    const resolvedPath =
+      target.path === "/sounds" ? "/settings" : target.path;
     const params = new URLSearchParams();
     if (target.itemId) {
       params.set("activityItemId", target.itemId);
@@ -340,7 +342,7 @@ export function Header({ title }: HeaderProps) {
       params.set("activityEditor", target.editor);
     }
     const query = params.toString();
-    navigate(query ? `${target.path}?${query}` : target.path);
+    navigate(query ? `${resolvedPath}?${query}` : resolvedPath);
   };
 
   const getDeletableTargetsFromIssues = (
@@ -407,18 +409,20 @@ export function Header({ title }: HeaderProps) {
             <ul className="mt-3 max-h-64 list-disc space-y-2 overflow-y-auto pl-5 pr-1 text-xs">
               {issues.map((issue) => (
                 <li key={issue.id}>
-                  <button
-                    type="button"
-                    className="cursor-pointer text-left underline decoration-white/35 underline-offset-2 hover:text-white"
-                    onClick={() => {
-                      if (issue.target) {
-                        navigateToTarget(issue.target);
-                      }
-                      toast.dismiss(toastId);
-                    }}
-                  >
-                    {issue.message}
-                  </button>
+                  {issue.target && issue.target.path !== "/sounds" ? (
+                    <button
+                      type="button"
+                      className="cursor-pointer text-left underline decoration-white/35 underline-offset-2 hover:text-white"
+                      onClick={() => {
+                        navigateToTarget(issue.target as NavigationTarget);
+                        toast.dismiss(toastId);
+                      }}
+                    >
+                      {issue.message}
+                    </button>
+                  ) : (
+                    <span className="text-left text-white/85">{issue.message}</span>
+                  )}
                 </li>
               ))}
             </ul>
