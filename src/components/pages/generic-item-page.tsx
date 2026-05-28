@@ -39,7 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/core/utils";
-import { fuzzyMatch } from "@/lib/core/search";
+import { fuzzyMatch, getMatchScore } from "@/lib/core/search";
 import { getRandomEmptyStateFlavor } from "@/lib/app/empty-state-flavor";
 import { motion } from "framer-motion";
 import {
@@ -272,11 +272,48 @@ function GenericItemPageInternal<T extends { id: string }>({
 
   const processedItems = useMemo(() => {
     let result = [...items];
+    const searchScoreById = new Map<string, number>();
 
     if (deferredSearchTerm && searchProps) {
       const lowerTerm = deferredSearchTerm.toLowerCase();
       result = result.filter((item) => {
-        if (searchProps.searchFn(item, lowerTerm)) return true;
+        const nameCandidate =
+          typeof (item as any)?.name === "string" ? String((item as any).name) : "";
+        const keyCandidate = getItemKeyForSearch(item) || "";
+        const descriptionCandidate =
+          typeof (item as any)?.description === "string"
+            ? String((item as any).description)
+            : "";
+        const idCandidate =
+          typeof (item as any)?.id === "string" ? String((item as any).id) : "";
+
+        const weightedScore = Math.max(
+          getMatchScore(nameCandidate, lowerTerm) >= 0
+            ? getMatchScore(nameCandidate, lowerTerm) * 1.0
+            : -1,
+          getMatchScore(keyCandidate, lowerTerm) >= 0
+            ? getMatchScore(keyCandidate, lowerTerm) * 0.8
+            : -1,
+          getMatchScore(descriptionCandidate, lowerTerm) >= 0
+            ? getMatchScore(descriptionCandidate, lowerTerm) * 0.4
+            : -1,
+          getMatchScore(idCandidate, lowerTerm) >= 0
+            ? getMatchScore(idCandidate, lowerTerm) * 0.3
+            : -1,
+        );
+
+        const customMatch = searchProps.searchFn(item, lowerTerm);
+        if (weightedScore >= 0) {
+          searchScoreById.set(item.id, weightedScore);
+          return true;
+        }
+
+        if (customMatch) {
+          const fallbackScore = 200;
+          searchScoreById.set(item.id, fallbackScore);
+          return true;
+        }
+
         const itemKey = getItemKeyForSearch(item);
         return itemKey ? fuzzyMatch(itemKey, lowerTerm) : false;
       });
@@ -292,10 +329,20 @@ function GenericItemPageInternal<T extends { id: string }>({
     }
 
     const sortOpt = sortOptions.find((opt) => opt.value === currentSort);
-    if (sortOpt) {
-      result.sort(sortOpt.sortFn);
-      if (sortDirection === "desc") result.reverse();
-    }
+    result.sort((a, b) => {
+      if (deferredSearchTerm && searchProps) {
+        const scoreA = searchScoreById.get(a.id) ?? -1;
+        const scoreB = searchScoreById.get(b.id) ?? -1;
+        if (scoreA !== scoreB) return scoreB - scoreA;
+      }
+
+      if (sortOpt) {
+        const base = sortOpt.sortFn(a, b);
+        return sortDirection === "desc" ? -base : base;
+      }
+
+      return 0;
+    });
 
     return result;
   }, [
