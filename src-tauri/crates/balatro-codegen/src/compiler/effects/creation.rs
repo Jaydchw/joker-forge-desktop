@@ -62,36 +62,14 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
         }
     }
 
-    // Build the event body
-    let mut event_body: Vec<Stmt> = Vec::new();
-    let has_slot_check = !ignore_slots;
-
-    if has_slot_check {
-        event_body.push(lua_local("created_joker", lua_bool(false)));
-        event_body.push(lua_if(
-            lua_lt(
-                lua_add(
-                    lua_len(lua_path(&["G", "jokers", "cards"])),
-                    lua_path(&["G", "GAME", "joker_buffer"]),
-                ),
-                lua_path(&["G", "jokers", "config", "card_limit"]),
-            ),
-            vec![
-                lua_assign(lua_ident("created_joker"), lua_bool(true)),
-                lua_expr_stmt(lua_call(
-                    "SMODS.add_card",
-                    vec![lua_table_raw(add_card_entries.clone())],
-                )),
-            ],
-        ));
-    } else {
-        event_body.push(lua_expr_stmt(lua_call(
+    // Build the event body (actual spawn happens asynchronously via event queue).
+    let event_body: Vec<Stmt> = vec![
+        lua_expr_stmt(lua_call(
             "SMODS.add_card",
             vec![lua_table_raw(add_card_entries)],
-        )));
-    }
-
-    event_body.push(lua_return(lua_bool(true)));
+        )),
+        lua_return(lua_bool(true)),
+    ];
 
     // Wrap in G.E_MANAGER:add_event(Event({...}))
     let event_func = Expr::Function {
@@ -111,6 +89,29 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
         )],
     ));
 
+    // Emit a synchronous created_joker flag so return message logic is valid.
+    let has_slot_check = !ignore_slots;
+    let mut pre_return: Vec<Stmt> = Vec::new();
+    if has_slot_check {
+        pre_return.push(lua_local("created_joker", lua_bool(false)));
+        pre_return.push(lua_if(
+            lua_lt(
+                lua_add(
+                    lua_len(lua_path(&["G", "jokers", "cards"])),
+                    lua_path(&["G", "GAME", "joker_buffer"]),
+                ),
+                lua_path(&["G", "jokers", "config", "card_limit"]),
+            ),
+            vec![
+                lua_assign(lua_ident("created_joker"), lua_bool(true)),
+                event_call,
+            ],
+        ));
+    } else {
+        pre_return.push(lua_local("created_joker", lua_bool(true)));
+        pre_return.push(event_call);
+    }
+
     // Message for the return
     let message = if has_slot_check {
         Some(lua_and(
@@ -123,7 +124,7 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
 
     EffectOutput {
         return_fields: vec![],
-        pre_return: vec![event_call],
+        pre_return,
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.GREEN")),

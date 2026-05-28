@@ -110,7 +110,7 @@ pub fn compile_condition(
         "suit_variable" => variables::suit_variable(condition, ctx)?,
 
         // Generic compare
-        "generic_compare" => game_state::generic_compare(condition)?,
+        "generic_compare" => game_state::generic_compare(condition, ctx)?,
         _ => {
             return None;
         }

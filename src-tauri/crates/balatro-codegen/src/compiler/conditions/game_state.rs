@@ -98,17 +98,14 @@ pub fn deck_size(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<E
 }
 
 /// Generic Compare condition: arbitrary comparison between two values.
-pub fn generic_compare(condition: &ConditionDef) -> Option<Expr> {
-    let value1_str = condition.params.get("value1")?.to_string_lossy();
+pub fn generic_compare(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<Expr> {
     let operator = condition
         .params
         .get("operator")
         .and_then(|v| v.as_str())
         .unwrap_or("equals");
-    let value2_str = condition.params.get("value2")?.to_string_lossy();
-
-    let value1 = lua_raw_expr(&value1_str);
-    let value2 = lua_raw_expr(&value2_str);
+    let value1 = resolve_condition_value(&condition.params, "value1", ctx, "generic_compare_lhs")?;
+    let value2 = resolve_condition_value(&condition.params, "value2", ctx, "generic_compare_rhs")?;
 
     Some(comparison_op(operator, value1, value2))
 }

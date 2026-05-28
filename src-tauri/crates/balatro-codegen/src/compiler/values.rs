@@ -442,6 +442,9 @@ pub fn resolve_condition_value(
             Some(ability_path_expr(ctx.object_type, &var_name))
         }
         ParamValue::Str(s) => {
+            if s.trim().is_empty() {
+                return None;
+            }
             if let Ok(n) = s.parse::<f64>() {
                 let count = ctx.next_effect_count(&var_base);
                 let var_name = ctx.unique_var_name(&var_base, count);
@@ -454,8 +457,8 @@ pub fn resolve_condition_value(
             } else if ctx.has_user_var(s) {
                 Some(ctx.user_var_expr(s))
             } else {
-                // Non-numeric string, return as literal
-                Some(lua_raw_expr(s))
+                // Non-numeric string literals must be quoted.
+                Some(lua_str(s))
             }
         }
         ParamValue::Typed(t) => {
@@ -485,9 +488,13 @@ pub fn resolve_condition_value(
                     return Some(ability_path_expr(ctx.object_type, &var_name));
                 }
                 if let Some(s) = t.value.as_str() {
+                    if s.trim().is_empty() {
+                        return None;
+                    }
                     if ctx.has_user_var(s) {
                         return Some(ctx.user_var_expr(s));
                     }
+                    return Some(lua_str(s));
                 }
                 None
             }

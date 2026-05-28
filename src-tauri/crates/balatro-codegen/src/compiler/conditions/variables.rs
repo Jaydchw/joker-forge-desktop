@@ -1,4 +1,5 @@
 use crate::compiler::context::CompileContext;
+use crate::compiler::values::resolve_condition_value;
 use crate::compiler::values::comparison_op;
 use crate::lua_ast::*;
 use crate::types::ConditionDef;
@@ -15,15 +16,14 @@ fn get_param<'a>(
     None
 }
 
-pub fn internal_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
+pub fn internal_variable(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<Expr> {
     let variable_name = get_param(condition, &["variable_name", "variableName", "variable"])
         .and_then(|v| v.as_str())
         .unwrap_or("var1");
     let operator = get_param(condition, &["operator", "op"])
         .and_then(|v| v.as_str())
         .unwrap_or("equals");
-    let rhs = get_param(condition, &["value"])
-        .map(|v| lua_raw_expr(v.to_string_lossy()))
+    let rhs = resolve_condition_value(&condition.params, "value", ctx, "internal_variable_value")
         .unwrap_or_else(|| lua_int(0));
 
     Some(comparison_op(
