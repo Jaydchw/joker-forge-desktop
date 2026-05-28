@@ -17,3 +17,29 @@ export const fuzzyMatch = (text: string, query: string): boolean => {
 export const fuzzyMatchAny = (texts: Array<string | null | undefined>, query: string): boolean =>
   texts.some((text) => typeof text === "string" && fuzzyMatch(text, query));
 
+const fuzzyMatchProgress = (text: string, query: string): number => {
+  const normalizedText = normalizeSearchText(text);
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedText || !normalizedQuery) return 0;
+
+  let index = 0;
+  for (let i = 0; i < normalizedText.length && index < normalizedQuery.length; i++) {
+    if (normalizedText[i] === normalizedQuery[index]) index += 1;
+  }
+  return index / normalizedQuery.length;
+};
+
+export const getMatchScore = (text: string, query: string): number => {
+  const normalizedText = normalizeSearchText(text);
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return 0;
+  if (!normalizedText) return -1;
+
+  if (normalizedText === normalizedQuery) return 1000;
+  if (normalizedText.startsWith(normalizedQuery)) return 750;
+  if (normalizedText.includes(normalizedQuery)) return 550;
+
+  const fuzzyProgress = fuzzyMatchProgress(text, query);
+  if (fuzzyProgress >= 1) return 300;
+  return -1;
+};
