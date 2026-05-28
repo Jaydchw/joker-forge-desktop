@@ -179,6 +179,31 @@ export const parseBalatroText = (
       }
 
       if (processedText) {
+        const hasLineBreak = processedText.includes("\n");
+        const hasColourFormatting = Boolean(
+          currentStyle.textColor || currentStyle.backgroundColor,
+        );
+
+        if (hasLineBreak && hasColourFormatting) {
+          const firstBreakIndex = processedText.indexOf("\n");
+          const firstLine = processedText.slice(0, firstBreakIndex);
+          const remainingText = processedText.slice(firstBreakIndex);
+
+          if (firstLine) {
+            segments.push({
+              text: firstLine,
+              ...currentStyle,
+            });
+          }
+
+          if (remainingText) {
+            segments.push({
+              text: remainingText,
+            });
+          }
+          continue;
+        }
+
         segments.push({
           text: processedText,
           ...currentStyle,
