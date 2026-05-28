@@ -28,7 +28,7 @@ body:
       description: Attach your `.json` file by dragging it into this issue, or paste a minimal redacted snippet if you cannot share the full file.
       placeholder: "Attach file here, or paste JSON snippet..."
     validations:
-      required: true
+      required: false
 
   - type: dropdown
     id: release_channel
@@ -64,3 +64,10 @@ body:
     attributes:
       label: Error message, logs, or screenshot (optional)
       description: Paste console output, stack trace, or add a screenshot.
+
+  - type: textarea
+    id: balatro_error_message
+    attributes:
+      label: Balatro error message (optional)
+      description: Paste the exact in-game Balatro/Steamodded error message, if available.
+      placeholder: "e.g. Oops! The game crashed: [SMODS _ \"src/utils.lua\"] ..."
