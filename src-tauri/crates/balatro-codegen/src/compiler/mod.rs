@@ -1448,9 +1448,23 @@ pub(crate) fn append_rule_chain_with_fallback<F>(
     }
 
     if conditional_rules.is_empty() {
-        for ro in unconditional_rules {
-            out.extend(build_rule_anchor_stmts(ro));
-            out.extend(build_rule_stmts(ro));
+        // Lua requires `return` to be the last statement in a block.
+        // Multiple unconditional rules for the same trigger can each emit `return`,
+        // so we must chain them via if/elseif-style control flow instead of
+        // emitting them as sequential statements.
+        let mut fallback_tail: Option<Vec<Stmt>> = None;
+        for ro in unconditional_rules.into_iter().rev() {
+            let then_body = build_rule_stmts(ro);
+            let next = Stmt::If {
+                branches: vec![(lua_bool(true), then_body)],
+                else_body: fallback_tail,
+            };
+            let mut wrapped = build_rule_anchor_stmts(ro);
+            wrapped.push(next);
+            fallback_tail = Some(wrapped);
+        }
+        if let Some(stmts) = fallback_tail {
+            out.extend(stmts);
         }
         return;
     }

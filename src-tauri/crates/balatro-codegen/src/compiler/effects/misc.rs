@@ -1239,19 +1239,25 @@ pub fn edit_game_speed(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectO
 pub fn fix_probability(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
     let part = get_str_default(effect, "part", "numerator");
     let resolved = resolve_config_value(&effect.params, "value", ctx, "set_probability");
+    let mut return_fields: Vec<(String, Expr)> = Vec::new();
+    let value_expr = resolved.expr.clone();
 
-    let code = match part.as_str() {
-        "denominator" => format!("denominator = {}", resolved.lua_str),
-        "both" => format!(
-            "numerator = {val}\ndenominator = {val}",
-            val = resolved.lua_str
-        ),
-        _ => format!("numerator = {}", resolved.lua_str),
-    };
+    match part.as_str() {
+        "denominator" => {
+            return_fields.push(("denominator".to_string(), value_expr));
+        }
+        "both" => {
+            return_fields.push(("numerator".to_string(), value_expr.clone()));
+            return_fields.push(("denominator".to_string(), value_expr));
+        }
+        _ => {
+            return_fields.push(("numerator".to_string(), value_expr));
+        }
+    }
 
     EffectOutput {
-        return_fields: vec![],
-        pre_return: vec![lua_raw_stmt(code)],
+        return_fields,
+        pre_return: vec![],
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
@@ -1269,33 +1275,24 @@ pub fn mod_probability(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
     let chance_part = get_str_default(effect, "part", "numerator");
     let operation = get_str_default(effect, "operation", "multiply");
     let resolved = resolve_config_value(&effect.params, "value", ctx, "mod_probability");
+    let target_key = if chance_part == "denominator" {
+        "denominator"
+    } else {
+        "numerator"
+    };
+    let base_expr = lua_path(&["context", target_key]);
+    let value_expr = resolved.expr.clone();
 
-    let code = match operation.as_str() {
-        "increment" => format!(
-            "{p} = {p} + ({val})",
-            p = chance_part,
-            val = resolved.lua_str
-        ),
-        "decrement" => format!(
-            "{p} = {p} - ({val})",
-            p = chance_part,
-            val = resolved.lua_str
-        ),
-        "divide" => format!(
-            "{p} = {p} / ({val})",
-            p = chance_part,
-            val = resolved.lua_str
-        ),
-        _ => format!(
-            "{p} = {p} * ({val})",
-            p = chance_part,
-            val = resolved.lua_str
-        ),
+    let updated_expr = match operation.as_str() {
+        "increment" => lua_add(base_expr, value_expr),
+        "decrement" => lua_sub(base_expr, value_expr),
+        "divide" => lua_div(base_expr, value_expr),
+        _ => lua_mul(base_expr, value_expr),
     };
 
     EffectOutput {
-        return_fields: vec![],
-        pre_return: vec![lua_raw_stmt(code)],
+        return_fields: vec![(target_key.to_string(), updated_expr)],
+        pre_return: vec![],
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),

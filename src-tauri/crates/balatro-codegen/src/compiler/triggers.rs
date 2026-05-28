@@ -183,9 +183,8 @@ fn joker_trigger_context(trigger: &str, bp: bool) -> Option<Expr> {
             ),
             bp,
         ),
-        "change_probability" | "probability_result" => {
-            bp_check(ctx("pseudorandom_result"), bp)
-        }
+        "change_probability" => bp_check(ctx("mod_probability"), bp),
+        "probability_result" => bp_check(ctx("pseudorandom_result"), bp),
 
         // Composite: fires on many player actions
         "player_action" => bp_check(

@@ -33,13 +33,15 @@ SMODS.Back {
     calculate = function(self, card, context)
         if context.main_eval then
             return {
-                chips = back.ability.extra.chips0
+                chips = self.config.extra.chips0
             }
         end
     end,
     apply = function(self, back)
+        local card = back
+        local context = {}
         return {
-            mult = back.ability.extra.mult0
+            mult = self.config.extra.mult0
         }
     end
 }
