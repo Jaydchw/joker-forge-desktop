@@ -1092,9 +1092,19 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     try {
       const stripImagePayloads = (value: unknown): unknown => {
         if (Array.isArray(value)) {
-          return value.map((entry) => stripImagePayloads(entry));
+          const nextArray = value
+            .map((entry) => stripImagePayloads(entry))
+            .filter((entry) => entry !== undefined);
+          return nextArray.length > 0 ? nextArray : undefined;
         }
         if (!value || typeof value !== "object") {
+          if (typeof value === "string") {
+            const trimmed = value.trim();
+            if (!trimmed) return undefined;
+            if (trimmed.startsWith("data:")) return undefined;
+            if (trimmed.length > 3000) return undefined;
+            return value;
+          }
           return value;
         }
 
@@ -1102,15 +1112,42 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         const next: Record<string, unknown> = {};
         for (const [key, entry] of Object.entries(source)) {
           const lowerKey = key.toLowerCase();
-          if (lowerKey === "image" || lowerKey === "images" || lowerKey === "layers") {
+          if (
+            lowerKey === "image" ||
+            lowerKey === "imagepreview" ||
+            lowerKey === "images" ||
+            lowerKey === "layers"
+          ) {
             continue;
           }
-          next[key] = stripImagePayloads(entry);
+          const cleaned = stripImagePayloads(entry);
+          if (cleaned === undefined) {
+            continue;
+          }
+          if (Array.isArray(cleaned) && cleaned.length === 0) {
+            continue;
+          }
+          if (
+            cleaned &&
+            typeof cleaned === "object" &&
+            Object.keys(cleaned as Record<string, unknown>).length === 0
+          ) {
+            continue;
+          }
+          next[key] = cleaned;
         }
-        return next;
+        return Object.keys(next).length > 0 ? next : undefined;
       };
 
       const sanitizedItem = stripImagePayloads(item ?? {});
+      if (!sanitizedItem) {
+        pushGlobalAlert({
+          type: "danger",
+          title: "Copy Failed",
+          message: "No non-empty item data to copy.",
+        });
+        return;
+      }
       const formattedItemJson = JSON.stringify(sanitizedItem, null, 2);
       if (!formattedItemJson) {
         pushGlobalAlert({
