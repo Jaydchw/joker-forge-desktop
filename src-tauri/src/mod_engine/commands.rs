@@ -371,7 +371,7 @@ fn compile_deck_lua_from_input(
     mod_prefix: &str,
     global_user_variables: &[UserVariableDef],
 ) -> String {
-    let mut def = super::export::deck_data_to_def(item, pos);
+    let mut def = super::export::deck_data_to_def(item, mod_prefix, pos);
     merge_global_user_vars(&mut def.user_variables, global_user_variables);
     let chunk = compile_deck(&def, mod_prefix);
     strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
@@ -598,7 +598,7 @@ pub fn compile_item_from_data_with_segments(
         "deck" => {
             let parsed: DeckDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid deck data: {}", e))?;
-            let mut def = super::export::deck_data_to_def(&parsed, base_pos);
+            let mut def = super::export::deck_data_to_def(&parsed, &mod_prefix, base_pos);
             merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_deck(&def, &mod_prefix);
             LuaEmitter::new().emit_chunk_with_segments(&chunk)

@@ -734,15 +734,24 @@ pub fn voucher_data_to_def(
     }
 }
 
-pub fn deck_data_to_def(input: &DeckDataInput, pos: AtlasPosInput) -> DeckDef {
+pub fn deck_data_to_def(input: &DeckDataInput, mod_prefix: &str, pos: AtlasPosInput) -> DeckDef {
+    let requested_atlas = input.atlas.as_deref().unwrap_or("CustomDecks").trim();
+    let normalized_prefixed_enhancers = normalize_mod_prefixed_key(mod_prefix, "Enhancers");
+    let atlas = if requested_atlas.is_empty()
+        || requested_atlas.eq_ignore_ascii_case("Enhancers")
+        || requested_atlas.eq_ignore_ascii_case("CustomDecks")
+        || requested_atlas == normalized_prefixed_enhancers
+    {
+        "CustomDecks".to_string()
+    } else {
+        requested_atlas.to_string()
+    };
+
     DeckDef {
         key: input.object_key.clone(),
         name: input.name.clone(),
         description: split_description(&input.description),
-        atlas: input
-            .atlas
-            .clone()
-            .unwrap_or_else(|| "Enhancers".to_string()),
+        atlas,
         pos: AtlasPos { x: pos.x, y: pos.y },
         rules: input.rules.iter().map(map_rule).collect(),
         user_variables: input.user_variables.iter().map(map_user_variable).collect(),
@@ -2016,6 +2025,30 @@ mod tests {
     fn normalize_rarity_does_not_double_prefix_custom_rarity() {
         let rarity = normalize_rarity(&serde_json::json!("jkr_superrare"), "jkr");
         assert_eq!(rarity, "jkr_superrare");
+    }
+
+    #[test]
+    fn deck_data_to_def_prefixes_atlas_key() {
+        let input = DeckDataInput {
+            object_key: "new_deck".to_string(),
+            name: "New Deck".to_string(),
+            description: "desc".to_string(),
+            localizations: vec![],
+            rules: vec![],
+            user_variables: vec![],
+            unlocked: Some(true),
+            discovered: Some(true),
+            no_collection: None,
+            config_vouchers: vec![],
+            config_consumables: vec![],
+            no_interest: false,
+            no_faces: false,
+            erratic_deck: false,
+            atlas: Some("Enhancers".to_string()),
+        };
+
+        let def = deck_data_to_def(&input, "new_proj", AtlasPosInput { x: 0, y: 0 });
+        assert_eq!(def.atlas, "CustomDecks");
     }
 
     #[test]
