@@ -32,9 +32,11 @@ SMODS.Edition {
     end,
     calculate = function(self, card, context)
         if context.pre_joker or context.main_scoring and context.cardarea == G.play then
-            return {
-                chips = card.ability.extra.chips0
-            }
+            do
+                return {
+                    chips = card.ability.extra.chips0
+                }
+            end
         end
     end
 }

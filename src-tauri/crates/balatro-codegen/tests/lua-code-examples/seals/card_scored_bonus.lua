@@ -30,9 +30,11 @@ SMODS.Seal {
     end,
     calculate = function(self, card, context)
         if context.main_scoring and context.cardarea == G.play then
-            return {
-                chips = card.ability.seal.extra.chips0
-            }
+            do
+                return {
+                    chips = card.ability.seal.extra.chips0
+                }
+            end
         end
     end
 }

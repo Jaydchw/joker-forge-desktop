@@ -30,12 +30,14 @@ SMODS.Consumable {
         }
     end,
     use = function(self, card, area, copier)
-        local _card = pseudorandom_element(G.hand.cards, pseudoseed('edit_cards'))
-        if not _card then return end
-        assert(SMODS.change_base(_card, nil, 'Ace'))
-        return {
-            colour = G.C.SECONDARY_SET.Tarot
-        }
+        do
+            local _card = pseudorandom_element(G.hand.cards, pseudoseed('edit_cards'))
+            if not _card then return end
+            assert(SMODS.change_base(_card, nil, 'Ace'))
+            return {
+                colour = G.C.SECONDARY_SET.Tarot
+            }
+        end
     end,
     can_use = function(self, card)
         return true

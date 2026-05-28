@@ -32,23 +32,25 @@ SMODS.Back {
     end,
     calculate = function(self, card, context)
         if context.main_eval then
-            return {
-                func = function()
-                    G.consumeables.config.card_limit = G.consumeables.config.card_limit + back.ability.extra.consumable_slots0
-                    card_eval_status_text(context.blueprint_card or card, 'extra', nil, nil, nil, {message = "+"..tostring(back.ability.extra.consumable_slots0)..' Consumable Slot', colour = G.C.GREEN})
-                    return true
-                end,
-                colour = G.C.GREEN,
-                extra = {
+            do
+                return {
                     func = function()
-                        card_eval_status_text(context.blueprint_card or card, 'extra', nil, nil, nil, {message = "+"..tostring(back.ability.extra.hand_size0)..' Hand Limit', colour = G.C.BLUE})
-                        
-                        G.hand:change_size(back.ability.extra.hand_size0)
+                        G.consumeables.config.card_limit = G.consumeables.config.card_limit + self.config.extra.consumable_slots0
+                        card_eval_status_text(context.blueprint_card or card, 'extra', nil, nil, nil, {message = "+"..tostring(self.config.extra.consumable_slots0)..' Consumable Slot', colour = G.C.GREEN})
                         return true
                     end,
-                    colour = G.C.BLUE
+                    colour = G.C.GREEN,
+                    extra = {
+                        func = function()
+                            card_eval_status_text(context.blueprint_card or card, 'extra', nil, nil, nil, {message = "+"..tostring(self.config.extra.hand_size0)..' Hand Limit', colour = G.C.BLUE})
+                            
+                            G.hand:change_size(self.config.extra.hand_size0)
+                            return true
+                        end,
+                        colour = G.C.BLUE
+                    }
                 }
-            }
+            end
         end
     end
 }

@@ -30,14 +30,16 @@ SMODS.Voucher {
     end,
     calculate = function(self, card, context)
         if context.main_eval then
-            local ante = G.GAME.win_ante + card.ability.extra.winner_ante_value0
-            local int_part, frac_part = math.modf(ante)
-            local rounded = int_part + (frac_part >= 0.5 and 1 or 0)
-            G.GAME.win_ante = rounded
-            return {
-                message = "Winner Ante +"..tostring(card.ability.extra.winner_ante_value0),
-                colour = G.C.FILTER
-            }
+            do
+                local ante = G.GAME.win_ante + card.ability.extra.winner_ante_value0
+                local int_part, frac_part = math.modf(ante)
+                local rounded = int_part + (frac_part >= 0.5 and 1 or 0)
+                G.GAME.win_ante = rounded
+                return {
+                    message = "Winner Ante +"..tostring(card.ability.extra.winner_ante_value0),
+                    colour = G.C.FILTER
+                }
+            end
         end
     end
 }

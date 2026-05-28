@@ -29,15 +29,17 @@ SMODS.Voucher {
         }
     end,
     redeem = function(self, card)
-        SMODS.add_card({ set = 'Base' })
-        if #G.consumeables.cards > 0 then local c = pseudorandom_element(G.consumeables.cards, pseudoseed('destroy_consumable')); if c then SMODS.destroy_cards({c}) end end
-        return {
-            message = 'Added Cards!',
-            colour = G.C.GREEN,
-            extra = {
-                message = 'Destroyed Consumable!',
-                colour = G.C.RED
+        do
+            SMODS.add_card({ set = 'Base' })
+            if #G.consumeables.cards > 0 then local c = pseudorandom_element(G.consumeables.cards, pseudoseed('destroy_consumable')); if c then SMODS.destroy_cards({c}) end end
+            return {
+                message = 'Added Cards!',
+                colour = G.C.GREEN,
+                extra = {
+                    message = 'Destroyed Consumable!',
+                    colour = G.C.RED
+                }
             }
-        }
+        end
     end
 }

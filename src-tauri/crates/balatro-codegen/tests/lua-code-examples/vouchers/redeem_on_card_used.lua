@@ -29,8 +29,10 @@ SMODS.Voucher {
         }
     end,
     redeem = function(self, card)
-        return {
-            chips = card.ability.extra.chips0
-        }
+        do
+            return {
+                chips = card.ability.extra.chips0
+            }
+        end
     end
 }

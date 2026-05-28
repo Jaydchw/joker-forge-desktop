@@ -35,7 +35,7 @@ SMODS.Consumable {
     end,
     calculate = function(self, card, context)
         if context.main_eval then
-            if true then
+            do
                 return {
                     chips = card.ability.extra.chips0
                 }
@@ -43,7 +43,7 @@ SMODS.Consumable {
         end
     end,
     use = function(self, card, area, copier)
-        if true then
+        do
             return {
                 mult = card.ability.extra.mult0
             }

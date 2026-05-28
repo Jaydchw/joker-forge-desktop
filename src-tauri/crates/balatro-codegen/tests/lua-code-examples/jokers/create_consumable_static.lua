@@ -32,11 +32,13 @@ SMODS.Joker {
     end,
     calculate = function(self, card, context)
         if context.joker_main then
-            if #G.consumeables.cards + (G.GAME.consumeable_buffer or 0) < G.consumeables.config.card_limit then SMODS.add_card({ area = G.consumeables, key = 'c_fool', set = 'Tarot' }) end
-            return {
-                message = localize('k_plus_consumable'),
-                colour = G.C.GREEN
-            }
+            do
+                if #G.consumeables.cards + (G.GAME.consumeable_buffer or 0) < G.consumeables.config.card_limit then SMODS.add_card({ area = G.consumeables, key = 'c_fool', set = 'Tarot' }) end
+                return {
+                    message = localize('k_plus_consumable'),
+                    colour = G.C.GREEN
+                }
+            end
         end
     end
 }

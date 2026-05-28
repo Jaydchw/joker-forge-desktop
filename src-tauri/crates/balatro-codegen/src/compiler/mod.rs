@@ -1449,12 +1449,13 @@ pub(crate) fn append_rule_chain_with_fallback<F>(
 
     if conditional_rules.is_empty() {
         // Lua requires `return` to be the last statement in a block.
-        // Wrap each unconditional rule in `do ... end` so each return is scoped
-        // to an inner block without emitting no-op `if true then` wrappers.
+        // Always wrap unconditional rule bodies in `do ... end` so early
+        // returns stay scoped and emitted Lua matches snapshot fixtures.
         for ro in unconditional_rules {
-            let mut wrapped = build_rule_anchor_stmts(ro);
-            wrapped.push(Stmt::DoBlock(build_rule_stmts(ro)));
-            out.extend(wrapped);
+            let mut anchored_rule = build_rule_anchor_stmts(ro);
+            let rule_stmts = build_rule_stmts(ro);
+            anchored_rule.push(Stmt::DoBlock(rule_stmts));
+            out.extend(anchored_rule);
         }
         return;
     }

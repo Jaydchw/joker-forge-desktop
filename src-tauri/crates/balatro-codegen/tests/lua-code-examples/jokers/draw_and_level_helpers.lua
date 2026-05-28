@@ -36,16 +36,18 @@ SMODS.Joker {
     end,
     calculate = function(self, card, context)
         if context.joker_main then
-            SMODS.draw_cards(card.ability.extra.card_draw0)
-            SMODS.smart_level_up_hand(card, context.scoring_name, false, card.ability.extra.level_amount0)
-            return {
-                message = "+"..tostring(card.ability.extra.card_draw0)..' Cards Drawn',
-                colour = G.C.BLUE,
-                extra = {
-                    message = localize('k_level_up_ex'),
-                    colour = G.C.GREEN
+            do
+                SMODS.draw_cards(card.ability.extra.card_draw0)
+                SMODS.smart_level_up_hand(card, context.scoring_name, false, card.ability.extra.level_amount0)
+                return {
+                    message = "+"..tostring(card.ability.extra.card_draw0)..' Cards Drawn',
+                    colour = G.C.BLUE,
+                    extra = {
+                        message = localize('k_level_up_ex'),
+                        colour = G.C.GREEN
+                    }
                 }
-            }
+            end
         end
     end
 }

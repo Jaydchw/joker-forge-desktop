@@ -30,11 +30,13 @@ SMODS.Seal {
     end,
     calculate = function(self, card, context)
         if context.main_scoring and context.cardarea == G.play then
-            SMODS.draw_cards(card.ability.seal.extra.card_draw0)
-            return {
-                message = "+"..tostring(card.ability.seal.extra.card_draw0)..' Cards Drawn',
-                colour = G.C.BLUE
-            }
+            do
+                SMODS.draw_cards(card.ability.seal.extra.card_draw0)
+                return {
+                    message = "+"..tostring(card.ability.seal.extra.card_draw0)..' Cards Drawn',
+                    colour = G.C.BLUE
+                }
+            end
         end
     end
 }

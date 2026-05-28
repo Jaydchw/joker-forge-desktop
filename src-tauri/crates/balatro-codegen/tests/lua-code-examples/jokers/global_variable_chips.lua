@@ -29,9 +29,11 @@ SMODS.Joker {
     end,
     calculate = function(self, card, context)
         if context.joker_main then
-            return {
-                chips = (G.GAME and G.GAME.jf_global_vars and G.GAME.jf_global_vars.globalvariabletest)
-            }
+            do
+                return {
+                    chips = (G.GAME and G.GAME.jf_global_vars and G.GAME.jf_global_vars.globalvariabletest)
+                }
+            end
         end
     end
 }
