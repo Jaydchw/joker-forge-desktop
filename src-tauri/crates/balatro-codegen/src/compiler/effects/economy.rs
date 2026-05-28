@@ -80,8 +80,7 @@ pub fn discount_items(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOut
 
     let refresh = "for _, v in pairs(G.I.CARD) do\n\
                     if v.set_cost then v:set_cost() end\n\
-                end\n\
-                return true";
+                end";
 
     let inner = match operation.as_str() {
         "subtract" => format!(
