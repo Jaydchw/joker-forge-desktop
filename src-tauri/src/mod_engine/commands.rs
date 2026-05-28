@@ -1129,12 +1129,13 @@ pub fn export_mod_package(
                 &[
                     &format!("shaders/{}", shader_file),
                     &format!("public/shaders/{}", shader_file),
+                    &format!("_up_/public/shaders/{}", shader_file),
                 ],
             )
             .ok_or_else(|| {
                 format!(
-                    "Missing shader source for '{}'. Expected bundled file at shaders/{} (or public/shaders/{})",
-                    shader_key, shader_file, shader_file
+                    "Missing shader source for '{}'. Expected bundled file at shaders/{} (or public/shaders/{}, _up_/public/shaders/{})",
+                    shader_key, shader_file, shader_file, shader_file
                 )
             })?;
 
