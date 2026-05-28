@@ -676,6 +676,14 @@ const PreviewPanel = memo(
     const handlePanStart = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
         if (e.button !== 0) return;
+        const target = e.target as HTMLElement | null;
+        if (
+          target?.closest(
+            "button, a, input, textarea, select, [role='button'], [data-preview-no-pan='true']",
+          )
+        ) {
+          return;
+        }
         setIsPanning(true);
         panLastRef.current = { x: e.clientX, y: e.clientY };
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -777,13 +785,8 @@ const PreviewPanel = memo(
   },
   (prev, next) => {
     if (prev.isCollapsed !== next.isCollapsed) return false;
-    if (prev.item?.id !== next.item?.id) return false;
-    if (prev.item?.name !== next.item?.name) return false;
-    if (prev.item?.description !== next.item?.description) return false;
-    if (prev.item?.image !== next.item?.image) return false;
-    if (prev.item?.overlayImage !== next.item?.overlayImage) return false;
-    if (prev.item?.rarity !== next.item?.rarity) return false;
-    if (prev.item?.set !== next.item?.set) return false;
+    if (prev.renderPreview !== next.renderPreview) return false;
+    if (prev.item !== next.item) return false;
     return true;
   },
 );

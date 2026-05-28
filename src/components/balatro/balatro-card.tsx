@@ -1,5 +1,12 @@
-import { useState, useEffect, memo } from "react";
-import { Image as ImageIcon } from "@phosphor-icons/react";
+import { useState, useEffect } from "react";
+import {
+  Club,
+  Diamond,
+  Heart,
+  Image as ImageIcon,
+  Spade,
+} from "@phosphor-icons/react";
+import IconButton from "@/components/ui/icon-button";
 import { BalatroText } from "@/lib/balatro/balatro-text-formatter";
 import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/services/storage";
 import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
@@ -68,12 +75,30 @@ const darkenColor = (hexColor: string, amount: number = 0.3): string => {
 };
 
 const ACE_OPTIONS = [
-  [
-    { key: "HC_A_hearts", name: "♥", color: "text-red-500" },
-    { key: "HC_A_diamonds", name: "♦", color: "text-yellow-400" },
-    { key: "HC_A_clubs", name: "♣", color: "text-blue-500" },
-    { key: "HC_A_spades", name: "♠", color: "text-gray-200" },
-  ],
+  {
+    key: "HC_A_hearts",
+    label: "Hearts Ace",
+    icon: Heart,
+    iconClassName: "text-red-500",
+  },
+  {
+    key: "HC_A_diamonds",
+    label: "Diamonds Ace",
+    icon: Diamond,
+    iconClassName: "text-yellow-400",
+  },
+  {
+    key: "HC_A_clubs",
+    label: "Clubs Ace",
+    icon: Club,
+    iconClassName: "text-blue-500",
+  },
+  {
+    key: "HC_A_spades",
+    label: "Spades Ace",
+    icon: Spade,
+    iconClassName: "text-gray-200",
+  },
 ];
 
 const SIZE_CLASSES = {
@@ -82,26 +107,25 @@ const SIZE_CLASSES = {
   lg: { image: "w-48 h-64" },
 };
 
-export const BalatroCard = memo(
-  function BalatroCard({
-    type,
-    data,
-    onClick,
-    className = "",
-    size = "md",
-    rarityName,
-    rarityColor,
-    setName,
-    setColor,
-    enhancement,
-    seal,
-    edition,
-    isSeal = false,
-    sealBadgeColor,
-    editionBadgeColor,
-    enhancementReplaceBase = false,
-    showCost = true,
-  }: BalatroCardProps) {
+export function BalatroCard({
+  type,
+  data,
+  onClick,
+  className = "",
+  size = "md",
+  rarityName,
+  rarityColor,
+  setName,
+  setColor,
+  enhancement,
+  seal,
+  edition,
+  isSeal = false,
+  sealBadgeColor,
+  editionBadgeColor,
+  enhancementReplaceBase = false,
+  showCost = true,
+}: BalatroCardProps) {
     const [imageError, setImageError] = useState(false);
     const [selectedAce, setSelectedAce] = useState("HC_A_hearts");
     const showPlaceholders = getDescriptionVariablePlaceholdersEnabled();
@@ -156,6 +180,10 @@ export const BalatroCard = memo(
     const getBadgeText = () => {
       if (enhancement) return enhancement;
       if (seal) return seal;
+      if (type === "edition") {
+        const shader = (data as Partial<EditionData>)?.shader;
+        return typeof shader === "string" && shader.trim() ? shader : "No Shader";
+      }
       if (edition) return edition;
       if (type === "joker") return rarityName || "Common";
       if (type === "consumable") return setName || "Tarot";
@@ -248,7 +276,7 @@ export const BalatroCard = memo(
                 <img
                   src={data.image}
                   alt={data.name}
-                  className={commonClasses}
+                  className={`${commonClasses} z-10`}
                   onError={() => setImageError(true)}
                   draggable="false"
                 />
@@ -260,7 +288,7 @@ export const BalatroCard = memo(
                 <img
                   src={`/images/${aceImageFolder}/${selectedAce}.png`}
                   alt="Base Card"
-                  className={commonClasses}
+                  className={`${commonClasses} z-20`}
                   draggable="false"
                 />
               )}
@@ -269,7 +297,7 @@ export const BalatroCard = memo(
                 <img
                   src={data.overlayImage}
                   alt="Overlay"
-                  className={commonClasses}
+                  className={`${commonClasses} z-30`}
                   draggable="false"
                 />
               )}
@@ -357,6 +385,10 @@ export const BalatroCard = memo(
 
     const cost = (data as any).cost;
     const hasOverlay = Boolean(data.overlayImage);
+    const objectType = (data as any)?.objectType;
+    const isEnhancementPreview =
+      type === "enhancement" || objectType === "enhancement";
+    const isSealPreview = type === "seal" || isSeal || objectType === "seal";
     const isCardType =
       type === "card" ||
       type === "edition" ||
@@ -390,24 +422,22 @@ export const BalatroCard = memo(
             </div>
           )}
 
-          {isCardType && (
-            <div className="mb-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity absolute -top-12 bg-balatro-black/90 p-1 rounded-lg z-50">
-              {ACE_OPTIONS[0].map((ace) => (
-                <button
+          {(isEnhancementPreview || isSealPreview) && !enhancementReplaceBase && (
+            <div
+              className="mb-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity absolute -top-11 z-50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {ACE_OPTIONS.map((ace) => (
+                <IconButton
                   key={ace.key}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedAce(ace.key);
-                  }}
-                  className={cn(
-                    "w-9 h-9 rounded-md border flex items-center justify-center text-xl font-bold transition-all duration-150 cursor-pointer",
-                    selectedAce === ace.key
-                      ? "bg-accent border-primary text-foreground shadow-sm"
-                      : "bg-card border-border text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-                  )}
-                >
-                  <span className={ace.color}>{ace.name}</span>
-                </button>
+                  icon={ace.icon}
+                  tooltip={ace.label}
+                  onClick={() => setSelectedAce(ace.key)}
+                  isActive={selectedAce === ace.key}
+                  iconClassName={ace.iconClassName}
+                  iconOnly
+                  className="!h-8 !w-8"
+                />
               ))}
             </div>
           )}
@@ -489,20 +519,4 @@ export const BalatroCard = memo(
         </div>
       </div>
     );
-  },
-  (prevProps, nextProps) => {
-    return (
-      prevProps.data === nextProps.data &&
-      prevProps.type === nextProps.type &&
-      prevProps.size === nextProps.size &&
-      prevProps.rarityName === nextProps.rarityName &&
-      prevProps.rarityColor === nextProps.rarityColor &&
-      prevProps.setName === nextProps.setName &&
-      prevProps.setColor === nextProps.setColor &&
-      prevProps.enhancement === nextProps.enhancement &&
-      prevProps.seal === nextProps.seal &&
-      prevProps.edition === nextProps.edition &&
-      prevProps.showCost === nextProps.showCost
-    );
-  },
-);
+}

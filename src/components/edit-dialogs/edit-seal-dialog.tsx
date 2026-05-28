@@ -170,7 +170,7 @@ export function EditSealDialog({
   const renderPreview = useCallback(
     (item: SealData | null) => (
       <BalatroCard
-        type="card"
+        type="seal"
         data={item || {}}
         isSeal={true}
         sealBadgeColor={item?.badge_colour}

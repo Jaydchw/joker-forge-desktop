@@ -176,7 +176,7 @@ export function EditEnhancementDialog({
   const renderPreview = useCallback(
     (item: EnhancementData | null) => (
       <BalatroCard
-        type="card"
+        type="enhancement"
         data={item || {}}
         enhancementReplaceBase={item?.replace_base_card === true}
         size="lg"
