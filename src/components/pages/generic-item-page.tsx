@@ -17,7 +17,13 @@ import {
   X,
   CaretDown,
   Rows,
+  Club,
+  Diamond,
+  Heart,
+  Spade,
+  ProhibitInset,
 } from "@phosphor-icons/react";
+import IconButton from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +42,10 @@ import { cn } from "@/lib/core/utils";
 import { fuzzyMatch } from "@/lib/core/search";
 import { getRandomEmptyStateFlavor } from "@/lib/app/empty-state-flavor";
 import { motion } from "framer-motion";
+import {
+  type AceSelection,
+  DEFAULT_ACE_SELECTION,
+} from "@/lib/balatro/card-preview-utils";
 
 const ESTIMATED_REGULAR_ROW_HEIGHT = 384;
 const VIRTUAL_OVERSCAN_ROWS = 2;
@@ -78,14 +88,20 @@ interface GenericItemPageProps<T> {
   onAddFromTemplate?: () => void;
   addNewLabel?: string;
   addFromTemplateLabel?: string;
-  renderCard: (item: T) => ReactNode;
-  renderCompactCard?: (item: T) => ReactNode;
+  renderCard: (item: T, context: GenericItemPageRenderContext) => ReactNode;
+  renderCompactCard?: (item: T, context: GenericItemPageRenderContext) => ReactNode;
   headerContent?: ReactNode;
   reforged?: boolean;
   isLoading?: boolean;
   defaultViewMode?: "regular" | "compact";
   defaultColumnMode?: ColumnMode;
   defaultCompactSize?: number;
+  aceSelectorMode?: "none" | "enhancement" | "seal" | "enhancement_or_seal";
+  defaultAceSelection?: AceSelection;
+}
+
+export interface GenericItemPageRenderContext {
+  selectedAce: AceSelection;
 }
 
 interface CardRendererProps {
@@ -137,6 +153,8 @@ function GenericItemPageInternal<T extends { id: string }>({
   defaultViewMode = "regular",
   defaultColumnMode = "auto",
   defaultCompactSize = 140,
+  aceSelectorMode = "none",
+  defaultAceSelection = DEFAULT_ACE_SELECTION,
 }: GenericItemPageProps<T>) {
   const [searchTerm, setSearchTerm] = useState("");
   const deferredSearchTerm = useDeferredValue(searchTerm);
@@ -182,6 +200,9 @@ function GenericItemPageInternal<T extends { id: string }>({
       Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1),
     );
   });
+  const [selectedAce, setSelectedAce] = useState<AceSelection>(
+    defaultAceSelection,
+  );
 
   useEffect(() => {
     if (title === prevTitle) return;
@@ -487,6 +508,38 @@ function GenericItemPageInternal<T extends { id: string }>({
 
   const toggleItemClass =
     "h-9 px-3.5 text-sm font-medium gap-2 cursor-pointer rounded-none first:rounded-l-xl last:rounded-r-xl data-[state=on]:bg-primary/10 data-[state=on]:text-primary hover:bg-accent hover:text-foreground transition-colors";
+  const aceOptions = [
+    {
+      key: "none" as const,
+      label: "No Base Ace",
+      icon: ProhibitInset,
+      iconClassName: "text-muted-foreground",
+    },
+    {
+      key: "HC_A_hearts" as const,
+      label: "Hearts Ace",
+      icon: Heart,
+      iconClassName: "text-red-500",
+    },
+    {
+      key: "HC_A_diamonds" as const,
+      label: "Diamonds Ace",
+      icon: Diamond,
+      iconClassName: "text-yellow-400",
+    },
+    {
+      key: "HC_A_clubs" as const,
+      label: "Clubs Ace",
+      icon: Club,
+      iconClassName: "text-blue-500",
+    },
+    {
+      key: "HC_A_spades" as const,
+      label: "Spades Ace",
+      icon: Spade,
+      iconClassName: "text-gray-300",
+    },
+  ];
 
   // Removed unused memoizedCards
   return (
@@ -758,6 +811,27 @@ function GenericItemPageInternal<T extends { id: string }>({
               </span>
             </div>
           )}
+          {aceSelectorMode !== "none" && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider shrink-0">
+                Base Card
+              </span>
+              <div className="flex items-center gap-1 rounded-xl border border-border bg-card shadow-sm h-9 px-1">
+                {aceOptions.map((ace) => (
+                  <IconButton
+                    key={ace.key}
+                    icon={ace.icon}
+                    tooltip={ace.label}
+                    onClick={() => setSelectedAce(ace.key)}
+                    isActive={selectedAce === ace.key}
+                    iconClassName={ace.iconClassName}
+                    iconOnly
+                    className="!h-7 !w-7"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -837,8 +911,12 @@ function GenericItemPageInternal<T extends { id: string }>({
                 <CardRenderer
                   item={item}
                   viewMode={viewMode}
-                  renderCard={renderCard}
-                  renderCompactCard={renderCompactCard}
+                  renderCard={(entry) => renderCard(entry, { selectedAce })}
+                  renderCompactCard={
+                    renderCompactCard
+                      ? (entry) => renderCompactCard(entry, { selectedAce })
+                      : undefined
+                  }
                 />
               </div>
             ))}

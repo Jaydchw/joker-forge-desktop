@@ -24,9 +24,10 @@ import {
   DownloadSimple,
   BookmarksSimple,
 } from "@phosphor-icons/react";
+import { BalatroCard } from "@/components/balatro/balatro-card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useConfirmDelete } from "@/hooks/use-confirm-delete";
-import { BalatroCard } from "@/components/balatro/balatro-card";
+import type { AceSelection } from "@/lib/balatro/card-preview-utils";
 import { getRandomPlaceholder } from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
@@ -214,7 +215,10 @@ export default function SealsPage() {
   );
 
   const renderCard = useCallback(
-    (item: SealData) => (
+    (
+      item: SealData,
+      context: { selectedAce: AceSelection },
+    ) => (
       <GenericItemCard
         key={item.id}
         name={item.name}
@@ -245,6 +249,10 @@ export default function SealsPage() {
             </div>
           )
         }
+        cardPreview={{
+          type: "seal",
+          selectedAce: context.selectedAce,
+        }}
         showPlaceholderPickerButton
         onOpenPlaceholderPicker={() => {
           setPlaceholderTargetId(item.id);
@@ -353,7 +361,7 @@ export default function SealsPage() {
   );
 
   const renderCompactCard = useCallback(
-    (item: SealData) => (
+    (item: SealData, context: { selectedAce: AceSelection }) => (
       <GenericItemCardCompact
         name={item.name}
         overlayImage={item.overlayImage}
@@ -370,6 +378,10 @@ export default function SealsPage() {
             </div>
           )
         }
+        cardPreview={{
+          type: "seal",
+          selectedAce: context.selectedAce,
+        }}
         actions={[
           {
             id: "edit",
@@ -468,6 +480,7 @@ export default function SealsPage() {
         sortOptions={sortOptions}
         renderCard={renderCard}
         renderCompactCard={renderCompactCard}
+        aceSelectorMode="seal"
       />
       <TemplatePickerDialog
         open={isTemplatePickerOpen}

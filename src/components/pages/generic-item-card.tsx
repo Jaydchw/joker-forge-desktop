@@ -31,6 +31,10 @@ import { sanitizeDescription } from "@/lib/description/description-sanitizer";
 import { sanitizeKeyLikeValue } from "@/lib/items/item-field-validation";
 import type { PixelLayerData } from "@/lib/core/types";
 import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/services/storage";
+import {
+  type AceSelection,
+  getAceImagePath,
+} from "@/lib/balatro/card-preview-utils";
 
 const DESCRIPTION_MAX_LENGTH = 260;
 
@@ -91,6 +95,12 @@ interface GenericItemCardProps {
   showPlaceholderPickerButton?: boolean;
   onOpenPlaceholderPicker?: () => void;
   hasManualEdits?: boolean;
+  cardPreview?: {
+    type: "enhancement" | "seal" | "edition";
+    selectedAce?: AceSelection;
+    replaceBaseCard?: boolean;
+    shader?: string | false;
+  };
 }
 
 const extractFirstImageSrc = (node: ReactNode): string | undefined => {
@@ -137,6 +147,7 @@ export const GenericItemCard = memo(function GenericItemCard({
   showPlaceholderPickerButton = false,
   onOpenPlaceholderPicker,
   hasManualEdits = false,
+  cardPreview,
 }: GenericItemCardProps) {
   const isReadOnly = reforged;
   const resolvedEditableImageSrc =
@@ -307,6 +318,11 @@ export const GenericItemCard = memo(function GenericItemCard({
     return cn(base, sizeClass, variants[variant]);
   };
 
+  const hasBaseAce =
+    cardPreview?.selectedAce &&
+    cardPreview.selectedAce !== "none" &&
+    !cardPreview.replaceBaseCard;
+
   return (
     <div
       ref={cardRef}
@@ -408,7 +424,47 @@ export const GenericItemCard = memo(function GenericItemCard({
               !isReadOnly && editAction && "cursor-pointer",
             )}
           >
-            {image}
+            {cardPreview?.type === "seal" && (
+              <img
+                src="/images/back.png"
+                alt="Card Back"
+                className="absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none z-0"
+                draggable="false"
+              />
+            )}
+            <div
+              className={cn(
+                "w-full h-full flex items-center justify-center",
+                cardPreview?.type === "seal" ? "relative z-20" : "",
+              )}
+            >
+              {image}
+            </div>
+            {hasBaseAce && (
+              <img
+                src={getAceImagePath(cardPreview.selectedAce as Exclude<AceSelection, "none">, cardPreview.type === "edition" ? "acesbg" : "aces")}
+                alt="Base Card"
+                className={cn(
+                  "absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none",
+                  cardPreview?.type === "seal"
+                    ? "z-10"
+                    : cardPreview?.type === "enhancement"
+                      ? "z-20"
+                      : "z-10",
+                )}
+                draggable="false"
+              />
+            )}
+            {cardPreview?.type === "edition" && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none px-4">
+                <span className="bg-black/60 text-white text-xs font-bold rounded px-2 py-1 text-center break-all">
+                  {typeof cardPreview.shader === "string" &&
+                  cardPreview.shader.trim()
+                    ? cardPreview.shader
+                    : "No Shader"}
+                </span>
+              </div>
+            )}
           </div>
           {overlayImage && (
             <img

@@ -59,6 +59,8 @@ interface BalatroCardProps {
   editionBadgeColor?: string;
   enhancementReplaceBase?: boolean;
   showCost?: boolean;
+  selectedAce?: "none" | "HC_A_hearts" | "HC_A_diamonds" | "HC_A_clubs" | "HC_A_spades";
+  showAceControls?: boolean;
 }
 
 const darkenColor = (hexColor: string, amount: number = 0.3): string => {
@@ -125,12 +127,17 @@ export function BalatroCard({
   editionBadgeColor,
   enhancementReplaceBase = false,
   showCost = true,
+  selectedAce,
+  showAceControls = true,
 }: BalatroCardProps) {
     const [imageError, setImageError] = useState(false);
-    const [selectedAce, setSelectedAce] = useState("HC_A_hearts");
+    const [internalSelectedAce, setInternalSelectedAce] = useState("HC_A_hearts");
     const showPlaceholders = getDescriptionVariablePlaceholdersEnabled();
 
     const aceImageFolder = type === "edition" ? "acesbg" : "aces";
+    const effectiveSelectedAce = selectedAce ?? internalSelectedAce;
+    const showBaseAce =
+      !enhancementReplaceBase && effectiveSelectedAce !== "none";
 
     useEffect(() => {
       setImageError(false);
@@ -234,9 +241,9 @@ export function BalatroCard({
                 draggable="false"
               />
 
-              {!enhancementReplaceBase && (
+              {showBaseAce && (
                 <img
-                  src={`/images/${aceImageFolder}/${selectedAce}.png`}
+                  src={`/images/${aceImageFolder}/${effectiveSelectedAce}.png`}
                   alt="Base Card"
                   className={`${commonClasses} z-10`}
                   draggable="false"
@@ -284,9 +291,9 @@ export function BalatroCard({
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-50"></div>
               )}
 
-              {!enhancementReplaceBase && (
+              {showBaseAce && (
                 <img
-                  src={`/images/${aceImageFolder}/${selectedAce}.png`}
+                  src={`/images/${aceImageFolder}/${effectiveSelectedAce}.png`}
                   alt="Base Card"
                   className={`${commonClasses} z-20`}
                   draggable="false"
@@ -316,9 +323,9 @@ export function BalatroCard({
               />
             )}
 
-            {!enhancementReplaceBase && (
+            {showBaseAce && (
               <img
-                src={`/images/${aceImageFolder}/${selectedAce}.png`}
+                src={`/images/${aceImageFolder}/${effectiveSelectedAce}.png`}
                 alt="Base Card"
                 className="w-full h-full object-contain [image-rendering:pixelated]"
                 draggable="false"
@@ -334,9 +341,26 @@ export function BalatroCard({
                 draggable="false"
               />
             ) : (
-              !enhancementReplaceBase && (
+              showBaseAce && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-50"></div>
               )
+            )}
+
+            {type === "edition" && !hasImage && (
+              <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none px-3">
+                {(() => {
+                  const shaderValue = (data as Partial<EditionData>).shader;
+                  const shaderText =
+                    typeof shaderValue === "string" && shaderValue.trim()
+                      ? shaderValue
+                      : "No Shader";
+                  return (
+                    <span className="bg-black/60 text-white text-xs font-bold rounded px-2 py-1 text-center break-all">
+                      {shaderText}
+                    </span>
+                  );
+                })()}
+              </div>
             )}
 
             {data.overlayImage && (
@@ -422,7 +446,9 @@ export function BalatroCard({
             </div>
           )}
 
-          {(isEnhancementPreview || isSealPreview) && !enhancementReplaceBase && (
+          {showAceControls &&
+            (isEnhancementPreview || isSealPreview) &&
+            !enhancementReplaceBase && (
             <div
               className="mb-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity absolute -top-11 z-50"
               onClick={(e) => e.stopPropagation()}
@@ -432,8 +458,8 @@ export function BalatroCard({
                   key={ace.key}
                   icon={ace.icon}
                   tooltip={ace.label}
-                  onClick={() => setSelectedAce(ace.key)}
-                  isActive={selectedAce === ace.key}
+                  onClick={() => setInternalSelectedAce(ace.key)}
+                  isActive={effectiveSelectedAce === ace.key}
                   iconClassName={ace.iconClassName}
                   iconOnly
                   className="!h-8 !w-8"

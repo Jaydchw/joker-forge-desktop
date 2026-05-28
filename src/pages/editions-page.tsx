@@ -13,7 +13,6 @@ import {
 import { EditionData, Rule } from "@/lib/core/types";
 import { fuzzyMatchAny } from "@/lib/core/search";
 import {
-  Palette,
   PencilSimple,
   Sparkle,
   Trash,
@@ -29,6 +28,7 @@ import {
   BookmarksSimple,
 } from "@phosphor-icons/react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
+import type { AceSelection } from "@/lib/balatro/card-preview-utils";
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
@@ -224,7 +224,10 @@ export default function EditionsPage() {
   );
 
   const renderCard = useCallback(
-    (item: EditionData) => (
+    (
+      item: EditionData,
+      context: { selectedAce: AceSelection },
+    ) => (
       <GenericItemCard
         key={item.id}
         name={item.name}
@@ -243,7 +246,22 @@ export default function EditionsPage() {
           };
           updateEditions([...data.editions, duplicatedItem]);
         }}
-        image={<Palette className="h-20 w-20 text-muted-foreground/20" />}
+        image={
+          item.image ? (
+            <img
+              src={item.image}
+              className="w-full h-full object-contain [image-rendering:pixelated]"
+              alt={item.name}
+            />
+          ) : (
+            <div className="w-full h-full" />
+          )
+        }
+        cardPreview={{
+          type: "edition",
+          selectedAce: context.selectedAce,
+          shader: item.shader,
+        }}
         properties={[
           {
             id: "unlocked",
@@ -363,7 +381,7 @@ export default function EditionsPage() {
   );
 
   const renderCompactCard = useCallback(
-    (item: EditionData) => (
+    (item: EditionData, context: { selectedAce: AceSelection }) => (
       <GenericItemCardCompact
         name={item.name}
         overlayImage={item.overlayImage}
@@ -380,6 +398,11 @@ export default function EditionsPage() {
             </div>
           )
         }
+        cardPreview={{
+          type: "edition",
+          selectedAce: context.selectedAce,
+          shader: item.shader,
+        }}
         actions={[
           {
             id: "edit",

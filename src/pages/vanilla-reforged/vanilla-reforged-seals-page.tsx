@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import type { AceSelection } from "@/lib/balatro/card-preview-utils";
 import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 import { RuleBuilder } from "@/components/rule-builder";
 import { useProjectData } from "@/lib/services/storage";
@@ -62,7 +63,10 @@ export default function VanillaReforgedSealsPage() {
   );
 
   const renderCard = useCallback(
-    (item: SealData) => (
+    (
+      item: SealData,
+      context: { selectedAce: AceSelection },
+    ) => (
       <GenericItemCard
         key={item.id}
         reforged
@@ -84,6 +88,10 @@ export default function VanillaReforgedSealsPage() {
             </div>
           )
         }
+        cardPreview={{
+          type: "seal",
+          selectedAce: context.selectedAce,
+        }}
         properties={[
           {
             id: "no_collection",
@@ -132,6 +140,7 @@ export default function VanillaReforgedSealsPage() {
         sortOptions={sortOptions}
         renderCard={renderCard}
         reforged
+        aceSelectorMode="seal"
       />
       {ruleViewingItem && (
         <RuleBuilder

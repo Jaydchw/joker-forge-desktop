@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import type { AceSelection } from "@/lib/balatro/card-preview-utils";
 import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 import { RuleBuilder } from "@/components/rule-builder";
 import { useProjectData } from "@/lib/services/storage";
@@ -65,7 +66,10 @@ export default function VanillaReforgedEditionsPage() {
   );
 
   const renderCard = useCallback(
-    (item: EditionData) => (
+    (
+      item: EditionData,
+      context: { selectedAce: AceSelection },
+    ) => (
       <GenericItemCard
         key={item.id}
         reforged
@@ -82,11 +86,14 @@ export default function VanillaReforgedEditionsPage() {
               alt={item.name}
             />
           ) : (
-            <div className="text-muted-foreground/30 text-xs font-bold uppercase tracking-widest border-2 border-dashed border-border p-4 rounded-lg">
-              No Image
-            </div>
+            <div className="w-full h-full" />
           )
         }
+        cardPreview={{
+          type: "edition",
+          selectedAce: context.selectedAce,
+          shader: item.shader,
+        }}
         properties={[
           {
             id: "in_shop",

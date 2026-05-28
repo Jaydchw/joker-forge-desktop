@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
+import type { AceSelection } from "@/lib/balatro/card-preview-utils";
 import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 import { RuleBuilder } from "@/components/rule-builder";
 import { useProjectData } from "@/lib/services/storage";
@@ -75,7 +76,10 @@ export default function VanillaReforgedEnhancementsPage() {
   );
 
   const renderCard = useCallback(
-    (item: EnhancementData) => (
+    (
+      item: EnhancementData,
+      context: { selectedAce: AceSelection },
+    ) => (
       <GenericItemCard
         key={item.id}
         reforged
@@ -97,6 +101,11 @@ export default function VanillaReforgedEnhancementsPage() {
             </div>
           )
         }
+        cardPreview={{
+          type: "enhancement",
+          selectedAce: context.selectedAce,
+          replaceBaseCard: item.replace_base_card === true,
+        }}
         properties={[
           {
             id: "unlocked",
@@ -185,6 +194,7 @@ export default function VanillaReforgedEnhancementsPage() {
         sortOptions={sortOptions}
         renderCard={renderCard}
         reforged
+        aceSelectorMode="enhancement"
       />
       {ruleViewingItem && (
         <RuleBuilder

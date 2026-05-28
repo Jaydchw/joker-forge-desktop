@@ -8,6 +8,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/core/utils";
+import {
+  type AceSelection,
+  getAceImagePath,
+} from "@/lib/balatro/card-preview-utils";
 
 interface GenericItemCardCompactProps {
   image: ReactNode;
@@ -15,6 +19,12 @@ interface GenericItemCardCompactProps {
   name: string;
   actions?: ActionConfig[];
   className?: string;
+  cardPreview?: {
+    type: "enhancement" | "seal" | "edition";
+    selectedAce?: AceSelection;
+    replaceBaseCard?: boolean;
+    shader?: string | false;
+  };
 }
 
 export const GenericItemCardCompact = memo(function GenericItemCardCompact({
@@ -23,12 +33,18 @@ export const GenericItemCardCompact = memo(function GenericItemCardCompact({
   name,
   actions = [],
   className,
+  cardPreview,
 }: GenericItemCardCompactProps) {
   const deleteAction = actions.find(
     (a) => a.id === "delete" || a.variant === "destructive",
   );
   const editAction = actions.find((a) => a.id === "edit");
   const otherActions = actions.filter((a) => a !== deleteAction);
+
+  const hasBaseAce =
+    cardPreview?.selectedAce &&
+    cardPreview.selectedAce !== "none" &&
+    !cardPreview.replaceBaseCard;
 
   return (
     <div
@@ -46,14 +62,60 @@ export const GenericItemCardCompact = memo(function GenericItemCardCompact({
           if (editAction) editAction.onClick();
         }}
       >
-        {image}
+        {cardPreview?.type === "seal" && (
+          <img
+            src="/images/back.png"
+            alt="Card Back"
+            className="absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none z-0"
+            draggable="false"
+          />
+        )}
+        <div
+          className={cn(
+            "w-full h-full",
+            cardPreview?.type === "seal" ? "relative z-20" : "",
+          )}
+        >
+          {image}
+        </div>
+        {hasBaseAce && (
+          <img
+            src={getAceImagePath(
+              cardPreview.selectedAce as Exclude<AceSelection, "none">,
+              cardPreview.type === "edition" ? "acesbg" : "aces",
+            )}
+            alt="Base Card"
+            className={cn(
+              "absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none",
+              cardPreview?.type === "seal"
+                ? "z-10"
+                : cardPreview?.type === "enhancement"
+                  ? "z-20"
+                  : "z-10",
+            )}
+            draggable="false"
+          />
+        )}
         {overlayImage && (
           <img
             src={overlayImage}
             alt="Overlay"
-            className="absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none z-0"
+            className={cn(
+              "absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none",
+              cardPreview?.type === "enhancement" ? "z-30" : "z-20",
+            )}
             draggable="false"
           />
+        )}
+        {cardPreview?.type === "edition" && !overlayImage && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none px-2">
+            <span className="bg-black/60 text-white text-[10px] font-bold rounded px-1.5 py-0.5 text-center break-all">
+              {typeof cardPreview.shader === "string" &&
+              cardPreview.shader.trim()
+                ? cardPreview.shader
+                : "No Shader"}
+            </span>
+          </div>
         )}
       </div>
 
