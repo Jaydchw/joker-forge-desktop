@@ -589,7 +589,7 @@ export const GenericItemCard = memo(function GenericItemCard({
               {hasManualEdits && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="shrink-0 inline-flex items-center justify-center rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/35 p-1">
+                    <span className="shrink-0 inline-flex items-center justify-center text-amber-400">
                       <Sparkle className="h-3 w-3" weight="fill" />
                     </span>
                   </TooltipTrigger>
