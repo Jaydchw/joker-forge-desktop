@@ -697,6 +697,7 @@ pub fn batch_export_jokers(
 /// in a single Rust command.
 #[tauri::command]
 pub fn export_mod_package(
+    app: AppHandle,
     mod_folder_path: String,
     metadata: ModMetadataInput,
     rarities: Vec<RarityDataInput>,
@@ -1114,6 +1115,43 @@ pub fn export_mod_package(
         }
     }
 
+    // Copy custom edition shader files into assets/shaders.
+    let custom_shader_keys = collect_custom_edition_shader_keys(&editions);
+    if !custom_shader_keys.is_empty() {
+        let shaders_dir = root.join("assets").join("shaders");
+        fs::create_dir_all(&shaders_dir)
+            .map_err(|e| format!("Failed to create {}: {}", shaders_dir.display(), e))?;
+
+        for shader_key in custom_shader_keys {
+            let shader_file = format!("{}.fs", shader_key);
+            let source = resolve_bundled_any(
+                &app,
+                &[
+                    &format!("shaders/{}", shader_file),
+                    &format!("public/shaders/{}", shader_file),
+                ],
+            )
+            .ok_or_else(|| {
+                format!(
+                    "Missing shader source for '{}'. Expected bundled file at shaders/{} (or public/shaders/{})",
+                    shader_key, shader_file, shader_file
+                )
+            })?;
+
+            let target = shaders_dir.join(&shader_file);
+            fs::copy(&source, &target).map_err(|e| {
+                format!(
+                    "Failed to copy shader {} from {} to {}: {}",
+                    shader_key,
+                    source.display(),
+                    target.display(),
+                    e
+                )
+            })?;
+            file_count += 1;
+        }
+    }
+
     if use_localization_file {
         let locale = localization_locale.unwrap_or_else(|| "en-us".to_string());
         let localization_dir = root.join("localization");
@@ -1227,6 +1265,48 @@ fn strip_export_comments(lua: &str) -> String {
     } else {
         format!("{}\n", lines.join("\n"))
     }
+}
+
+const VANILLA_SHADER_KEYS: &[&str] = &[
+    "foil",
+    "holo",
+    "polychrome",
+    "negative",
+    "negative_shine",
+    "voucher",
+    "booster",
+    "dissolve",
+    "debuff",
+    "played",
+    "unplayed",
+];
+
+fn parse_shader_key(value: &Value) -> Option<&str> {
+    match value {
+        Value::String(s) => Some(s.trim()),
+        _ => None,
+    }
+}
+
+fn is_custom_shader_key(shader: &str) -> bool {
+    !shader.is_empty() && shader != "false" && !VANILLA_SHADER_KEYS.contains(&shader)
+}
+
+fn collect_custom_edition_shader_keys(editions: &[BatchEditionEntry]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut result = Vec::new();
+
+    for entry in editions {
+        if let Some(shader_value) = entry.edition_data.shader.as_ref() {
+            if let Some(shader_key) = parse_shader_key(shader_value) {
+                if is_custom_shader_key(shader_key) && seen.insert(shader_key.to_string()) {
+                    result.push(shader_key.to_string());
+                }
+            }
+        }
+    }
+
+    result
 }
 
 fn join_relative_path(root: &Path, relative: &str) -> PathBuf {

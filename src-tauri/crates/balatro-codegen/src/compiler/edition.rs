@@ -15,6 +15,7 @@ const VANILLA_SHADERS: &[&str] = &[
     "voucher",
     "booster",
     "dissolve",
+    "debuff",
     "played",
     "unplayed",
 ];
