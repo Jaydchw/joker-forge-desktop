@@ -63,11 +63,21 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
     }
 
     // Build the event body (actual spawn happens asynchronously via event queue).
+    let add_card_stmt = lua_expr_stmt(lua_call(
+        "SMODS.add_card",
+        vec![lua_table_raw(add_card_entries)],
+    ));
     let event_body: Vec<Stmt> = vec![
-        lua_expr_stmt(lua_call(
-            "SMODS.add_card",
-            vec![lua_table_raw(add_card_entries)],
-        )),
+        lua_if(
+            lua_and(
+                lua_path(&["G", "jokers"]),
+                lua_and(
+                    lua_path(&["G", "jokers", "cards"]),
+                    lua_path(&["G", "jokers", "config"]),
+                ),
+            ),
+            vec![add_card_stmt],
+        ),
         lua_return(lua_bool(true)),
     ];
 
@@ -95,12 +105,21 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
     if has_slot_check {
         pre_return.push(lua_local("created_joker", lua_bool(false)));
         pre_return.push(lua_if(
-            lua_lt(
-                lua_add(
-                    lua_len(lua_path(&["G", "jokers", "cards"])),
-                    lua_path(&["G", "GAME", "joker_buffer"]),
+            lua_and(
+                lua_and(
+                    lua_path(&["G", "jokers"]),
+                    lua_and(
+                        lua_path(&["G", "jokers", "cards"]),
+                        lua_path(&["G", "jokers", "config"]),
+                    ),
                 ),
-                lua_path(&["G", "jokers", "config", "card_limit"]),
+                lua_lt(
+                    lua_add(
+                        lua_len(lua_path(&["G", "jokers", "cards"])),
+                        lua_or(lua_path(&["G", "GAME", "joker_buffer"]), lua_int(0)),
+                    ),
+                    lua_path(&["G", "jokers", "config", "card_limit"]),
+                ),
             ),
             vec![
                 lua_assign(lua_ident("created_joker"), lua_bool(true)),

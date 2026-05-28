@@ -53,7 +53,8 @@ impl ObjectType {
     /// The Lua path prefix to access config variables for this object type.
     pub fn ability_path(&self) -> &'static str {
         match self {
-            ObjectType::Deck => "back.ability.extra",
+            // Deck config variables live on the back definition config, not card ability.
+            ObjectType::Deck => "self.config.extra",
             ObjectType::Seal => "card.ability.seal.extra",
             _ => "card.ability.extra",
         }

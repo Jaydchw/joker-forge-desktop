@@ -166,6 +166,10 @@ fn build_apply_function(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -> O
     }
 
     let mut body: Vec<Stmt> = Vec::new();
+    // Deck apply is called with (self, back). Some shared effects assume `card`
+    // and `context` exist, so provide safe locals for deck scope.
+    body.push(lua_raw_stmt("local card = back"));
+    body.push(lua_raw_stmt("local context = {}"));
     super::append_rule_chain_with_fallback(&mut body, &apply_rules, |ro| {
         super::wrap_rule_segment(&ro.rule_id, ro.effect_stmts.clone())
     });
