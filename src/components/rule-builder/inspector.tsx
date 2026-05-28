@@ -109,6 +109,7 @@ interface InspectorProps {
     preferredType?: "number" | "suit" | "rank" | "pokerhand" | "key" | "text",
   ) => void;
   onToggleGameVariablesPanel: () => void;
+  onToggleSoundsPanel: () => void;
   onCreateRandomGroupFromEffect: (ruleId: string, effectId: string) => void;
   onCreateLoopGroupFromEffect: (ruleId: string, effectId: string) => void;
   selectedGameVariable: GameVariable | null;
@@ -135,6 +136,8 @@ interface ParameterFieldProps {
     preferredType?: "number" | "suit" | "rank" | "pokerhand" | "key" | "text",
   ) => void;
   onOpenGameVariablesPanel?: () => void;
+  onOpenSoundsPanel?: () => void;
+  projectSounds?: Array<{ id: string; key: string }>;
   selectedGameVariable?: GameVariable | null;
   onGameVariableApplied?: () => void;
   isEffect?: boolean;
@@ -435,6 +438,8 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
   availableVariables = [],
   onOpenVariablesPanel,
   onOpenGameVariablesPanel,
+  onOpenSoundsPanel,
+  projectSounds = [],
   selectedGameVariable,
   onGameVariableApplied,
   isEffect = false,
@@ -861,20 +866,43 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
         param.variableTypes?.includes(type),
       );
       const isVariableOnlySelector = param.id === "variable_name";
+      const isSoundSelector = param.id === "sound";
+      if (isSoundSelector) {
+        const modPrefix = getModPrefix();
+        const customSoundOptions = projectSounds.map((sound) => ({
+          value: `${modPrefix}_${sound.key}`,
+          label: sound.key,
+          valueType: "text",
+        }));
+        options = dedupeSelectOptions([...options, ...customSoundOptions]);
+      }
       const variableOptions = options.filter((option) => option.valueType === "user_var");
       const hasOnlyVariableOptions =
         options.length === 0 ||
         options.every((option) => option.valueType === "user_var");
       const shouldRenderAddVariableButton =
+        !isSoundSelector &&
         (isVariableOnlySelector || hasOnlyVariableOptions) &&
         variableOptions.length === 0;
+      const shouldRenderAddSoundButton = isSoundSelector && options.length === 0;
 
       return (
         <div className="space-y-1">
           <label className="block text-zinc-200 text-sm">
             {String(param.label)}
           </label>
-          {shouldRenderAddVariableButton ? (
+          {shouldRenderAddSoundButton ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              fullWidth
+              onClick={() => onOpenSoundsPanel?.()}
+              icon={<Plus className="h-4 w-4" />}
+              className="cursor-pointer"
+            >
+              Add Sound
+            </Button>
+          ) : shouldRenderAddVariableButton ? (
             <Button
               variant="secondary"
               size="sm"
@@ -1333,6 +1361,7 @@ const Inspector: React.FC<InspectorProps> = ({
   onClose,
   onToggleVariablesPanel,
   onToggleGameVariablesPanel,
+  onToggleSoundsPanel,
   onCreateRandomGroupFromEffect,
   onCreateLoopGroupFromEffect,
   selectedGameVariable,
@@ -1650,6 +1679,8 @@ const Inspector: React.FC<InspectorProps> = ({
                     onCreateVariable={handleCreateVariable}
                     onOpenVariablesPanel={onToggleVariablesPanel}
                     onOpenGameVariablesPanel={onToggleGameVariablesPanel}
+                    onOpenSoundsPanel={onToggleSoundsPanel}
+                    projectSounds={data.sounds}
                     selectedGameVariable={selectedGameVariable}
                     onGameVariableApplied={onGameVariableApplied}
                     isEffect={false}
@@ -2056,6 +2087,8 @@ const Inspector: React.FC<InspectorProps> = ({
                     onCreateVariable={handleCreateVariable}
                     onOpenVariablesPanel={onToggleVariablesPanel}
                     onOpenGameVariablesPanel={onToggleGameVariablesPanel}
+                    onOpenSoundsPanel={onToggleSoundsPanel}
+                    projectSounds={data.sounds}
                     selectedGameVariable={selectedGameVariable}
                     onGameVariableApplied={onGameVariableApplied}
                     isEffect={true}

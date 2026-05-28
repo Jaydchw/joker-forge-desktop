@@ -149,8 +149,6 @@ export function Header({ title }: HeaderProps) {
         return "Editions";
       case "/boosters":
         return "Boosters";
-      case "/sounds":
-        return "Sounds";
       case "/vanilla-reforged/jokers":
         return "Vanilla Jokers";
       case "/vanilla-reforged/consumables":
@@ -280,6 +278,7 @@ export function Header({ title }: HeaderProps) {
         data.metadata as any,
         data.rarities as any,
         data.consumableSets as any,
+        data.sounds as any,
         data.jokers as any,
         data.consumables as any,
         data.vouchers as any,

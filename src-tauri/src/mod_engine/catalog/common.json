@@ -206,7 +206,8 @@
     "tarotCards": "src/lib/balatro-utils.ts::TAROT_CARDS",
     "planetCards": "src/lib/balatro-utils.ts::PLANET_CARDS",
     "spectralCards": "src/lib/balatro-utils.ts::SPECTRAL_CARDS",
-    "allConsumables": "src/lib/balatro-utils.ts::ALL_CONSUMABLES"
+    "allConsumables": "src/lib/balatro-utils.ts::ALL_CONSUMABLES",
+    "sounds": "src/lib/services/storage.ts::ProjectData.sounds"
   },
   "optionSets": {
     "firstLastPosition": [

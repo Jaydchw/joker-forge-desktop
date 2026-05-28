@@ -322,6 +322,21 @@ pub struct ConsumableSetDataInput {
     pub default_card: Option<Value>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoundDataInput {
+    pub key: String,
+    pub sound_string: String,
+    #[serde(default)]
+    pub audio_bytes: Option<Vec<u8>>,
+    #[serde(default)]
+    pub volume: Option<f64>,
+    #[serde(default)]
+    pub pitch: Option<f64>,
+    #[serde(default)]
+    pub replace: Option<String>,
+}
+
 /// Mirrors the TypeScript `Rule` interface.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1620,6 +1635,7 @@ pub fn build_main_lua(
     editions: &[BatchEditionEntry],
     load_rarities: bool,
     load_consumable_sets: bool,
+    load_sounds: bool,
     load_globals: bool,
     run_scoped_globals: &[UserVariableDef],
 ) -> String {
@@ -1678,6 +1694,9 @@ pub fn build_main_lua(
     }
     if load_consumable_sets {
         requires.push_str("assert(SMODS.load_file(\"consumables/sets.lua\"))()\n");
+    }
+    if load_sounds {
+        requires.push_str("assert(SMODS.load_file(\"sounds.lua\"))()\n");
     }
     for j in &sorted_jokers {
         requires.push_str(&format!(
@@ -1785,6 +1804,40 @@ SMODS.current_mod.reset_game_globals = function(run_start)\n\
         "{}local NFS = require(\"nativefs\")\nto_big = to_big or function(a) return a end\nlenient_bignum = lenient_bignum or function(a) return a end\n{}\n{}{}\n",
         atlas_decls, globals_load, run_scoped_global_reset, requires
     )
+}
+
+pub fn build_sounds_lua(sounds: &[SoundDataInput]) -> String {
+    let mut sorted_sounds: Vec<&SoundDataInput> = sounds.iter().collect();
+    sorted_sounds.sort_by(|a, b| a.key.trim().to_ascii_lowercase().cmp(&b.key.trim().to_ascii_lowercase()));
+
+    let mut lines: Vec<String> = Vec::new();
+    for sound in sorted_sounds {
+        let key = sound.key.trim();
+        if key.is_empty() {
+            continue;
+        }
+        let path = sound.sound_string.trim();
+        if path.is_empty() {
+            continue;
+        }
+        let mut block = vec![
+            "SMODS.Sound({".to_string(),
+            format!("    key = '{}',", escape_lua_string(key)),
+            format!("    path = '{}',", escape_lua_string(&format!("sounds/{}", path))),
+            format!("    pitch = {},", sound.pitch.unwrap_or(1.0)),
+            format!("    volume = {},", sound.volume.unwrap_or(1.0)),
+        ];
+        if let Some(replace) = sound.replace.as_deref() {
+            let replace = replace.trim();
+            if !replace.is_empty() {
+                block.push(format!("    replace = '{}',", escape_lua_string(replace)));
+            }
+        }
+        block.push("})".to_string());
+        lines.push(block.join("\n"));
+    }
+
+    lines.join("\n\n")
 }
 
 #[derive(Serialize)]
@@ -2027,6 +2080,7 @@ mod tests {
             &[],
             &[],
             &[],
+            false,
             false,
             false,
             false,

@@ -655,8 +655,8 @@
   },
   {
     "id": "play_sound",
-    "label": "Play a sound",
-    "description": "Play a specific sound defined in the Sound Tab",
+    "label": "Play Sound",
+    "description": "Play a project sound",
     "applicableTriggers": [
       "booster_exited",
       "consumable_used",
@@ -676,10 +676,11 @@
     "objectUsers": ["joker", "consumable", "card", "voucher", "deck"],
     "params": [
       {
-        "id": "sound_key",
-        "type": "text",
-        "label": "Sound Key (modprefix_key) or (key)",
-        "default": ""
+        "id": "sound",
+        "type": "select",
+        "label": "Sound",
+        "options": [],
+        "optionSource": "sounds"
       }
     ],
     "category": "Special",

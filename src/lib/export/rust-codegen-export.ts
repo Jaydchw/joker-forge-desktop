@@ -12,6 +12,7 @@ import type {
   ModMetadata,
   RarityData,
   SealData,
+  SoundData,
   UserVariable,
   VoucherData,
 } from "@/lib/core/types";
@@ -428,6 +429,7 @@ export const exportModRust = async (
   metadata: ModMetadata,
   rarities: RarityData[],
   consumableSets: ConsumableSetData[],
+  sounds: SoundData[],
   jokers: JokerData[],
   consumables: ConsumableData[],
   vouchers: VoucherData[],
@@ -477,6 +479,14 @@ export const exportModRust = async (
     metadata,
     rarities,
     consumableSets,
+    sounds: sounds.map((sound) => ({
+      key: sound.key,
+      soundString: sound.soundString,
+      audioBytes: sound.audioDataUrl ? dataURLToUint8Array(sound.audioDataUrl) : null,
+      volume: sound.volume ?? 1,
+      pitch: sound.pitch ?? 1,
+      replace: sound.replace ?? null,
+    })),
     jokers: sortedJokers.map((joker) => ({
       // Localization-first model: base fields come from the chosen default locale.
       ...(() => {

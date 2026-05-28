@@ -6,6 +6,7 @@ import {
   Cube,
   BracketsCurly,
   ClockCounterClockwise,
+  MusicNotes,
 } from "@phosphor-icons/react";
 import IconButton from "@/components/ui/icon-button";
 
@@ -62,6 +63,12 @@ const FloatingDock: React.FC<FloatingDockProps> = ({
       label: "History",
       shortcut: "H",
     },
+    {
+      id: "sounds",
+      icon: MusicNotes,
+      label: "Sounds",
+      shortcut: "N",
+    },
   ];
 
   return (
@@ -80,6 +87,7 @@ const FloatingDock: React.FC<FloatingDockProps> = ({
                   tooltip={item.label}
                   shortcut={item.shortcut}
                   isActive={isActive}
+                  iconOnly
                   className="rounded-xl"
                   iconClassName="h-5 w-5"
                 />

@@ -17,6 +17,7 @@ import {
   Lightning,
   PuzzlePiece,
   Flask,
+  DotsThree,
 } from "@phosphor-icons/react";
 import IconButton from "@/components/ui/icon-button";
 import ItemTypeBadge from "./item-type-badge";
@@ -111,6 +112,13 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
 
     if (ruleChanged && hasRuleNow && activeFilter === "triggers") {
       setActiveFilter("conditions");
+    }
+    if (
+      ruleChanged &&
+      !hasRuleNow &&
+      (activeFilter === "conditions" || activeFilter === "effects")
+    ) {
+      setActiveFilter("triggers");
     }
 
     setPreviousSelectedRule(selectedRule);
@@ -323,6 +331,31 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
     return "text-balatro-green";
   };
 
+  const activeTabTone =
+    activeFilter === "triggers"
+      ? {
+          icon: Lightning,
+          tint: "text-balatro-money/25",
+          border: "border-balatro-money/45",
+          focus: "focus:border-balatro-money/70 focus:ring-balatro-money/20",
+          iconTint: "text-balatro-money/80",
+        }
+      : activeFilter === "conditions"
+        ? {
+            icon: Flask,
+            tint: "text-balatro-blue/25",
+            border: "border-balatro-blue/45",
+            focus: "focus:border-balatro-blue/70 focus:ring-balatro-blue/20",
+            iconTint: "text-balatro-blue/80",
+          }
+        : {
+            icon: PuzzlePiece,
+            tint: "text-balatro-green/25",
+            border: "border-balatro-green/45",
+            focus: "focus:border-balatro-green/70 focus:ring-balatro-green/20",
+            iconTint: "text-balatro-green/80",
+          };
+
   const renderCategory = (
     categoryData: {
       category: CategoryDefinition;
@@ -473,7 +506,40 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
       className="w-80"
       contentClassName="p-3"
     >
-      <div>
+      <div className="relative overflow-hidden rounded-lg">
+        <div className="pointer-events-none absolute inset-0 z-0 opacity-60">
+          {Array.from({ length: 18 }).map((_, index) => {
+            const BackIcon = activeTabTone.icon;
+            const col = index % 3;
+            const row = Math.floor(index / 3);
+            return (
+              <motion.div
+                key={`${activeFilter}-bg-${index}`}
+                className="absolute"
+                style={{
+                  left: `${col * 36 + 4}%`,
+                  top: `${row * 16 + 2}%`,
+                }}
+                initial={{ opacity: 0.08, y: 0 }}
+                animate={{
+                  opacity: [0.08, 0.16, 0.08],
+                  y: [0, -3, 0],
+                  rotate: [0, 3, 0],
+                }}
+                transition={{
+                  duration: 2.2 + (index % 5) * 0.2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: index * 0.05,
+                }}
+              >
+                <BackIcon className={`h-8 w-8 ${activeTabTone.tint}`} />
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <div className="relative z-10">
         <div className="w-1/4 h-px bg-border mx-auto mb-4"></div>
 
         <div className="flex justify-center gap-2 mb-4">
@@ -482,10 +548,12 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
             onClick={() => handleFilterToggle("triggers")}
             tooltip="Show all trigger types (starting point for rule compatibility)"
             isActive={activeFilter === "triggers"}
+            iconOnly
+            iconClassName={activeFilter === "triggers" ? "h-5 w-5" : "h-4 w-4"}
             className={
               activeFilter === "triggers"
-                ? "bg-balatro-money/22 text-balatro-money border-balatro-money/70"
-                : "bg-card text-balatro-money border-balatro-money/40 hover:bg-balatro-money/15"
+                ? "text-balatro-money !bg-balatro-money/18 rounded-lg"
+                : "text-balatro-money/70 hover:text-balatro-money"
             }
           />
           <IconButton
@@ -494,12 +562,14 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
             tooltip="Show only conditions valid for the selected rule's trigger"
             disabled={!selectedRule}
             isActive={activeFilter === "conditions"}
+            iconOnly
+            iconClassName={activeFilter === "conditions" ? "h-5 w-5" : "h-4 w-4"}
             className={
               !selectedRule
-                ? "bg-card text-muted-foreground border-border"
+                ? "text-muted-foreground"
                 : activeFilter === "conditions"
-                  ? "bg-balatro-blue/22 text-balatro-blue border-balatro-blue/70"
-                  : "bg-card text-balatro-blue border-balatro-blue/40 hover:bg-balatro-blue/15"
+                  ? "text-balatro-blue !bg-balatro-blue/18 rounded-lg"
+                  : "text-balatro-blue/70 hover:text-balatro-blue"
             }
           />
           <IconButton
@@ -508,12 +578,14 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
             tooltip="Show only effects valid for the selected rule's trigger"
             disabled={!selectedRule}
             isActive={activeFilter === "effects"}
+            iconOnly
+            iconClassName={activeFilter === "effects" ? "h-5 w-5" : "h-4 w-4"}
             className={
               !selectedRule
-                ? "bg-card text-muted-foreground border-border"
+                ? "text-muted-foreground"
                 : activeFilter === "effects"
-                  ? "bg-balatro-green/22 text-balatro-green border-balatro-green/70"
-                  : "bg-card text-balatro-green border-balatro-green/40 hover:bg-balatro-green/15"
+                  ? "text-balatro-green !bg-balatro-green/18 rounded-lg"
+                  : "text-balatro-green/70 hover:text-balatro-green"
             }
           />
         </div>
@@ -526,18 +598,30 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
             <HelpTooltipIcon content="Search runs only inside the active filter tab and current compatibility set. If results seem missing, switch filter or select a different rule/trigger first." />
           </div>
           <div className="relative">
-            <MagnifyingGlass className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-jungle-green-400 stroke-2" />
+            <MagnifyingGlass
+              className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 stroke-2 ${activeTabTone.iconTint}`}
+            />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search blocks..."
-              className="w-full bg-background border border-border rounded-xl pl-10 pr-4 py-2 text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+              className={`w-full bg-background/90 border rounded-xl pl-10 pr-9 py-2 text-foreground text-sm placeholder-muted-foreground focus:outline-none focus:ring-2 transition-colors ${activeTabTone.border} ${activeTabTone.focus}`}
             />
+            {searchTerm ? (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                aria-label="Clear search"
+              >
+                <DotsThree className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
         </div>
 
-        <div className="h-[calc(100vh-18rem)] overflow-y-auto custom-scrollbar">
+        <div className="h-[calc(100vh-22rem)] overflow-y-auto invisible-scrollbar">
           {renderSection(
             categorizedItems.triggers,
             "trigger",
@@ -558,6 +642,7 @@ const BlockPalette: React.FC<BlockPaletteProps> = ({
             onAddEffect,
             "effects",
           )}
+        </div>
         </div>
       </div>
     </Panel>

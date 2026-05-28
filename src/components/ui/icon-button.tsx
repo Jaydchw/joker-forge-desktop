@@ -16,6 +16,7 @@ interface IconButtonProps {
   isActive?: boolean;
   className?: string;
   iconClassName?: string;
+  iconOnly?: boolean;
 }
 
 const IconButton: React.FC<IconButtonProps> = ({
@@ -27,6 +28,7 @@ const IconButton: React.FC<IconButtonProps> = ({
   isActive = false,
   className,
   iconClassName,
+  iconOnly = false,
 }) => {
   return (
     <Tooltip>
@@ -37,13 +39,17 @@ const IconButton: React.FC<IconButtonProps> = ({
           disabled={disabled}
           aria-label={tooltip}
           size="icon"
-          variant="outline"
+          variant={iconOnly ? "ghost" : "outline"}
           className={cn(
-            "relative group h-9 w-9 rounded-md border-2 transition-all duration-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/50",
+            "relative group h-9 w-9 rounded-md transition-all duration-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/50",
             "disabled:opacity-50 disabled:cursor-not-allowed",
-            isActive
-              ? "bg-primary/10 border-primary/45 text-primary shadow-sm"
-              : "bg-card/90 border-border text-muted-foreground hover:border-primary/40 hover:text-primary",
+            iconOnly
+              ? isActive
+                ? "!bg-transparent !border-0 text-primary shadow-none hover:!bg-transparent"
+                : "!bg-transparent !border-0 text-muted-foreground hover:text-primary hover:!bg-transparent"
+              : isActive
+                ? "bg-primary/10 border-2 border-primary/45 text-primary shadow-sm"
+                : "bg-card/90 border-2 border-border text-muted-foreground hover:border-primary/40 hover:text-primary",
             className,
           )}
           icon={<Icon className={cn("h-4 w-4", iconClassName)} />}

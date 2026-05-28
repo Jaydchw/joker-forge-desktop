@@ -9,12 +9,10 @@ import {
   Ticket,
   Package,
   Stamp,
-  SpeakerHigh,
   PushPin,
   ClipboardText,
   Storefront,
   Stack,
-  ListNumbers,
   Palette,
   Star,
   Sparkle,
@@ -140,19 +138,6 @@ const COLLAPSIBLE_GROUPS = [
     ],
   },
   {
-    id: "misc",
-    title: "Misc",
-    icon: ListNumbers,
-    items: [
-      {
-        label: "Sounds",
-        icon: SpeakerHigh,
-        href: "/sounds",
-        color: "text-sound-primary",
-      },
-    ],
-  },
-  {
     id: "reforge",
     title: "Vanilla Reforged",
     icon: BookBookmark,
@@ -245,7 +230,6 @@ export function Sidebar({
     card_mod: true,
     shop: true,
     decks: true,
-    misc: true,
   });
   const location = useLocation();
 

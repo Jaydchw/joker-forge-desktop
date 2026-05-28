@@ -54,6 +54,7 @@ pub fn play_sound(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput
     let sound = effect
         .params
         .get("sound")
+        .or_else(|| effect.params.get("sound_key"))
         .and_then(|v| v.as_str())
         .unwrap_or("card1");
 

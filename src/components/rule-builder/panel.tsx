@@ -59,7 +59,7 @@ const Panel: React.FC<PanelProps> = ({
       data-rb-panel="true"
       style={style}
       className={cn(
-        "bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-xl z-40 flex flex-col",
+        "bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-xl z-40 flex flex-col max-h-[calc(100vh-5rem)] overflow-hidden",
         className,
       )}
     >
@@ -101,7 +101,9 @@ const Panel: React.FC<PanelProps> = ({
         </div>
       </div>
 
-      <div className={cn("min-h-0 flex-1", contentClassName)}>{children}</div>
+      <div className={cn("min-h-0 flex-1 overflow-y-auto invisible-scrollbar", contentClassName)}>
+        {children}
+      </div>
     </div>
   );
 };

@@ -21,7 +21,7 @@ use super::{
         BatchEnhancementEntry, BatchJokerEntry, BatchSealEntry, BatchVoucherEntry,
         ConsumableDataInput, ConsumableSetDataInput, DeckDataInput, EditionDataInput,
         EnhancementDataInput, JokerDataInput, ModMetadataInput, RarityDataInput, SealDataInput,
-        VoucherDataInput,
+        SoundDataInput, VoucherDataInput,
     },
     state::AppState,
     types::{Edge, EntityState, Node, RuleCatalogPayload, SnippetResponse, StateSyncPayload},
@@ -701,6 +701,7 @@ pub fn export_mod_package(
     metadata: ModMetadataInput,
     rarities: Vec<RarityDataInput>,
     consumable_sets: Vec<ConsumableSetDataInput>,
+    sounds: Vec<SoundDataInput>,
     jokers: Vec<BatchJokerEntry>,
     consumables: Vec<BatchConsumableEntry>,
     vouchers: Vec<BatchVoucherEntry>,
@@ -789,6 +790,7 @@ pub fn export_mod_package(
         &editions,
         !rarities.is_empty(),
         !consumable_sets.is_empty(),
+        !sounds.is_empty(),
         has_persistent_global_vars,
         &run_scoped_global_vars,
     ));
@@ -863,6 +865,37 @@ pub fn export_mod_package(
         fs::write(&sets_path, sets_lua.as_bytes())
             .map_err(|e| format!("Failed to write {}: {}", sets_path.display(), e))?;
         file_count += 1;
+    }
+
+    if !sounds.is_empty() {
+        let sounds_lua = format_lua_source(&super::export::build_sounds_lua(&sounds));
+        let sounds_lua_path = root.join("sounds.lua");
+        fs::write(&sounds_lua_path, sounds_lua.as_bytes())
+            .map_err(|e| format!("Failed to write {}: {}", sounds_lua_path.display(), e))?;
+        file_count += 1;
+
+        let sounds_dir = root.join("sounds");
+        fs::create_dir_all(&sounds_dir)
+            .map_err(|e| format!("Failed to create {}: {}", sounds_dir.display(), e))?;
+        for sound in &sounds {
+            let file_name = sound.sound_string.trim();
+            if file_name.is_empty() {
+                continue;
+            }
+            let sanitized_file_name = Path::new(file_name)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| format!("Invalid sound file name: {}", file_name))?;
+            if let Some(bytes) = &sound.audio_bytes {
+                if bytes.is_empty() {
+                    continue;
+                }
+                let path = sounds_dir.join(sanitized_file_name);
+                fs::write(&path, bytes)
+                    .map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
+                file_count += 1;
+            }
+        }
     }
 
     // Write atlas PNGs

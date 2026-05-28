@@ -940,12 +940,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
             exit="exit"
             transition={{ duration: 0.15 }}
           >
-            <motion.div
-              className="w-8 h-8 bg-card rounded-xl flex items-center justify-center border border-destructive/40"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              transition={{ duration: 0.05 }}
-            >
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center">
               <RuleTooltipButton
                 tooltip="Delete Rule"
                 onClick={(e) => {
@@ -956,13 +951,8 @@ const RuleCard: React.FC<RuleCardProps> = ({
               >
                 <Trash className="h-4 w-4 text-destructive transition-colors" />
               </RuleTooltipButton>
-            </motion.div>
-            <motion.div
-              className="w-8 h-8 bg-card rounded-xl flex items-center justify-center border border-balatro-blue/40"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              transition={{ duration: 0.05 }}
-            >
+            </div>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center">
               <RuleTooltipButton
                 tooltip="Duplicate Rule"
                 onClick={(e) => {
@@ -974,13 +964,8 @@ const RuleCard: React.FC<RuleCardProps> = ({
               >
                 <Copy className="h-4 w-4 text-balatro-blue" />
               </RuleTooltipButton>
-            </motion.div>
-            <motion.div
-              className="w-8 h-8 bg-card rounded-xl flex items-center justify-center border border-jungle-green-400/40"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              transition={{ duration: 0.05 }}
-            >
+            </div>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center">
               <RuleTooltipButton
                 tooltip="Save Rule as Template"
                 onClick={(e) => {
@@ -992,13 +977,8 @@ const RuleCard: React.FC<RuleCardProps> = ({
               >
                 <BookmarksSimple className="h-4 w-4 text-jungle-green-400" />
               </RuleTooltipButton>
-            </motion.div>
-            <motion.div
-              className="w-8 h-8 bg-card rounded-xl flex items-center justify-center border border-border"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              transition={{ duration: 0.05 }}
-            >
+            </div>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center">
               <RuleTooltipButton
                 tooltip="Close Menu"
                 onClick={(e) => {
@@ -1009,7 +989,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
               >
                 <X className="h-4 w-4 text-muted-foreground" />
               </RuleTooltipButton>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1062,18 +1042,15 @@ const RuleCard: React.FC<RuleCardProps> = ({
               <div className="flex items-center gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <motion.button
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setSidebarOpen(!sidebarOpen);
                       }}
                       className="p-1 text-muted-foreground hover:bg-accent rounded-md transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      transition={{ duration: 0.05 }}
                     >
                       <List className="h-4 w-4" />
-                    </motion.button>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent
                     side="bottom"
@@ -1412,3 +1389,7 @@ const areRuleCardPropsEqual = (prev: RuleCardProps, next: RuleCardProps) => {
 };
 
 export default React.memo(RuleCard, areRuleCardPropsEqual);
+
+
+
+

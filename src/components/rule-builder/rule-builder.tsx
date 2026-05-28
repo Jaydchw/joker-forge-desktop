@@ -48,6 +48,7 @@ import Variables from "./variables";
 import Inspector from "./inspector";
 import LiveCodePanel from "./live-code-panel";
 import HistoryPanel from "./history-panel";
+import SoundsPanel from "./sounds-panel";
 import {
   compileSingleItemLuaWithSegments,
   type PreviewCompileItemType,
@@ -3750,6 +3751,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           "inspector",
           "gameVariables",
           "history",
+          "sounds",
         ].forEach((panelId) =>
           clampPanelIntoViewport(panelId, nextBuilderWidthPx),
         );
@@ -3794,6 +3796,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       "inspector",
       "gameVariables",
       "history",
+      "sounds",
     ].forEach((panelId) => clampPanelIntoViewport(panelId, builderWidthPx));
   }, [builderWidthPercent, clampPanelIntoViewport, liveCodeIsVisible]);
 
@@ -4356,6 +4359,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   icon={CornersIn}
                   onClick={handleRecenter}
                   tooltip="Recenter View"
+                  iconOnly
                   className="rounded-xl"
                   iconClassName="h-5 w-5"
                 />
@@ -4363,6 +4367,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   icon={SquaresFour}
                   onClick={handleAutoLayoutRules}
                   tooltip="Auto Layout Rules"
+                  iconOnly
                   className="rounded-xl"
                   iconClassName="h-5 w-5"
                 />
@@ -4385,6 +4390,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   tooltip="Toggle Grid Snapping"
                   shortcut="S"
                   isActive={gridSnapping}
+                  iconOnly
                   className="rounded-xl"
                   iconClassName="h-5 w-5"
                 />
@@ -4393,6 +4399,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   onClick={() => handleGridZoomChange("out")}
                   tooltip="Zoom Out"
                   shortcut="-"
+                  iconOnly
                   className="rounded-xl"
                   iconClassName="h-5 w-5"
                 />
@@ -4401,6 +4408,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   onClick={() => handleGridZoomChange("in")}
                   tooltip="Zoom In"
                   shortcut="+"
+                  iconOnly
                   className="rounded-xl"
                   iconClassName="h-5 w-5"
                 />
@@ -4408,6 +4416,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   icon={Copy}
                   onClick={handleCopyItemJson}
                   tooltip="Copy Item JSON"
+                  iconOnly
                   className="rounded-xl"
                   iconClassName="h-5 w-5"
                 />
@@ -4748,6 +4757,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                       onToggleGameVariablesPanel={() =>
                         togglePanel("gameVariables")
                       }
+                      onToggleSoundsPanel={() => togglePanel("sounds")}
                       onCreateRandomGroupFromEffect={
                         createRandomGroupFromEffect
                       }
@@ -4781,6 +4791,12 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                       onPositionChange={(position) =>
                         updatePanelPosition("history", position)
                       }
+                    />
+                  )}
+                  {panels.sounds?.isVisible && (
+                    <SoundsPanel
+                      position={panels.sounds.position}
+                      onClose={() => togglePanel("sounds")}
                     />
                   )}
                   <FloatingDock

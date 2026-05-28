@@ -353,6 +353,15 @@
     display: none;
   }
 
+  .invisible-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .invisible-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   @keyframes jf-live-content-in {
     from {
       opacity: 0.94;

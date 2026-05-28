@@ -52,6 +52,13 @@ const createInitialPanels = (): Record<string, PanelState> => {
       size: { width: 320, height: 360 },
       positionSet: false,
     },
+    sounds: {
+      id: "sounds",
+      isVisible: false,
+      position: { x: 0, y: 0 },
+      size: { width: 384, height: 520 },
+      positionSet: false,
+    },
   };
 
   return {

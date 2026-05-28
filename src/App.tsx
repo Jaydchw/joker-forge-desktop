@@ -11,7 +11,6 @@ import EnhancementsPage from "@/pages/enhancements-page";
 import EditionsPage from "@/pages/editions-page";
 import BoostersPage from "@/pages/boosters-page";
 import VouchersPage from "@/pages/vouchers-page";
-import SoundsPage from "@/pages/sounds-page";
 import MetadataPage from "@/pages/metadata-page";
 import SettingsPage from "@/pages/settings-page";
 import AcknowledgementsPage from "@/pages/acknowledgements-page";
@@ -56,7 +55,6 @@ function App() {
               <Route path="/boosters" element={<BoostersPage />} />
               <Route path="/vouchers" element={<VouchersPage />} />
               <Route path="/enhancements" element={<EnhancementsPage />} />
-              <Route path="/sounds" element={<SoundsPage />} />
               <Route path="/editions" element={<EditionsPage />} />
               <Route path="/metadata" element={<MetadataPage />} />
               <Route path="/settings" element={<SettingsPage />} />
