@@ -615,6 +615,21 @@ pub fn consumable_data_to_def(
     pos: AtlasPosInput,
     soul_pos: Option<AtlasPosInput>,
 ) -> ConsumableDef {
+    let requested_atlas = input
+        .atlas
+        .as_deref()
+        .unwrap_or("CustomConsumables")
+        .trim();
+    let atlas = if requested_atlas.is_empty()
+        || requested_atlas.eq_ignore_ascii_case("Consumables")
+        || requested_atlas.eq_ignore_ascii_case("CustomConsumables")
+        || requested_atlas.ends_with("_Consumables")
+    {
+        "CustomConsumables".to_string()
+    } else {
+        requested_atlas.to_string()
+    };
+
     ConsumableDef {
         key: input.object_key.clone(),
         name: input.name.clone(),
@@ -625,10 +640,7 @@ pub fn consumable_data_to_def(
         discovered: input.discovered,
         hidden: input.hidden,
         can_repeat_soul: input.can_repeat_soul,
-        atlas: input
-            .atlas
-            .clone()
-            .unwrap_or_else(|| "Consumables".to_string()),
+        atlas,
         pos: AtlasPos { x: pos.x, y: pos.y },
         soul_pos: soul_pos.map(|sp| AtlasPos { x: sp.x, y: sp.y }),
         rules: input.rules.iter().map(map_rule).collect(),
@@ -714,6 +726,22 @@ pub fn voucher_data_to_def(
     pos: AtlasPosInput,
     soul_pos: Option<AtlasPosInput>,
 ) -> VoucherDef {
+    let requested_atlas = input
+        .atlas
+        .as_deref()
+        .unwrap_or("CustomVouchers")
+        .trim();
+    let atlas = if requested_atlas.is_empty()
+        || requested_atlas.eq_ignore_ascii_case("Voucher")
+        || requested_atlas.eq_ignore_ascii_case("CustomVouchers")
+        || requested_atlas.ends_with("_Voucher")
+        || requested_atlas.ends_with("_Vouchers")
+    {
+        "CustomVouchers".to_string()
+    } else {
+        requested_atlas.to_string()
+    };
+
     VoucherDef {
         key: input.object_key.clone(),
         name: input.name.clone(),
@@ -725,7 +753,7 @@ pub fn voucher_data_to_def(
         no_collection: input.no_collection,
         can_repeat_soul: input.can_repeat_soul,
         requires: input.requires.clone(),
-        atlas: input.atlas.clone().unwrap_or_else(|| "Voucher".to_string()),
+        atlas,
         pos: AtlasPos { x: pos.x, y: pos.y },
         soul_pos: soul_pos.map(|sp| AtlasPos { x: sp.x, y: sp.y }),
         rules: input.rules.iter().map(map_rule).collect(),
