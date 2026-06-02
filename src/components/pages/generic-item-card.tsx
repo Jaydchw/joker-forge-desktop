@@ -161,7 +161,11 @@ export const GenericItemCard = memo(function GenericItemCard({
   const [isThin, setIsThin] = useState(false);
   const [useTextActionButtons, setUseTextActionButtons] = useState(true);
   const [useCompactIconActions, setUseCompactIconActions] = useState(false);
+  const [propertyTooltipOpenById, setPropertyTooltipOpenById] = useState<
+    Record<string, boolean>
+  >({});
   const cardRef = useRef<HTMLDivElement>(null);
+  const hoveredPropertyIdsRef = useRef(new Set<string>());
   const showPlaceholders = getDescriptionVariablePlaceholdersEnabled();
 
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
@@ -270,6 +274,13 @@ export const GenericItemCard = memo(function GenericItemCard({
     if (e.key === "Escape") {
       cancelEdit();
     }
+  };
+
+  const setPropertyTooltipOpen = (propertyId: string, open: boolean) => {
+    setPropertyTooltipOpenById((previous) => {
+      if (previous[propertyId] === open) return previous;
+      return { ...previous, [propertyId]: open };
+    });
   };
 
   const deleteAction = actions.find(
@@ -651,13 +662,31 @@ export const GenericItemCard = memo(function GenericItemCard({
               )}
             >
               {properties.map((prop) => (
-                <Tooltip key={prop.id}>
+                <Tooltip
+                  key={prop.id}
+                  open={!!propertyTooltipOpenById[prop.id]}
+                  onOpenChange={(open) =>
+                    setPropertyTooltipOpen(prop.id, open)
+                  }
+                >
                   <TooltipTrigger asChild>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         if (isReadOnly) return;
                         prop.onClick();
+                        window.setTimeout(() => {
+                          if (hoveredPropertyIdsRef.current.has(prop.id)) {
+                            setPropertyTooltipOpen(prop.id, true);
+                          }
+                        }, 0);
+                      }}
+                      onPointerEnter={() => {
+                        hoveredPropertyIdsRef.current.add(prop.id);
+                      }}
+                      onPointerLeave={() => {
+                        hoveredPropertyIdsRef.current.delete(prop.id);
+                        setPropertyTooltipOpen(prop.id, false);
                       }}
                       onPointerDown={(e) => e.preventDefault()}
                       disabled={isReadOnly}
