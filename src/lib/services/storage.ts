@@ -123,10 +123,30 @@ let tauriStorePathsPromise: Promise<{
   projectsDir: string;
 }> | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
+let pendingLocalStoreUpdate: StoreUpdateEventDetail | null = null;
+let localStoreUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
 
 type StoreUpdateEventDetail = {
   store: ProjectStore;
   sourceId: string;
+};
+
+const scheduleLocalStoreUpdate = (detail: StoreUpdateEventDetail) => {
+  pendingLocalStoreUpdate = detail;
+  if (localStoreUpdateTimeout !== null) return;
+
+  localStoreUpdateTimeout = setTimeout(() => {
+    localStoreUpdateTimeout = null;
+    const pendingUpdate = pendingLocalStoreUpdate;
+    pendingLocalStoreUpdate = null;
+    if (!pendingUpdate || typeof window === "undefined") return;
+
+    window.dispatchEvent(
+      new CustomEvent<StoreUpdateEventDetail>(EVENT_KEY, {
+        detail: pendingUpdate,
+      }),
+    );
+  }, 0);
 };
 
 const isTauriRuntime = (): boolean => {
@@ -1116,20 +1136,16 @@ export const useProjectData = () => {
   }, [currentProject]);
 
   const saveStore = useCallback((nextStore: ProjectStore) => {
-    const emitLocalStoreUpdate = () => {
-      window.dispatchEvent(
-        new CustomEvent<StoreUpdateEventDetail>(EVENT_KEY, {
-          detail: { store: nextStore, sourceId: sourceIdRef.current },
-        }),
-      );
-    };
+    scheduleLocalStoreUpdate({
+      store: nextStore,
+      sourceId: sourceIdRef.current,
+    });
 
     persistQueue = persistQueue
       .then(async () => {
         if (isTauriRuntime()) {
           try {
             await persistStoreToTauriFiles(nextStore);
-            setTimeout(emitLocalStoreUpdate, 0);
             return;
           } catch (error) {
             console.warn("Error saving store to file", error);
@@ -1139,7 +1155,6 @@ export const useProjectData = () => {
 
         try {
           window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextStore));
-          setTimeout(emitLocalStoreUpdate, 0);
         } catch (error) {
           console.warn("Error saving to localStorage", error);
           maybeShowStorageErrorAlert(error);
