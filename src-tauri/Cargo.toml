@@ -30,4 +30,5 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 balatro-codegen = { path = "crates/balatro-codegen" }
-
+minimp3 = "0.6"
+vorbis_rs = "0.5"

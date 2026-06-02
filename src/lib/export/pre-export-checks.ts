@@ -540,10 +540,10 @@ export const runPreExportChecks = (data: ProjectData): PreExportIssue[] => {
       supportsItemNavigation: false,
       checkExtra: (item) => {
         if (!item.soundString?.trim()) {
-          return `Sounds: "${item.key || item.id}" is missing an uploaded mp3 filename.`;
+          return `Sounds: "${item.key || item.id}" is missing an uploaded MP3 or OGG filename.`;
         }
         if (!item.audioDataUrl?.trim()) {
-          return `Sounds: "${item.key || item.id}" is missing uploaded mp3 data.`;
+          return `Sounds: "${item.key || item.id}" is missing uploaded MP3 or OGG data.`;
         }
         const modPrefix = String(data.metadata.prefix || "").trim().toLowerCase();
         const key = String(item.key || "").trim().toLowerCase();

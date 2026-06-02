@@ -251,7 +251,7 @@ export interface EditionData extends BaseGameObject {
 export interface SoundData {
   id: string;
   key: string;
-  // Stored export filename (for example: my_sound.mp3)
+  // Stored upload filename (for example: my_sound.mp3 or my_sound.ogg)
   soundString: string;
   // Data URL payload for preview/export (for example: data:audio/mpeg;base64,...)
   audioDataUrl?: string;

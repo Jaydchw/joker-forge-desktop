@@ -1,6 +1,8 @@
 use std::{
     collections::{HashMap, HashSet},
     env, fs,
+    io::Cursor,
+    num::{NonZeroU32, NonZeroU8},
     path::{Path, PathBuf},
 };
 
@@ -10,9 +12,11 @@ use balatro_codegen::{
     compile_enhancement, compile_joker_with_options, compile_node_snippet, compile_rarity,
     compile_seal, compile_voucher, format_lua_source, Emitter as LuaEmitter, JokerDef, ObjectType,
 };
+use minimp3::{Decoder as Mp3Decoder, Error as Mp3Error, Frame as Mp3Frame};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{path::BaseDirectory, AppHandle, Emitter, Manager, State, Window};
+use vorbis_rs::VorbisEncoderBuilder;
 
 use super::{
     compiler::Compiler,
@@ -693,6 +697,91 @@ pub fn batch_export_jokers(
     Ok(count)
 }
 
+fn prepare_sounds_for_export(sounds: &mut [SoundDataInput]) -> Result<(), String> {
+    for sound in sounds {
+        let file_name = sound.sound_string.trim();
+        if file_name.is_empty() {
+            continue;
+        }
+        let extension = Path::new(file_name)
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default();
+        if extension.eq_ignore_ascii_case("ogg") {
+            continue;
+        }
+        if !extension.eq_ignore_ascii_case("mp3") {
+            return Err(format!(
+                "Unsupported sound file format for {}: {}",
+                sound.key, file_name
+            ));
+        }
+        if let Some(bytes) = sound.audio_bytes.as_mut() {
+            if !bytes.is_empty() {
+                *bytes = transcode_mp3_to_ogg(bytes).map_err(|error| {
+                    format!("Failed to convert {} to OGG: {}", file_name, error)
+                })?;
+            }
+        }
+        sound.sound_string = Path::new(file_name)
+            .with_extension("ogg")
+            .to_string_lossy()
+            .into_owned();
+    }
+    Ok(())
+}
+
+fn transcode_mp3_to_ogg(mp3_bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let mut decoder = Mp3Decoder::new(Cursor::new(mp3_bytes));
+    let first_frame = next_mp3_frame(&mut decoder)?
+        .ok_or_else(|| "MP3 file did not contain any audio frames".to_string())?;
+    let sample_rate = NonZeroU32::new(first_frame.sample_rate as u32)
+        .ok_or_else(|| "MP3 sample rate must be greater than zero".to_string())?;
+    let channels = NonZeroU8::new(first_frame.channels as u8)
+        .ok_or_else(|| "MP3 channel count must be greater than zero".to_string())?;
+    let mut ogg_bytes = Vec::new();
+    let mut encoder = VorbisEncoderBuilder::new(sample_rate, channels, &mut ogg_bytes)
+        .map_err(|error| error.to_string())?
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    encode_mp3_frame(&mut encoder, first_frame)?;
+    while let Some(frame) = next_mp3_frame(&mut decoder)? {
+        if frame.sample_rate as u32 != sample_rate.get() || frame.channels as u8 != channels.get() {
+            return Err("MP3 stream changed sample rate or channel count".to_string());
+        }
+        encode_mp3_frame(&mut encoder, frame)?;
+    }
+    encoder.finish().map_err(|error| error.to_string())?;
+    Ok(ogg_bytes)
+}
+
+fn next_mp3_frame<R: std::io::Read>(
+    decoder: &mut Mp3Decoder<R>,
+) -> Result<Option<Mp3Frame>, String> {
+    loop {
+        match decoder.next_frame() {
+            Ok(frame) => return Ok(Some(frame)),
+            Err(Mp3Error::SkippedData) => continue,
+            Err(Mp3Error::Eof) => return Ok(None),
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+}
+
+fn encode_mp3_frame<W: std::io::Write>(
+    encoder: &mut vorbis_rs::VorbisEncoder<W>,
+    frame: Mp3Frame,
+) -> Result<(), String> {
+    let mut channels = vec![Vec::with_capacity(frame.data.len() / frame.channels); frame.channels];
+    for (index, sample) in frame.data.into_iter().enumerate() {
+        channels[index % frame.channels].push(sample as f32 / i16::MAX as f32);
+    }
+    encoder
+        .encode_audio_block(channels)
+        .map_err(|error| error.to_string())
+}
+
 /// Export a full mod package (main file, metadata JSON, atlas assets, all item types)
 /// in a single Rust command.
 #[tauri::command]
@@ -702,7 +791,7 @@ pub fn export_mod_package(
     metadata: ModMetadataInput,
     rarities: Vec<RarityDataInput>,
     consumable_sets: Vec<ConsumableSetDataInput>,
-    sounds: Vec<SoundDataInput>,
+    mut sounds: Vec<SoundDataInput>,
     jokers: Vec<BatchJokerEntry>,
     consumables: Vec<BatchConsumableEntry>,
     vouchers: Vec<BatchVoucherEntry>,
@@ -749,6 +838,7 @@ pub fn export_mod_package(
     }
     fs::create_dir_all(root)
         .map_err(|e| format!("Failed to create mod folder {}: {}", mod_folder_path, e))?;
+    prepare_sounds_for_export(&mut sounds)?;
 
     let mut file_count = 0;
     let all_global_vars = super::export::collect_global_user_variables(

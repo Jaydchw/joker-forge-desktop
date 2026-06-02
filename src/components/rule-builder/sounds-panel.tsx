@@ -179,7 +179,13 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
     const soundId = pendingSoundIdRef.current;
     pendingSoundIdRef.current = null;
     event.target.value = "";
-    if (!file || !soundId || !file.name.toLowerCase().endsWith(".mp3")) return;
+    if (
+      !file ||
+      !soundId ||
+      ![".mp3", ".ogg"].some((extension) => file.name.toLowerCase().endsWith(extension))
+    ) {
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -330,7 +336,7 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
                 {sounds.length === 0 ? "No sounds created yet" : "No sounds match your search"}
               </p>
               {sounds.length === 0 ? (
-                <p className="text-muted-foreground text-xs mt-1">Add a sound, then upload an mp3</p>
+                <p className="text-muted-foreground text-xs mt-1">Add a sound, then upload an MP3 or OGG file</p>
               ) : null}
             </div>
           ) : (
@@ -354,7 +360,7 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
                       size="sm"
                     />
                     <div className="text-xs text-muted-foreground truncate">
-                      {sound.soundString?.trim() ? sound.soundString : "No mp3 uploaded"}
+                      {sound.soundString?.trim() ? sound.soundString : "No MP3 or OGG uploaded"}
                     </div>
                     <div className="relative h-12 bg-background/50 px-1 rounded-md">
                       <div className="absolute inset-0 flex items-end gap-[2px] px-1 py-1">
@@ -408,7 +414,7 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
                       <div className="flex items-center gap-1">
                         <IconButton
                           icon={UploadSimple}
-                          tooltip="Upload mp3"
+                          tooltip="Upload MP3 or OGG"
                           iconOnly
                           onClick={() => triggerUpload(sound.id)}
                           className="h-8 w-8 rounded-md"
@@ -444,7 +450,7 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".mp3,audio/mpeg"
+        accept=".mp3,.ogg,audio/mpeg,audio/ogg"
         className="hidden"
         onChange={handleFileChange}
       />
