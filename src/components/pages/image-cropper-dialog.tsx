@@ -13,6 +13,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/core/utils";
+import {
+  BALATRO_CARD_IMAGE_HEIGHT,
+  BALATRO_CARD_IMAGE_WIDTH,
+  loadImageElement,
 } from "@/lib/media/image-processing-utils";
 
 type ImageCropperDialogProps = {
