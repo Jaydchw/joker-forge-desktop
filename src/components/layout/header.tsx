@@ -222,7 +222,6 @@ export function Header({ title }: HeaderProps) {
         : "jokerforge";
       const result = await exportJokerforgeV2(data, undefined, extension, {
         saveMode: getJokerforgeExportSaveMode(),
-        balatroAppdataPath: getBalatroAppdataPath(),
       });
       if (result === "cancelled") return;
       if (
@@ -239,8 +238,6 @@ export function Header({ title }: HeaderProps) {
         message:
           result === "downloaded"
             ? `Downloaded .${extension} file.`
-            : result === "saved-mods"
-              ? `Saved .${extension} file to Balatro Mods folder.`
             : `Saved .${extension} file.`,
       });
     } catch (error) {

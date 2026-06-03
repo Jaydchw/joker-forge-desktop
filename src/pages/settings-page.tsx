@@ -50,6 +50,7 @@ import {
   getDescriptionVariablePlaceholdersEnabled,
   getDefaultLocalizationLanguage,
   getConfirmDeleteEnabled,
+  getExportDestinationMode,
   getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
   getSingleManagedModExportEnabled,
@@ -63,6 +64,7 @@ import {
   setDescriptionVariablePlaceholdersEnabled,
   setDefaultLocalizationLanguage,
   setConfirmDeleteEnabled,
+  setExportDestinationMode,
   setJokerforgeExportSaveMode,
   setJokerforgeExportAsJsonEnabled,
   setSingleManagedModExportEnabled,
@@ -73,6 +75,7 @@ import {
   type RuleBuilderShortcutId,
   type RuleBuilderSettings,
   DEFAULT_RULE_BUILDER_SETTINGS,
+  type ExportDestinationMode,
   type JokerforgeExportSaveMode,
   type ThemePreference,
 } from "@/lib/services/storage";
@@ -397,8 +400,10 @@ export default function SettingsPage() {
   const [balatroAppdataPath, setBalatroAppdataPathState] = useState("");
   const [balatroGamePath, setBalatroGamePathState] = useState("");
   const [splitLocalizationExport, setSplitLocalizationExport] = useState(false);
+  const [modExportDestinationMode, setModExportDestinationMode] =
+    useState<ExportDestinationMode>("downloads");
   const [exportSaveMode, setExportSaveMode] =
-    useState<JokerforgeExportSaveMode>("ask");
+    useState<JokerforgeExportSaveMode>("downloads");
   const [exportJokerforgeAsJson, setExportJokerforgeAsJson] = useState(false);
   const [singleManagedModExport, setSingleManagedModExport] = useState(true);
   const [defaultLocalizationLanguage, setDefaultLocalizationLanguageState] =
@@ -442,6 +447,7 @@ export default function SettingsPage() {
     setBalatroAppdataPathState(getBalatroAppdataPath());
     setBalatroGamePathState(getBalatroGamePath());
     setSplitLocalizationExport(getSplitLocalizationExportEnabled());
+    setModExportDestinationMode(getExportDestinationMode());
     setExportSaveMode(getJokerforgeExportSaveMode());
     setExportJokerforgeAsJson(getJokerforgeExportAsJsonEnabled());
     setSingleManagedModExport(getSingleManagedModExportEnabled());
@@ -712,7 +718,8 @@ export default function SettingsPage() {
         "Auto-open New Item Dialog",
         "Show Description Variable Values",
         "App Zoom",
-        "Export Save Location",
+        "Mod Export Location",
+        "JokerForge File Export Location",
         "Keep Balatro Mods Folder To One Managed Mod",
         "Balatro AppData folder",
         "Balatro game folder",
@@ -742,7 +749,8 @@ export default function SettingsPage() {
         "Auto-open New Item Dialog",
         "Show Description Variable Values",
         "App Zoom",
-        "Export Save Location",
+        "Mod Export Location",
+        "JokerForge File Export Location",
         "Keep Balatro Mods Folder To One Managed Mod",
       ],
       ruleBuilder: [
@@ -1102,12 +1110,48 @@ export default function SettingsPage() {
                 </div>
                 )}
 
-                {showSetting("Export Save Location") && (
+                {showSetting("Mod Export Location") && (
                 <div className="flex items-center justify-between py-2 gap-3">
                   <div>
-                    <Label htmlFor="export-save-mode">Export Save Location</Label>
+                    <Label htmlFor="mod-export-destination-mode">
+                      Mod Export Location
+                    </Label>
                     <p className="text-[11px] text-muted-foreground">
-                      Ask every export, save to Downloads, or save to Balatro Mods.
+                      Controls where full playable mod packages are exported.
+                    </p>
+                  </div>
+                  <Select
+                    value={modExportDestinationMode}
+                    onValueChange={(value) => {
+                      const next = value as ExportDestinationMode;
+                      setModExportDestinationMode(next);
+                      setExportDestinationMode(next);
+                    }}
+                  >
+                    <SelectTrigger
+                      id="mod-export-destination-mode"
+                      className="h-9 w-[220px]"
+                    >
+                      <SelectValue placeholder="Select mod export location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="downloads">Downloads</SelectItem>
+                      <SelectItem value="balatro-mods">
+                        Balatro Mods Folder
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                )}
+
+                {showSetting("JokerForge File Export Location") && (
+                <div className="flex items-center justify-between py-2 gap-3">
+                  <div>
+                    <Label htmlFor="jokerforge-export-save-mode">
+                      JokerForge File Export Location
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Controls standalone .jokerforge and .json project exports.
                     </p>
                   </div>
                   <Select
@@ -1118,18 +1162,15 @@ export default function SettingsPage() {
                       setJokerforgeExportSaveMode(next);
                     }}
                   >
-                    <SelectTrigger id="export-save-mode" className="h-9 w-[220px]">
-                      <SelectValue placeholder="Select save location" />
+                    <SelectTrigger
+                      id="jokerforge-export-save-mode"
+                      className="h-9 w-[220px]"
+                    >
+                      <SelectValue placeholder="Select file export location" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ask">Ask</SelectItem>
                       <SelectItem value="downloads">Downloads</SelectItem>
-                      <SelectItem
-                        value="balatro-mods"
-                        disabled={!balatroAppdataPath.trim()}
-                      >
-                        Balatro Mods Folder
-                      </SelectItem>
+                      <SelectItem value="ask">Ask Every Time</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

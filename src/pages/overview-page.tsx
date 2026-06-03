@@ -30,7 +30,6 @@ import {
 import {
   getJokerforgeExportSaveMode,
   getJokerforgeExportAsJsonEnabled,
-  getBalatroAppdataPath,
   getBalatroGamePath,
   type RecentActivityEntry,
   useProjectData,
@@ -156,7 +155,6 @@ export function OverviewPage() {
       const exportSaveMode = getJokerforgeExportSaveMode();
       const result = await exportJokerforgeV2(data, undefined, extension, {
         saveMode: exportSaveMode,
-        balatroAppdataPath: getBalatroAppdataPath(),
       });
       if (result === "cancelled") return;
       if (
@@ -173,8 +171,6 @@ export function OverviewPage() {
         message:
           result === "downloaded"
             ? `Downloaded .${extension} file.`
-            : result === "saved-mods"
-              ? `Saved .${extension} file to Balatro Mods folder.`
             : `Saved .${extension} file.`,
       });
     } catch (error) {

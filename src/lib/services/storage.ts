@@ -102,6 +102,8 @@ const SPLIT_LOCALIZATION_EXPORT_KEY = "joker_forge_split_localization_export";
 const DEFAULT_LOCALIZATION_LANGUAGE_KEY =
   "joker_forge_default_localization_language";
 const EXPORT_DESTINATION_MODE_KEY = "joker_forge_export_destination_mode";
+const JOKERFORGE_EXPORT_SAVE_MODE_KEY =
+  "joker_forge_jokerforge_export_save_mode";
 const JOKERFORGE_EXPORT_AS_JSON_KEY = "joker_forge_export_as_json";
 const SINGLE_MANAGED_MOD_EXPORT_KEY =
   "joker_forge_single_managed_mod_export";
@@ -227,7 +229,7 @@ const maybeShowStorageErrorAlert = (error: unknown) => {
 };
 
 export type ExportDestinationMode = "downloads" | "balatro-mods";
-export type JokerforgeExportSaveMode = "ask" | "downloads" | "balatro-mods";
+export type JokerforgeExportSaveMode = "ask" | "downloads";
 export type ThemePreference = "light" | "dark";
 export type RuleBuilderShortcutId =
   | "undo"
@@ -1818,6 +1820,7 @@ export const resetProjectData = () => {
   window.localStorage.removeItem(SPLIT_LOCALIZATION_EXPORT_KEY);
   window.localStorage.removeItem(DEFAULT_LOCALIZATION_LANGUAGE_KEY);
   window.localStorage.removeItem(EXPORT_DESTINATION_MODE_KEY);
+  window.localStorage.removeItem(JOKERFORGE_EXPORT_SAVE_MODE_KEY);
   window.localStorage.removeItem(JOKERFORGE_EXPORT_AS_JSON_KEY);
   window.localStorage.removeItem(SINGLE_MANAGED_MOD_EXPORT_KEY);
   window.localStorage.removeItem(JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY);
@@ -2005,14 +2008,17 @@ export const setExportDestinationMode = (mode: ExportDestinationMode) => {
 };
 
 export const getJokerforgeExportSaveMode = (): JokerforgeExportSaveMode => {
-  if (typeof window === "undefined") return "ask";
-  const stored = window.localStorage.getItem(EXPORT_DESTINATION_MODE_KEY);
-  if (
-    stored === "ask" ||
-    stored === "downloads" ||
-    stored === "balatro-mods"
-  ) {
+  if (typeof window === "undefined") return "downloads";
+  const stored = window.localStorage.getItem(JOKERFORGE_EXPORT_SAVE_MODE_KEY);
+  if (stored === "ask" || stored === "downloads") {
     return stored;
+  }
+
+  const legacyDestinationMode = window.localStorage.getItem(
+    EXPORT_DESTINATION_MODE_KEY,
+  );
+  if (legacyDestinationMode === "ask" || legacyDestinationMode === "downloads") {
+    return legacyDestinationMode;
   }
 
   // Migrate from legacy auto-save downloads toggle.
@@ -2020,12 +2026,12 @@ export const getJokerforgeExportSaveMode = (): JokerforgeExportSaveMode => {
     return "downloads";
   }
 
-  return "ask";
+  return "downloads";
 };
 
 export const setJokerforgeExportSaveMode = (mode: JokerforgeExportSaveMode) => {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(EXPORT_DESTINATION_MODE_KEY, mode);
+  window.localStorage.setItem(JOKERFORGE_EXPORT_SAVE_MODE_KEY, mode);
   window.localStorage.setItem(
     JOKERFORGE_AUTO_SAVE_DOWNLOADS_KEY,
     mode === "downloads" ? "true" : "false",

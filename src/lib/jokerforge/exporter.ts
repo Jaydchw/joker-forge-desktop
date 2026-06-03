@@ -1,8 +1,8 @@
 import type { ProjectData } from "@/lib/services/storage";
 import { normalizeProjectData } from "@/lib/jokerforge/legacy-transpiler";
 import { save } from "@tauri-apps/plugin-dialog";
-import { exists, mkdir, writeTextFile } from "@tauri-apps/plugin-fs";
-import { join } from "@tauri-apps/api/path";
+import { exists, writeTextFile } from "@tauri-apps/plugin-fs";
+import { downloadDir, join } from "@tauri-apps/api/path";
 
 export interface JokerforgeV2Export {
   format: "jokerforge";
@@ -41,10 +41,9 @@ export const exportJokerforgeV2 = async (
   fileName?: string,
   extension: "jokerforge" | "json" = "jokerforge",
   options?: {
-    saveMode?: "ask" | "downloads" | "balatro-mods";
-    balatroAppdataPath?: string;
+    saveMode?: "ask" | "downloads";
   },
-): Promise<"downloaded" | "saved" | "saved-mods" | "cancelled"> => {
+): Promise<"downloaded" | "saved" | "cancelled"> => {
   const baseName =
     fileName ||
     sanitizeFilenameBase(
@@ -55,34 +54,12 @@ export const exportJokerforgeV2 = async (
   const fullName = `${baseName}.${extension}`;
 
   if (options?.saveMode === "downloads") {
-    const blob = new Blob([content], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fullName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    URL.revokeObjectURL(url);
+    const downloadsPath = await downloadDir();
+    if (!downloadsPath || !(await exists(downloadsPath))) {
+      throw new Error("Unable to resolve Downloads folder for export.");
+    }
+    await writeTextFile(await join(downloadsPath, fullName), content);
     return "downloaded";
-  }
-
-  if (options?.saveMode === "balatro-mods") {
-    const appdataPath = (options.balatroAppdataPath || "").trim();
-    if (!appdataPath) {
-      throw new Error("Balatro AppData path is not set.");
-    }
-
-    const modsDir = await join(appdataPath, "Mods");
-    if (!(await exists(modsDir))) {
-      await mkdir(modsDir, { recursive: true });
-    }
-
-    const targetPath = await join(modsDir, fullName);
-    await writeTextFile(targetPath, content);
-    return "saved-mods";
   }
 
   const targetPath = await save({
