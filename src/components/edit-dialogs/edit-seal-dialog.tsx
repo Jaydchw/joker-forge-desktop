@@ -38,7 +38,6 @@ export function EditSealDialog({
                 id: "image",
                 type: "image",
                 label: "Main Sprite",
-                description: "71x95px (auto-upscaled) or 142x190px",
                 processFile: processSealImage,
               },
             ],

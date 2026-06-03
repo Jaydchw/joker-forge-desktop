@@ -3,7 +3,7 @@ members = ["crates/balatro-codegen"]
 
 [package]
 name = "joker-forge-desktop"
-version = "2.0.0-beta-nightly.local"
+version = "2.0.0-beta"
 description = "A Balatro mod maker"
 authors = ["Jaydchw"]
 edition = "2021"

@@ -40,6 +40,7 @@ import {
 import {
   Upload,
   Trash,
+  Crop,
   Image as ImageIcon,
   GlobeHemisphereWest,
   MagnifyingGlassMinus,
@@ -54,9 +55,7 @@ import {
 } from "@/components/pages/description-editor";
 import { LocalizationEditor } from "@/components/pages/localization-editor";
 import {
-  PlaceholderEntry,
   PlaceholderCategory,
-  getPlaceholderEntriesForCategory,
 } from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import {
@@ -73,6 +72,13 @@ import {
   sanitizeKeyLikeValue,
   validateFieldValueBasic,
 } from "@/lib/items/item-field-validation";
+import { ImageCropperDialog } from "@/components/pages/image-cropper-dialog";
+import {
+  getImageDimensions,
+  isBalatroCardImageSize,
+  normalizeBalatroCardImageSource,
+  readFileAsDataUrl,
+} from "@/lib/media/image-processing-utils";
 
 export type FieldType =
   | "text"
@@ -175,6 +181,11 @@ const isLocalizableDialogItem = (value: unknown): value is LocalizableDialogItem
   return Boolean(value && typeof value === "object");
 };
 
+type ImageCropperState = {
+  fieldId: string;
+  imageSrc: string;
+};
+
 const MemoizedField = memo(
   ({
     field,
@@ -184,9 +195,8 @@ const MemoizedField = memo(
     inGrid,
     error,
     showPlaceholderPicker,
-    placeholderCategory,
-    placeholderCredits,
     onOpenPlaceholderPicker,
+    onOpenImageCropper,
     rerenderKey,
   }: {
     field: DialogField<any>;
@@ -196,9 +206,8 @@ const MemoizedField = memo(
     inGrid?: boolean;
     error?: string;
     showPlaceholderPicker?: boolean;
-    placeholderCategory?: PlaceholderCategory;
-    placeholderCredits?: Record<number, string>;
     onOpenPlaceholderPicker?: () => void;
+    onOpenImageCropper?: (fieldId: string, src: string) => void;
     rerenderKey?: string;
   }) => {
     void rerenderKey;
@@ -415,22 +424,30 @@ const MemoizedField = memo(
             />
           );
         case "image":
-          const itemPlaceholderCategory =
-            (fullItem?.placeholderCategory as
-              | PlaceholderCategory
-              | undefined) || placeholderCategory;
-          const placeholderCreditIndex =
-            typeof fullItem?.placeholderCreditIndex === "number"
-              ? fullItem.placeholderCreditIndex
-              : undefined;
-          const placeholderCredit =
-            placeholderCreditIndex !== undefined
-              ? placeholderCredits?.[placeholderCreditIndex]
-              : undefined;
+          const isOverlayImage = field.id
+            .toLowerCase()
+            .includes("overlay");
+          const imageKind = isOverlayImage ? "Overlay" : "Sprite";
+          const uploadLabel = safeValue
+            ? `Replace ${imageKind}`
+            : `Upload ${imageKind}`;
+          const clearPlaceholderMetadata = () => {
+            if ("placeholderCreditIndex" in (fullItem as any)) {
+              onChange("placeholderCreditIndex", undefined);
+            }
+            if ("placeholderCategory" in (fullItem as any)) {
+              onChange("placeholderCategory", undefined);
+            }
+          };
+          const clearImageLayers = () => {
+            if (field.id === "image" && "imageLayers" in (fullItem as any)) {
+              onChange("imageLayers", undefined);
+            }
+          };
 
           return (
-            <div className="flex items-start gap-4 p-3 hover:bg-muted/5 transition-colors">
-              <div className="relative w-20 h-28 shrink-0 rounded-md overflow-hidden flex items-center justify-center group">
+            <div className="group/image-field flex justify-center p-3 transition-colors hover:bg-muted/5">
+              <div className="relative flex h-80 w-60 shrink-0 items-center justify-center overflow-hidden">
                 {safeValue ? (
                   <img
                     src={String(safeValue)}
@@ -440,17 +457,64 @@ const MemoizedField = memo(
                     decoding="async"
                   />
                 ) : (
-                  <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                  <ImageIcon className="h-12 w-12 text-muted-foreground/30" />
                 )}
-              </div>
-              <div className="flex-1 space-y-3">
-                <Label
-                  htmlFor={`upload-${field.id}`}
-                  className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 px-4 py-2 w-full"
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  {safeValue ? "Change Image" : "Upload Image"}
-                </Label>
+
+                <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover/image-field:bg-black/55 group-hover/image-field:opacity-100">
+                  <div className="flex flex-col gap-2 px-4">
+                    <Button asChild>
+                      <Label
+                        htmlFor={`upload-${field.id}`}
+                        className="cursor-pointer"
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {uploadLabel}
+                      </Label>
+                    </Button>
+
+                    {showPlaceholderPicker && field.id === "image" && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="cursor-pointer"
+                        onClick={onOpenPlaceholderPicker}
+                      >
+                        <ImageIcon className="mr-2 h-4 w-4" />
+                        Presets
+                      </Button>
+                    )}
+
+                    {safeValue && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="cursor-pointer"
+                          onClick={() =>
+                            onOpenImageCropper?.(field.id, String(safeValue))
+                          }
+                        >
+                          <Crop className="mr-2 h-4 w-4" />
+                          Adjust
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="cursor-pointer"
+                          onClick={() => {
+                            onChange(field.id, "");
+                            clearPlaceholderMetadata();
+                            clearImageLayers();
+                          }}
+                        >
+                          <Trash className="mr-2 h-4 w-4" />
+                          Clear
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <input
                   id={`upload-${field.id}`}
                   type="file"
@@ -459,76 +523,33 @@ const MemoizedField = memo(
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      if (field.processFile) {
-                        try {
+                      try {
+                        const src = await readFileAsDataUrl(file);
+                        const dimensions = await getImageDimensions(src);
+                        if (!isBalatroCardImageSize(dimensions)) {
+                          onOpenImageCropper?.(field.id, src);
+                          e.currentTarget.value = "";
+                          return;
+                        }
+
+                        if (field.processFile) {
                           const result = await field.processFile(file);
                           onChange(field.id, result);
-                          if ("placeholderCreditIndex" in (fullItem as any)) {
-                            onChange("placeholderCreditIndex", undefined);
-                          }
-                        } catch (err) {
-                          console.error("Image processing failed", err);
+                        } else {
+                          const result =
+                            await normalizeBalatroCardImageSource(src);
+                          onChange(field.id, result);
                         }
-                      } else {
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          onChange(field.id, event.target?.result);
-                          if ("placeholderCreditIndex" in (fullItem as any)) {
-                            onChange("placeholderCreditIndex", undefined);
-                          }
-                        };
-                        reader.readAsDataURL(file);
+                        clearPlaceholderMetadata();
+                        clearImageLayers();
+                      } catch (err) {
+                        console.error("Image processing failed", err);
+                      } finally {
+                        e.currentTarget.value = "";
                       }
                     }
                   }}
                 />
-
-                {showPlaceholderPicker && field.id === "image" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full cursor-pointer"
-                    onClick={onOpenPlaceholderPicker}
-                  >
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                    Choose Placeholder
-                  </Button>
-                )}
-
-                {safeValue && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-                    onClick={() => {
-                      onChange(field.id, "");
-                      if ("placeholderCreditIndex" in (fullItem as any)) {
-                        onChange("placeholderCreditIndex", undefined);
-                      }
-                      if ("placeholderCategory" in (fullItem as any)) {
-                        onChange("placeholderCategory", undefined);
-                      }
-                    }}
-                  >
-                    <Trash className="mr-2 h-4 w-4" />
-                    Remove
-                  </Button>
-                )}
-
-                {placeholderCredit && (
-                  <p className="text-[11px] text-muted-foreground text-center">
-                    Placeholder credit: {placeholderCredit}
-                    {itemPlaceholderCategory
-                      ? ` (${itemPlaceholderCategory})`
-                      : ""}
-                  </p>
-                )}
-
-                {field.description && (
-                  <p className="text-[10px] text-muted-foreground leading-tight text-center">
-                    {field.description}
-                  </p>
-                )}
               </div>
             </div>
           );
@@ -826,9 +847,8 @@ function GenericItemDialogInternal<T extends { id: string }>({
   const [activeLocalizationLanguage, setActiveLocalizationLanguage] =
     useState<string>(DEFAULT_LOCALIZATION_LANGUAGE);
   const [isPlaceholderDialogOpen, setIsPlaceholderDialogOpen] = useState(false);
-  const [placeholderCredits, setPlaceholderCredits] = useState<
-    Record<number, string>
-  >({});
+  const [imageCropperState, setImageCropperState] =
+    useState<ImageCropperState | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const handleSaveRef = useRef<() => void>(() => {});
   const isMini = variant === "mini";
@@ -921,10 +941,12 @@ function GenericItemDialogInternal<T extends { id: string }>({
       }
       setErrors({});
       setIsPlaceholderDialogOpen(false);
+      setImageCropperState(null);
       return;
     }
 
     setFormData(null);
+    setImageCropperState(null);
   }, [open, item?.id, hasTabs]);
 
   const previewItem = useMemo(() => {
@@ -979,36 +1001,6 @@ function GenericItemDialogInternal<T extends { id: string }>({
     formData,
     resolvedActiveTab,
   ]);
-
-  useEffect(() => {
-    if (!open || !showPlaceholderPicker || !placeholderCategory) {
-      setPlaceholderCredits({});
-      return;
-    }
-
-    let isMounted = true;
-    const load = async () => {
-      const entries =
-        await getPlaceholderEntriesForCategory(placeholderCategory);
-      if (!isMounted) return;
-
-      const creditMap = entries.reduce(
-        (acc: Record<number, string>, entry: PlaceholderEntry) => {
-          acc[entry.index] = entry.credit;
-          return acc;
-        },
-        {} as Record<number, string>,
-      );
-
-      setPlaceholderCredits(creditMap);
-    };
-
-    void load();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [open, placeholderCategory, showPlaceholderPicker]);
 
   const handleChange = useCallback(
     (path: string, value: any) => {
@@ -1124,6 +1116,45 @@ function GenericItemDialogInternal<T extends { id: string }>({
     [defaultLocalizationLanguage, fieldConfigById],
   );
 
+  const clearImagePlaceholderMetadata = useCallback(() => {
+    if (!formData) return;
+    if ("placeholderCreditIndex" in (formData as any)) {
+      handleChange("placeholderCreditIndex", undefined);
+    }
+    if ("placeholderCategory" in (formData as any)) {
+      handleChange("placeholderCategory", undefined);
+    }
+  }, [formData, handleChange]);
+
+  const clearImageLayers = useCallback(() => {
+    if (!formData) return;
+    if ("imageLayers" in (formData as any)) {
+      handleChange("imageLayers", undefined);
+    }
+  }, [formData, handleChange]);
+
+  const handleOpenImageCropper = useCallback((fieldId: string, imageSrc: string) => {
+    setImageCropperState({ fieldId, imageSrc });
+  }, []);
+
+  const handleApplyImageCrop = useCallback(
+    (dataUrl: string) => {
+      if (!imageCropperState) return;
+      handleChange(imageCropperState.fieldId, dataUrl);
+      clearImagePlaceholderMetadata();
+      if (imageCropperState.fieldId === "image") {
+        clearImageLayers();
+      }
+      setImageCropperState(null);
+    },
+    [
+      clearImageLayers,
+      clearImagePlaceholderMetadata,
+      handleChange,
+      imageCropperState,
+    ],
+  );
+
   const handleSave = useCallback(() => {
     if (!formData || !formData.id) return;
 
@@ -1205,6 +1236,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
 
     const handleClickOutside = (event: PointerEvent) => {
       if (isPlaceholderDialogOpen) return;
+      if (imageCropperState) return;
       // Keep the editor open while any Radix select menu is active.
       // Use capture-phase pointerdown so this runs before Radix closes the menu.
       if (
@@ -1241,7 +1273,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
     return () => {
       document.removeEventListener("pointerdown", handleClickOutside, true);
     };
-  }, [open, isPlaceholderDialogOpen]);
+  }, [open, isPlaceholderDialogOpen, imageCropperState]);
 
   if (!open || !item || !formData) return null;
 
@@ -1303,11 +1335,10 @@ function GenericItemDialogInternal<T extends { id: string }>({
                   inGrid={!!group.className?.includes("grid")}
                   error={errors[field.id]}
                   showPlaceholderPicker={showPlaceholderPicker}
-                  placeholderCategory={placeholderCategory}
-                  placeholderCredits={placeholderCredits}
                   onOpenPlaceholderPicker={() =>
                     setIsPlaceholderDialogOpen(true)
                   }
+                  onOpenImageCropper={handleOpenImageCropper}
                   rerenderKey={
                     field.id === "localizations"
                       ? activeLocalizationLanguage
@@ -1467,13 +1498,35 @@ function GenericItemDialogInternal<T extends { id: string }>({
           open={isPlaceholderDialogOpen}
           onOpenChange={setIsPlaceholderDialogOpen}
           initialCategory={placeholderCategory}
-          onSelect={(entry) => {
-            handleChange("image", entry.src);
+          onSelect={async (entry) => {
+            try {
+              const normalizedImage =
+                await normalizeBalatroCardImageSource(entry.src);
+              handleChange("image", normalizedImage);
+            } catch (error) {
+              console.error("Placeholder image normalization failed", error);
+              handleChange("image", entry.src);
+            }
+            clearImageLayers();
             handleChange("placeholderCreditIndex", entry.index);
             handleChange("placeholderCategory", entry.category);
           }}
         />
       )}
+
+      <ImageCropperDialog
+        open={Boolean(imageCropperState)}
+        imageSrc={imageCropperState?.imageSrc ?? null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setImageCropperState(null);
+          }
+        }}
+        onApply={(dataUrl) => {
+          handleApplyImageCrop(dataUrl);
+          setImageCropperState(null);
+        }}
+      />
     </Dialog>
   );
 }

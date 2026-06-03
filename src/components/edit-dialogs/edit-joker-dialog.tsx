@@ -98,14 +98,12 @@ export function EditJokerDialog({
                 id: "image",
                 type: "image",
                 label: "Main Sprite",
-                description: "71x95px (auto-upscaled) or 142x190px",
                 processFile: processJokerImage,
               },
               {
                 id: "overlayImage",
                 type: "image",
                 label: "Overlay Sprite",
-                description: "Optional overlay layer",
                 processFile: processJokerImage,
               },
               {

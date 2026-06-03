@@ -1,7 +1,7 @@
 {
-  "productName": "Joker Forge Nightly",
-  "version": "2.0.0-beta-nightly.local",
-  "identifier": "com.jaydchw.joker-forge-desktop.nightly",
+  "productName": "Joker Forge",
+  "version": "2.0.0-beta",
+  "identifier": "com.jaydchw.joker-forge-desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Joker Forge Nightly",
+        "title": "Joker Forge",
         "width": 1600,
         "height": 900,
         "minWidth": 1100,

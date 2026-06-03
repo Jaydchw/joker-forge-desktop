@@ -403,7 +403,7 @@ export const GenericItemCard = memo(function GenericItemCard({
         {cost !== undefined && (
           <div
             className={cn(
-              "relative z-10 -mb-12 w-full flex justify-center",
+              "relative z-40 -mb-12 w-full flex justify-center",
               isThin && "w-[15.5rem] mx-auto",
             )}
           >
@@ -506,7 +506,7 @@ export const GenericItemCard = memo(function GenericItemCard({
             <img
               src={overlayImage}
               alt="Overlay"
-              className="absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none z-10"
+              className="absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none z-[5]"
               draggable="false"
             />
           )}
