@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
@@ -50,6 +50,8 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function EditionsPage() {
   const { data, updateEditions, isHydrating } = useProjectData();
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const modName = useModName();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<EditionData | null>(null);
@@ -170,19 +172,21 @@ export default function EditionsPage() {
   );
 
   const handleDelete = useCallback(
-    (id: string) => updateEditions(data.editions.filter((e) => e.id !== id)),
-    [data.editions, updateEditions],
+    (id: string) =>
+      updateEditions((previous) => previous.filter((e) => e.id !== id)),
+    [updateEditions],
   );
 
   const handleExport = useCallback(
     async (item: EditionData) => {
       try {
+        const currentData = dataRef.current;
         await exportSingleItemRust(
           item as any,
           "edition",
-          data.metadata.prefix,
+          currentData.metadata.prefix,
           {
-            globalUserVariables: collectGlobalVariables(data).map(
+            globalUserVariables: collectGlobalVariables(currentData).map(
               (entry) => entry.variable,
             ),
           },
@@ -192,7 +196,7 @@ export default function EditionsPage() {
         window.alert(`Edition export failed: ${message}`);
       }
     },
-    [data],
+    [],
   );
 
   const {
@@ -242,9 +246,12 @@ export default function EditionsPage() {
             id: crypto.randomUUID(),
             name: `${item.name} (Copy)`,
             objectKey: `${item.objectKey}_copy`,
-            orderValue: data.editions.length + 1,
+            orderValue: 0,
           };
-          updateEditions([...data.editions, duplicatedItem]);
+          updateEditions((previous) => [
+            ...previous,
+            { ...duplicatedItem, orderValue: previous.length + 1 },
+          ]);
         }}
         image={
           item.image ? (
@@ -463,9 +470,12 @@ export default function EditionsPage() {
                 id: crypto.randomUUID(),
                 name: `${item.name} (Copy)`,
                 objectKey: `${item.objectKey}_copy`,
-                orderValue: data.editions.length + 1,
+                orderValue: 0,
               };
-              updateEditions([...data.editions, duplicatedEdition]);
+              updateEditions((previous) => [
+                ...previous,
+                { ...duplicatedEdition, orderValue: previous.length + 1 },
+              ]);
             },
             variant: "ghost",
           },
@@ -483,7 +493,6 @@ export default function EditionsPage() {
       createItemTemplate,
       requestDelete,
       handleExport,
-      data.editions,
       updateEditions,
     ],
   );

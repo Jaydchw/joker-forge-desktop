@@ -139,8 +139,9 @@ export default function BoostersPage() {
   );
 
   const handleDelete = useCallback(
-    (id: string) => updateBoosters(data.boosters.filter((b) => b.id !== id)),
-    [data.boosters, updateBoosters],
+    (id: string) =>
+      updateBoosters((previous) => previous.filter((b) => b.id !== id)),
+    [updateBoosters],
   );
 
   const {
@@ -193,9 +194,12 @@ export default function BoostersPage() {
             id: crypto.randomUUID(),
             name: `${item.name} (Copy)`,
             objectKey: `${item.objectKey}_copy`,
-            orderValue: data.boosters.length + 1,
+            orderValue: 0,
           };
-          updateBoosters([...data.boosters, duplicatedItem]);
+          updateBoosters((previous) => [
+            ...previous,
+            { ...duplicatedItem, orderValue: previous.length + 1 },
+          ]);
         }}
         image={
           item.image ? (
@@ -357,9 +361,12 @@ export default function BoostersPage() {
                 id: crypto.randomUUID(),
                 name: `${item.name} (Copy)`,
                 objectKey: `${item.objectKey}_copy`,
-                orderValue: data.boosters.length + 1,
+                orderValue: 0,
               };
-              updateBoosters([...data.boosters, duplicatedBooster]);
+              updateBoosters((previous) => [
+                ...previous,
+                { ...duplicatedBooster, orderValue: previous.length + 1 },
+              ]);
             },
             variant: "ghost",
           },
@@ -373,7 +380,7 @@ export default function BoostersPage() {
         ]}
       />
     ),
-    [createItemTemplate, requestDelete, data.boosters, updateBoosters],
+    [createItemTemplate, requestDelete, updateBoosters],
   );
 
   return (

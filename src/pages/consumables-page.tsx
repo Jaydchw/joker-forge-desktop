@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
@@ -55,6 +55,8 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function ConsumablesPage() {
   const { data, updateConsumables, isHydrating } = useProjectData();
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const modName = useModName();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<ConsumableData | null>(null);
@@ -179,19 +181,20 @@ export default function ConsumablesPage() {
 
   const handleDelete = useCallback(
     (id: string) =>
-      updateConsumables(data.consumables.filter((c) => c.id !== id)),
-    [data.consumables, updateConsumables],
+      updateConsumables((previous) => previous.filter((c) => c.id !== id)),
+    [updateConsumables],
   );
 
   const handleExport = useCallback(
     async (item: ConsumableData) => {
       try {
+        const currentData = dataRef.current;
         await exportSingleItemRust(
           item as any,
           "consumable",
-          data.metadata.prefix,
+          currentData.metadata.prefix,
           {
-            globalUserVariables: collectGlobalVariables(data).map(
+            globalUserVariables: collectGlobalVariables(currentData).map(
               (entry) => entry.variable,
             ),
           },
@@ -201,7 +204,7 @@ export default function ConsumablesPage() {
         window.alert(`Consumable export failed: ${message}`);
       }
     },
-    [data],
+    [],
   );
 
   const {
@@ -298,9 +301,12 @@ export default function ConsumablesPage() {
             id: crypto.randomUUID(),
             name: `${item.name} (Copy)`,
             objectKey: `${item.objectKey}_copy`,
-            orderValue: data.consumables.length + 1,
+            orderValue: 0,
           };
-          updateConsumables([...data.consumables, duplicatedItem]);
+          updateConsumables((previous) => [
+            ...previous,
+            { ...duplicatedItem, orderValue: previous.length + 1 },
+          ]);
         }}
         image={
           item.image ? (
@@ -498,9 +504,12 @@ export default function ConsumablesPage() {
                 id: crypto.randomUUID(),
                 name: `${item.name} (Copy)`,
                 objectKey: `${item.objectKey}_copy`,
-                orderValue: data.consumables.length + 1,
+                orderValue: 0,
               };
-              updateConsumables([...data.consumables, duplicatedConsumable]);
+              updateConsumables((previous) => [
+                ...previous,
+                { ...duplicatedConsumable, orderValue: previous.length + 1 },
+              ]);
             },
             variant: "ghost",
           },
@@ -518,7 +527,6 @@ export default function ConsumablesPage() {
       createItemTemplate,
       requestDelete,
       handleExport,
-      data.consumables,
       updateConsumables,
     ],
   );

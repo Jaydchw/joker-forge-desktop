@@ -2,6 +2,7 @@ import {
   useState,
   useRef,
   useEffect,
+  useLayoutEffect,
   useMemo,
   ReactNode,
   isValidElement,
@@ -35,8 +36,12 @@ import {
   type AceSelection,
   getAceImagePath,
 } from "@/lib/balatro/card-preview-utils";
+import { motion } from "framer-motion";
 
 const DESCRIPTION_MAX_LENGTH = 260;
+const CARD_THIN_WIDTH = 560;
+const CARD_COMPACT_ACTION_WIDTH = 760;
+const CARD_TEXT_ACTION_WIDTH = 940;
 
 export interface CardProperty {
   id: string;
@@ -161,6 +166,7 @@ export const GenericItemCard = memo(function GenericItemCard({
   const [isThin, setIsThin] = useState(false);
   const [useTextActionButtons, setUseTextActionButtons] = useState(true);
   const [useCompactIconActions, setUseCompactIconActions] = useState(false);
+  const [isLayoutMeasured, setIsLayoutMeasured] = useState(false);
   const [propertyTooltipOpenById, setPropertyTooltipOpenById] = useState<
     Record<string, boolean>
   >({});
@@ -197,14 +203,14 @@ export const GenericItemCard = memo(function GenericItemCard({
     }
   }, [editingField]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!cardRef.current || typeof window === "undefined") return;
 
-    const observer = new window.ResizeObserver((entries) => {
-      const nextWidth = entries[0]?.contentRect.width ?? 0;
-      const nextIsThin = nextWidth > 0 && nextWidth < 560;
-      const nextUseTextActionButtons = nextWidth >= 940;
-      const nextUseCompactIconActions = nextWidth > 0 && nextWidth < 760;
+    const updateLayoutState = (nextWidth: number) => {
+      const nextIsThin = nextWidth > 0 && nextWidth < CARD_THIN_WIDTH;
+      const nextUseTextActionButtons = nextWidth >= CARD_TEXT_ACTION_WIDTH;
+      const nextUseCompactIconActions =
+        nextWidth > 0 && nextWidth < CARD_COMPACT_ACTION_WIDTH;
 
       setIsThin((prev) => (prev === nextIsThin ? prev : nextIsThin));
       setUseTextActionButtons((prev) =>
@@ -213,6 +219,14 @@ export const GenericItemCard = memo(function GenericItemCard({
       setUseCompactIconActions((prev) =>
         prev === nextUseCompactIconActions ? prev : nextUseCompactIconActions,
       );
+      setIsLayoutMeasured(true);
+    };
+
+    updateLayoutState(cardRef.current.getBoundingClientRect().width);
+
+    const observer = new window.ResizeObserver((entries) => {
+      const nextWidth = entries[0]?.contentRect.width ?? 0;
+      updateLayoutState(nextWidth);
     });
 
     observer.observe(cardRef.current);
@@ -254,7 +268,10 @@ export const GenericItemCard = memo(function GenericItemCard({
         });
       }
     } else if (editingField === "desc") {
-      const { formatted } = applyAutoFormatting(tempValue, sanitizedDescription);
+      const { formatted } = applyAutoFormatting(
+        tempValue,
+        sanitizedDescription,
+      );
       onUpdate({ description: formatted });
     } else if (editingField === "cost") {
       const val = parseInt(tempValue);
@@ -335,12 +352,17 @@ export const GenericItemCard = memo(function GenericItemCard({
     !cardPreview.replaceBaseCard;
 
   return (
-    <div
+    <motion.div
       ref={cardRef}
+      initial={false}
+      animate={{
+        opacity: isLayoutMeasured ? 1 : 0,
+        y: isLayoutMeasured ? 0 : 8,
+      }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       className={cn(
-        "group relative flex gap-6 p-6 rounded-3xl bg-card transition-all duration-300 min-h-88 h-full w-full",
-        isThin ? "flex-col" : "flex-row",
-        isThin && "p-4 gap-4",
+        "group relative flex gap-6 p-6 rounded-3xl bg-card transition-all duration-300 w-full overflow-hidden",
+        isThin ? "h-150 flex-col p-4 gap-4" : "h-90 flex-row",
         isReadOnly && "bg-card/70",
       )}
     >
@@ -453,7 +475,10 @@ export const GenericItemCard = memo(function GenericItemCard({
             </div>
             {hasBaseAce && (
               <img
-                src={getAceImagePath(cardPreview.selectedAce as Exclude<AceSelection, "none">, cardPreview.type === "edition" ? "acesbg" : "aces")}
+                src={getAceImagePath(
+                  cardPreview.selectedAce as Exclude<AceSelection, "none">,
+                  cardPreview.type === "edition" ? "acesbg" : "aces",
+                )}
                 alt="Base Card"
                 className={cn(
                   "absolute inset-0 w-full h-full object-contain [image-rendering:pixelated] pointer-events-none",
@@ -623,7 +648,7 @@ export const GenericItemCard = memo(function GenericItemCard({
                 onBlur={saveEdit}
                 onKeyDown={handleKeyDown}
                 maxLength={DESCRIPTION_MAX_LENGTH}
-                className="w-full h-full overflow-hidden text-[13px] resize-none font-medium leading-relaxed text-muted-foreground bg-transparent border-none p-0 outline-none focus:outline-none"
+                className="w-full h-full overflow-y-auto invisible-scrollbar text-[13px] resize-none font-medium leading-relaxed text-muted-foreground bg-transparent border-none p-0 outline-none focus:outline-none"
               />
             ) : (
               <div
@@ -665,9 +690,7 @@ export const GenericItemCard = memo(function GenericItemCard({
                 <Tooltip
                   key={prop.id}
                   open={!!propertyTooltipOpenById[prop.id]}
-                  onOpenChange={(open) =>
-                    setPropertyTooltipOpen(prop.id, open)
-                  }
+                  onOpenChange={(open) => setPropertyTooltipOpen(prop.id, open)}
                 >
                   <TooltipTrigger asChild>
                     <button
@@ -794,15 +817,15 @@ export const GenericItemCard = memo(function GenericItemCard({
                         setIsPixelEditorOpen(true);
                       }}
                       onPointerDown={(e) => e.preventDefault()}
-                        className={cn(
-                          "transition-all hover:scale-110 rounded-lg cursor-pointer",
-                          useCompactIconActions
-                            ? "h-7 w-7"
-                            : isThin
-                              ? "h-8 w-8"
-                              : "h-9 w-9",
-                        )}
-                      >
+                      className={cn(
+                        "transition-all hover:scale-110 rounded-lg cursor-pointer",
+                        useCompactIconActions
+                          ? "h-7 w-7"
+                          : isThin
+                            ? "h-8 w-8"
+                            : "h-9 w-9",
+                      )}
+                    >
                       <PaintBrush className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
@@ -915,6 +938,6 @@ export const GenericItemCard = memo(function GenericItemCard({
           })
         }
       />
-    </div>
+    </motion.div>
   );
 });

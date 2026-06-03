@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
@@ -51,6 +51,8 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function VouchersPage() {
   const { data, updateVouchers, isHydrating } = useProjectData();
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const modName = useModName();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<VoucherData | null>(null);
@@ -180,19 +182,21 @@ export default function VouchersPage() {
   );
 
   const handleDelete = useCallback(
-    (id: string) => updateVouchers(data.vouchers.filter((v) => v.id !== id)),
-    [data.vouchers, updateVouchers],
+    (id: string) =>
+      updateVouchers((previous) => previous.filter((v) => v.id !== id)),
+    [updateVouchers],
   );
 
   const handleExport = useCallback(
     async (item: VoucherData) => {
       try {
+        const currentData = dataRef.current;
         await exportSingleItemRust(
           item as any,
           "voucher",
-          data.metadata.prefix,
+          currentData.metadata.prefix,
           {
-            globalUserVariables: collectGlobalVariables(data).map(
+            globalUserVariables: collectGlobalVariables(currentData).map(
               (entry) => entry.variable,
             ),
           },
@@ -202,7 +206,7 @@ export default function VouchersPage() {
         window.alert(`Voucher export failed: ${message}`);
       }
     },
-    [data],
+    [],
   );
 
   const {
@@ -257,9 +261,12 @@ export default function VouchersPage() {
             id: crypto.randomUUID(),
             name: `${item.name} (Copy)`,
             objectKey: `${item.objectKey}_copy`,
-            orderValue: data.vouchers.length + 1,
+            orderValue: 0,
           };
-          updateVouchers([...data.vouchers, duplicatedItem]);
+          updateVouchers((previous) => [
+            ...previous,
+            { ...duplicatedItem, orderValue: previous.length + 1 },
+          ]);
         }}
         image={
           item.image ? (
@@ -469,9 +476,12 @@ export default function VouchersPage() {
                 id: crypto.randomUUID(),
                 name: `${item.name} (Copy)`,
                 objectKey: `${item.objectKey}_copy`,
-                orderValue: data.vouchers.length + 1,
+                orderValue: 0,
               };
-              updateVouchers([...data.vouchers, duplicatedVoucher]);
+              updateVouchers((previous) => [
+                ...previous,
+                { ...duplicatedVoucher, orderValue: previous.length + 1 },
+              ]);
             },
             variant: "ghost",
           },
@@ -489,7 +499,6 @@ export default function VouchersPage() {
       createItemTemplate,
       requestDelete,
       handleExport,
-      data.vouchers,
       updateVouchers,
     ],
   );

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
@@ -54,6 +54,8 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function DecksPage() {
   const { data, updateDecks, isHydrating } = useProjectData();
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const modName = useModName();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<DeckData | null>(null);
@@ -169,15 +171,16 @@ export default function DecksPage() {
   );
 
   const handleDelete = useCallback(
-    (id: string) => updateDecks(data.decks.filter((d) => d.id !== id)),
-    [data.decks, updateDecks],
+    (id: string) => updateDecks((previous) => previous.filter((d) => d.id !== id)),
+    [updateDecks],
   );
 
   const handleExport = useCallback(
     async (item: DeckData) => {
       try {
-        await exportSingleItemRust(item as any, "deck", data.metadata.prefix, {
-          globalUserVariables: collectGlobalVariables(data).map(
+        const currentData = dataRef.current;
+        await exportSingleItemRust(item as any, "deck", currentData.metadata.prefix, {
+          globalUserVariables: collectGlobalVariables(currentData).map(
             (entry) => entry.variable,
           ),
         });
@@ -186,7 +189,7 @@ export default function DecksPage() {
         window.alert(`Deck export failed: ${message}`);
       }
     },
-    [data],
+    [],
   );
 
   const {
@@ -237,9 +240,12 @@ export default function DecksPage() {
             id: crypto.randomUUID(),
             name: `${deck.name} (Copy)`,
             objectKey: `${deck.objectKey}_copy`,
-            orderValue: data.decks.length + 1,
+            orderValue: 0,
           };
-          updateDecks([...data.decks, duplicatedItem]);
+          updateDecks((previous) => [
+            ...previous,
+            { ...duplicatedItem, orderValue: previous.length + 1 },
+          ]);
         }}
         image={
           deck.image ? (
@@ -467,9 +473,12 @@ export default function DecksPage() {
                 id: crypto.randomUUID(),
                 name: `${deck.name} (Copy)`,
                 objectKey: `${deck.objectKey}_copy`,
-                orderValue: data.decks.length + 1,
+                orderValue: 0,
               };
-              updateDecks([...data.decks, duplicatedDeck]);
+              updateDecks((previous) => [
+                ...previous,
+                { ...duplicatedDeck, orderValue: previous.length + 1 },
+              ]);
             },
             variant: "ghost",
           },
@@ -483,7 +492,7 @@ export default function DecksPage() {
         ]}
       />
     ),
-    [createItemTemplate, requestDelete, handleExport, data.decks, updateDecks],
+    [createItemTemplate, requestDelete, handleExport, updateDecks],
   );
 
   return (

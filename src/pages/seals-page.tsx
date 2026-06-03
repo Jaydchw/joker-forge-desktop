@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
@@ -51,6 +51,8 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function SealsPage() {
   const { data, updateSeals, isHydrating } = useProjectData();
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const modName = useModName();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<SealData | null>(null);
@@ -167,15 +169,16 @@ export default function SealsPage() {
   );
 
   const handleDelete = useCallback(
-    (id: string) => updateSeals(data.seals.filter((s) => s.id !== id)),
-    [data.seals, updateSeals],
+    (id: string) => updateSeals((previous) => previous.filter((s) => s.id !== id)),
+    [updateSeals],
   );
 
   const handleExport = useCallback(
     async (item: SealData) => {
       try {
-        await exportSingleItemRust(item as any, "seal", data.metadata.prefix, {
-          globalUserVariables: collectGlobalVariables(data).map(
+        const currentData = dataRef.current;
+        await exportSingleItemRust(item as any, "seal", currentData.metadata.prefix, {
+          globalUserVariables: collectGlobalVariables(currentData).map(
             (entry) => entry.variable,
           ),
         });
@@ -184,7 +187,7 @@ export default function SealsPage() {
         window.alert(`Seal export failed: ${message}`);
       }
     },
-    [data],
+    [],
   );
 
   const {
@@ -233,9 +236,12 @@ export default function SealsPage() {
             id: crypto.randomUUID(),
             name: `${item.name} (Copy)`,
             objectKey: `${item.objectKey}_copy`,
-            orderValue: data.seals.length + 1,
+            orderValue: 0,
           };
-          updateSeals([...data.seals, duplicatedItem]);
+          updateSeals((previous) => [
+            ...previous,
+            { ...duplicatedItem, orderValue: previous.length + 1 },
+          ]);
         }}
         image={
           item.image ? (
@@ -442,9 +448,12 @@ export default function SealsPage() {
                 id: crypto.randomUUID(),
                 name: `${item.name} (Copy)`,
                 objectKey: `${item.objectKey}_copy`,
-                orderValue: data.seals.length + 1,
+                orderValue: 0,
               };
-              updateSeals([...data.seals, duplicatedSeal]);
+              updateSeals((previous) => [
+                ...previous,
+                { ...duplicatedSeal, orderValue: previous.length + 1 },
+              ]);
             },
             variant: "ghost",
           },
@@ -458,7 +467,7 @@ export default function SealsPage() {
         ]}
       />
     ),
-    [createItemTemplate, requestDelete, handleExport, data.seals, updateSeals],
+    [createItemTemplate, requestDelete, handleExport, updateSeals],
   );
 
   return (

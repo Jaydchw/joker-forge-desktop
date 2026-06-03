@@ -125,6 +125,8 @@ let tauriStorePathsPromise: Promise<{
 let persistQueue: Promise<void> = Promise.resolve();
 let pendingLocalStoreUpdate: StoreUpdateEventDetail | null = null;
 let localStoreUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
+let cachedProjectStore: ProjectStore | null = null;
+let loadStoredStorePromise: Promise<ProjectStore> | null = null;
 
 type StoreUpdateEventDetail = {
   store: ProjectStore;
@@ -583,6 +585,7 @@ const buildCollectionActivityEntries = (
     .map((item) => {
       const before = previousById.get(item.id);
       if (!before) return null;
+      if (before === item) return null;
 
       const keys = Array.from(
         new Set([...Object.keys(before), ...Object.keys(item)]),
@@ -1054,29 +1057,45 @@ const loadStoreFromTauriFile = async (): Promise<ProjectStore | null> => {
 };
 
 const loadStoredStore = async (): Promise<ProjectStore> => {
-  const tauriStore = await loadStoreFromTauriFile();
-  if (tauriStore) return tauriStore;
+  if (loadStoredStorePromise) return loadStoredStorePromise;
 
-  if (isTauriRuntime()) {
-    try {
-      const paths = await getTauriStorePaths();
-      const legacyRaw = await readTextFile(paths.legacyStorePath);
-      const migrated = sanitizeStoreFromUnknown(JSON.parse(legacyRaw));
-      await persistStoreToTauriFiles(migrated);
-      return migrated;
-    } catch {
-      // No legacy file or invalid legacy data.
+  loadStoredStorePromise = (async () => {
+    const tauriStore = await loadStoreFromTauriFile();
+    if (tauriStore) return tauriStore;
+
+    if (isTauriRuntime()) {
+      try {
+        const paths = await getTauriStorePaths();
+        const legacyRaw = await readTextFile(paths.legacyStorePath);
+        const migrated = sanitizeStoreFromUnknown(JSON.parse(legacyRaw));
+        await persistStoreToTauriFiles(migrated);
+        return migrated;
+      } catch {
+        // No legacy file or invalid legacy data.
+      }
     }
-  }
 
-  return loadStoreFromLocalStorage();
+    return loadStoreFromLocalStorage();
+  })()
+    .then((nextStore) => {
+      cachedProjectStore = nextStore;
+      return nextStore;
+    })
+    .finally(() => {
+      loadStoredStorePromise = null;
+    });
+
+  return loadStoredStorePromise;
 };
 
-const getStoredStore = (): ProjectStore => loadStoreFromLocalStorage();
+const getStoredStore = (): ProjectStore =>
+  cachedProjectStore ?? loadStoreFromLocalStorage();
 
 export const useProjectData = () => {
   const [store, setStore] = useState<ProjectStore>(getStoredStore());
-  const [isHydrating, setIsHydrating] = useState<boolean>(isTauriRuntime());
+  const [isHydrating, setIsHydrating] = useState<boolean>(
+    isTauriRuntime() && cachedProjectStore === null,
+  );
   const sourceIdRef = useRef(
     `project-store-${Math.random().toString(36).slice(2, 10)}`,
   );
@@ -1087,6 +1106,7 @@ export const useProjectData = () => {
         const custom = event as CustomEvent<StoreUpdateEventDetail>;
         const nextStore = custom.detail?.store;
         if (nextStore) {
+          cachedProjectStore = nextStore;
           setStore(nextStore);
           setIsHydrating(false);
           return;
@@ -1094,6 +1114,7 @@ export const useProjectData = () => {
       }
 
       void loadStoredStore().then((nextStore) => {
+        cachedProjectStore = nextStore;
         setStore(nextStore);
         setIsHydrating(false);
       });
@@ -1102,6 +1123,7 @@ export const useProjectData = () => {
     let isMounted = true;
     void loadStoredStore().then((nextStore) => {
       if (!isMounted) return;
+      cachedProjectStore = nextStore;
       setStore(nextStore);
       setIsHydrating(false);
     });
@@ -1136,6 +1158,7 @@ export const useProjectData = () => {
   }, [currentProject]);
 
   const saveStore = useCallback((nextStore: ProjectStore) => {
+    cachedProjectStore = nextStore;
     scheduleLocalStoreUpdate({
       store: nextStore,
       sourceId: sourceIdRef.current,
@@ -1224,17 +1247,22 @@ export const useProjectData = () => {
                 itemsOrUpdater as (previous: ProjectData[K]) => ProjectData[K]
               )(current[key])
             : itemsOrUpdater;
+        const previousItemReferences = Array.isArray(current[key])
+          ? new Set(current[key] as unknown[])
+          : null;
         const normalizedItems =
           isLocalizableCollectionKey(key) && Array.isArray(resolvedItems)
             ? (resolvedItems.map((item) =>
-                ensureLocalizableWithLanguage(
-                  item as {
-                    name?: unknown;
-                    description?: unknown;
-                    localizations?: unknown;
-                  },
-                  DEFAULT_LOCALIZATION_LANGUAGE,
-                ),
+                previousItemReferences?.has(item)
+                  ? item
+                  : ensureLocalizableWithLanguage(
+                      item as {
+                        name?: unknown;
+                        description?: unknown;
+                        localizations?: unknown;
+                      },
+                      DEFAULT_LOCALIZATION_LANGUAGE,
+                    ),
               ) as ProjectData[K])
             : resolvedItems;
         const activityEntries =
@@ -1409,6 +1437,57 @@ export const useProjectData = () => {
   }));
 
   type CollectionUpdateArg<T> = T[] | ((previous: T[]) => T[]);
+  const updateJokers = useCallback(
+    (items: CollectionUpdateArg<JokerData>) => updateCollection("jokers", items),
+    [updateCollection],
+  );
+  const updateConsumables = useCallback(
+    (items: CollectionUpdateArg<ConsumableData>) =>
+      updateCollection("consumables", items),
+    [updateCollection],
+  );
+  const updateRarities = useCallback(
+    (items: CollectionUpdateArg<RarityData>) =>
+      updateCollection("rarities", items),
+    [updateCollection],
+  );
+  const updateConsumableSets = useCallback(
+    (items: CollectionUpdateArg<ConsumableSetData>) =>
+      updateCollection("consumableSets", items),
+    [updateCollection],
+  );
+  const updateDecks = useCallback(
+    (items: CollectionUpdateArg<DeckData>) => updateCollection("decks", items),
+    [updateCollection],
+  );
+  const updateVouchers = useCallback(
+    (items: CollectionUpdateArg<VoucherData>) =>
+      updateCollection("vouchers", items),
+    [updateCollection],
+  );
+  const updateBoosters = useCallback(
+    (items: CollectionUpdateArg<BoosterData>) =>
+      updateCollection("boosters", items),
+    [updateCollection],
+  );
+  const updateSeals = useCallback(
+    (items: CollectionUpdateArg<SealData>) => updateCollection("seals", items),
+    [updateCollection],
+  );
+  const updateEditions = useCallback(
+    (items: CollectionUpdateArg<EditionData>) =>
+      updateCollection("editions", items),
+    [updateCollection],
+  );
+  const updateEnhancements = useCallback(
+    (items: CollectionUpdateArg<EnhancementData>) =>
+      updateCollection("enhancements", items),
+    [updateCollection],
+  );
+  const updateSounds = useCallback(
+    (items: CollectionUpdateArg<SoundData>) => updateCollection("sounds", items),
+    [updateCollection],
+  );
 
   return {
     isHydrating,
@@ -1420,28 +1499,17 @@ export const useProjectData = () => {
     deleteProject,
     importProject,
     updateMetadata,
-    updateJokers: (items: CollectionUpdateArg<JokerData>) =>
-      updateCollection("jokers", items),
-    updateConsumables: (items: CollectionUpdateArg<ConsumableData>) =>
-      updateCollection("consumables", items),
-    updateRarities: (items: CollectionUpdateArg<RarityData>) =>
-      updateCollection("rarities", items),
-    updateConsumableSets: (items: CollectionUpdateArg<ConsumableSetData>) =>
-      updateCollection("consumableSets", items),
-    updateDecks: (items: CollectionUpdateArg<DeckData>) =>
-      updateCollection("decks", items),
-    updateVouchers: (items: CollectionUpdateArg<VoucherData>) =>
-      updateCollection("vouchers", items),
-    updateBoosters: (items: CollectionUpdateArg<BoosterData>) =>
-      updateCollection("boosters", items),
-    updateSeals: (items: CollectionUpdateArg<SealData>) =>
-      updateCollection("seals", items),
-    updateEditions: (items: CollectionUpdateArg<EditionData>) =>
-      updateCollection("editions", items),
-    updateEnhancements: (items: CollectionUpdateArg<EnhancementData>) =>
-      updateCollection("enhancements", items),
-    updateSounds: (items: CollectionUpdateArg<SoundData>) =>
-      updateCollection("sounds", items),
+    updateJokers,
+    updateConsumables,
+    updateRarities,
+    updateConsumableSets,
+    updateDecks,
+    updateVouchers,
+    updateBoosters,
+    updateSeals,
+    updateEditions,
+    updateEnhancements,
+    updateSounds,
   };
 };
 

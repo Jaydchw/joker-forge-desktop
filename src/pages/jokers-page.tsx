@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
@@ -66,6 +66,8 @@ import {
 
 export default function JokersPage() {
   const { data, updateJokers, isHydrating } = useProjectData();
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const modName = useModName();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<JokerData | null>(null);
@@ -192,16 +194,17 @@ export default function JokersPage() {
 
   const handleDelete = useCallback(
     (id: string) => {
-      updateJokers(data.jokers.filter((j) => j.id !== id));
+      updateJokers((previous) => previous.filter((j) => j.id !== id));
     },
-    [data.jokers, updateJokers],
+    [updateJokers],
   );
 
   const handleExport = useCallback(
     async (joker: JokerData) => {
       try {
-        await exportSingleJokerRust(joker as any, data.metadata.prefix, {
-          globalUserVariables: collectGlobalVariables(data).map(
+        const currentData = dataRef.current;
+        await exportSingleJokerRust(joker as any, currentData.metadata.prefix, {
+          globalUserVariables: collectGlobalVariables(currentData).map(
             (entry) => entry.variable,
           ),
         });
@@ -216,7 +219,7 @@ export default function JokersPage() {
         window.alert(`Joker export failed: ${message}`);
       }
     },
-    [data],
+    [],
   );
 
   const {
@@ -315,9 +318,12 @@ export default function JokersPage() {
             id: crypto.randomUUID(),
             name: `${joker.name} (Copy)`,
             objectKey: `${joker.objectKey}_copy`,
-            orderValue: data.jokers.length + 1,
+            orderValue: 0,
           };
-          updateJokers([...data.jokers, duplicatedJoker]);
+          updateJokers((previous) => [
+            ...previous,
+            { ...duplicatedJoker, orderValue: previous.length + 1 },
+          ]);
         }}
         image={
           <div className="w-full h-full relative group cursor-pointer rounded-lg overflow-hidden flex items-center justify-center">
@@ -539,7 +545,6 @@ export default function JokersPage() {
       handleExport,
       handleUpdate,
       requestDelete,
-      data.jokers,
       updateJokers,
     ],
   );
@@ -622,9 +627,12 @@ export default function JokersPage() {
                 id: crypto.randomUUID(),
                 name: `${joker.name} (Copy)`,
                 objectKey: `${joker.objectKey}_copy`,
-                orderValue: data.jokers.length + 1,
+                orderValue: 0,
               };
-              updateJokers([...data.jokers, duplicatedJoker]);
+              updateJokers((previous) => [
+                ...previous,
+                { ...duplicatedJoker, orderValue: previous.length + 1 },
+              ]);
             },
             variant: "ghost",
           },
@@ -642,7 +650,6 @@ export default function JokersPage() {
       createItemTemplate,
       handleExport,
       requestDelete,
-      data.jokers,
       updateJokers,
     ],
   );

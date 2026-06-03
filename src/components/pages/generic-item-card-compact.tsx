@@ -12,6 +12,7 @@ import {
   type AceSelection,
   getAceImagePath,
 } from "@/lib/balatro/card-preview-utils";
+import { motion } from "framer-motion";
 
 interface GenericItemCardCompactProps {
   image: ReactNode;
@@ -47,7 +48,10 @@ export const GenericItemCardCompact = memo(function GenericItemCardCompact({
     !cardPreview.replaceBaseCard;
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
       className={cn(
         "group relative aspect-[71/95] overflow-hidden rounded-2xl w-full max-w-[220px] mx-auto",
         className,
@@ -168,6 +172,6 @@ export const GenericItemCardCompact = memo(function GenericItemCardCompact({
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 });

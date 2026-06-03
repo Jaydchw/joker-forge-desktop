@@ -22,6 +22,7 @@ import {
   Heart,
   Spade,
   ProhibitInset,
+  BookBookmark,
 } from "@phosphor-icons/react";
 import IconButton from "@/components/ui/icon-button";
 import { Button } from "@/components/ui/button";
@@ -47,8 +48,18 @@ import {
   DEFAULT_ACE_SELECTION,
 } from "@/lib/balatro/card-preview-utils";
 
-const ESTIMATED_REGULAR_ROW_HEIGHT = 384;
-const VIRTUAL_OVERSCAN_ROWS = 2;
+const INITIAL_RENDERED_ITEM_COUNT = 25;
+const RENDERED_ITEM_BATCH_SIZE = 25;
+const REGULAR_RENDERED_ITEM_BATCH_SIZE = 40;
+const REGULAR_PRELOAD_VIEWPORTS = 3;
+const REGULAR_PRELOAD_MINIMUM_PX = 1600;
+const GRID_GAP = 16;
+const REGULAR_CARD_ESTIMATED_HEIGHT = 360;
+const REGULAR_THIN_CARD_ESTIMATED_HEIGHT = 600;
+const REGULAR_CARD_THIN_BREAKPOINT = 560;
+const COMPACT_CARD_ASPECT_RATIO = 95 / 71;
+const SKELETON_GRACE_PERIOD_MS = 200;
+const FAST_INITIAL_RENDER_ITEM_LIMIT = 12;
 
 type ColumnMode = "auto" | "1" | "2" | "3";
 
@@ -89,7 +100,10 @@ interface GenericItemPageProps<T> {
   addNewLabel?: string;
   addFromTemplateLabel?: string;
   renderCard: (item: T, context: GenericItemPageRenderContext) => ReactNode;
-  renderCompactCard?: (item: T, context: GenericItemPageRenderContext) => ReactNode;
+  renderCompactCard?: (
+    item: T,
+    context: GenericItemPageRenderContext,
+  ) => ReactNode;
   headerContent?: ReactNode;
   reforged?: boolean;
   isLoading?: boolean;
@@ -107,8 +121,12 @@ export interface GenericItemPageRenderContext {
 interface CardRendererProps {
   item: { id: string };
   viewMode: "regular" | "compact";
-  renderCard: (item: any) => ReactNode;
-  renderCompactCard?: (item: any) => ReactNode;
+  renderCard: (item: any, context: GenericItemPageRenderContext) => ReactNode;
+  renderCompactCard?: (
+    item: any,
+    context: GenericItemPageRenderContext,
+  ) => ReactNode;
+  renderContext: GenericItemPageRenderContext;
 }
 
 const CardRenderer = memo(
@@ -117,20 +135,18 @@ const CardRenderer = memo(
     viewMode,
     renderCard,
     renderCompactCard,
+    renderContext,
   }: CardRendererProps) {
-    return (
-      <>
-        {viewMode === "compact" && renderCompactCard
-          ? renderCompactCard(item)
-          : renderCard(item)}
-      </>
-    );
+    if (viewMode === "compact" && renderCompactCard) {
+      return <>{renderCompactCard(item, renderContext)}</>;
+    }
+
+    return <>{renderCard(item, renderContext)}</>;
   },
   (prev: CardRendererProps, next: CardRendererProps) =>
     prev.item === next.item &&
     prev.viewMode === next.viewMode &&
-    prev.renderCard === next.renderCard &&
-    prev.renderCompactCard === next.renderCompactCard,
+    prev.renderContext === next.renderContext,
 );
 
 function GenericItemPageInternal<T extends { id: string }>({
@@ -163,9 +179,6 @@ function GenericItemPageInternal<T extends { id: string }>({
   );
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [activeFilters, setActiveFilters] = useState<Record<string, any>>({});
-  const [isXlLayout, setIsXlLayout] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth >= 1280 : true,
-  );
   const storageKeyBase = `jokerforge-${title.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
 
   const [prevTitle, setPrevTitle] = useState(title);
@@ -200,9 +213,8 @@ function GenericItemPageInternal<T extends { id: string }>({
       Math.min(5, Math.round((defaultCompactSize - 80) / 40) + 1),
     );
   });
-  const [selectedAce, setSelectedAce] = useState<AceSelection>(
-    defaultAceSelection,
-  );
+  const [selectedAce, setSelectedAce] =
+    useState<AceSelection>(defaultAceSelection);
 
   useEffect(() => {
     if (title === prevTitle) return;
@@ -265,10 +277,11 @@ function GenericItemPageInternal<T extends { id: string }>({
   }, [compactCardSizeIndex, storageKeyBase]);
 
   const actualCardSize = 80 + (compactCardSizeIndex - 1) * 40;
-  const [virtualRows, setVirtualRows] = useState({ start: 0, end: 0 });
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
   const listContainerRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const emptyStateFlavor = useMemo(() => getRandomEmptyStateFlavor(), []);
+  const renderContext = useMemo(() => ({ selectedAce }), [selectedAce]);
 
   const processedItems = useMemo(() => {
     let result = [...items];
@@ -278,7 +291,9 @@ function GenericItemPageInternal<T extends { id: string }>({
       const lowerTerm = deferredSearchTerm.toLowerCase();
       result = result.filter((item) => {
         const nameCandidate =
-          typeof (item as any)?.name === "string" ? String((item as any).name) : "";
+          typeof (item as any)?.name === "string"
+            ? String((item as any).name)
+            : "";
         const keyCandidate = getItemKeyForSearch(item) || "";
         const descriptionCandidate =
           typeof (item as any)?.description === "string"
@@ -287,28 +302,23 @@ function GenericItemPageInternal<T extends { id: string }>({
         const idCandidate =
           typeof (item as any)?.id === "string" ? String((item as any).id) : "";
 
+        const nameScore = getMatchScore(nameCandidate, lowerTerm);
+        const keyScore = getMatchScore(keyCandidate, lowerTerm);
+        const descriptionScore = getMatchScore(descriptionCandidate, lowerTerm);
+        const idScore = getMatchScore(idCandidate, lowerTerm);
         const weightedScore = Math.max(
-          getMatchScore(nameCandidate, lowerTerm) >= 0
-            ? getMatchScore(nameCandidate, lowerTerm) * 1.0
-            : -1,
-          getMatchScore(keyCandidate, lowerTerm) >= 0
-            ? getMatchScore(keyCandidate, lowerTerm) * 0.8
-            : -1,
-          getMatchScore(descriptionCandidate, lowerTerm) >= 0
-            ? getMatchScore(descriptionCandidate, lowerTerm) * 0.4
-            : -1,
-          getMatchScore(idCandidate, lowerTerm) >= 0
-            ? getMatchScore(idCandidate, lowerTerm) * 0.3
-            : -1,
+          nameScore >= 0 ? nameScore : -1,
+          keyScore >= 0 ? keyScore * 0.8 : -1,
+          descriptionScore >= 0 ? descriptionScore * 0.4 : -1,
+          idScore >= 0 ? idScore * 0.3 : -1,
         );
 
-        const customMatch = searchProps.searchFn(item, lowerTerm);
         if (weightedScore >= 0) {
           searchScoreById.set(item.id, weightedScore);
           return true;
         }
 
-        if (customMatch) {
+        if (searchProps.searchFn(item, lowerTerm)) {
           const fallbackScore = 200;
           searchScoreById.set(item.id, fallbackScore);
           return true;
@@ -356,163 +366,238 @@ function GenericItemPageInternal<T extends { id: string }>({
     sortOptions,
   ]);
 
-  const [containerWidth, setContainerWidth] = useState(1200);
-  useEffect(() => {
-    if (!listContainerRef.current) return;
-    const observer = new window.ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const nextWidth = entry.contentRect.width;
-        setContainerWidth((prev) =>
-          Math.abs(prev - nextWidth) > 2 ? nextWidth : prev,
-        );
-      }
-    });
-    observer.observe(listContainerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  const effectiveColumnCount =
-    viewMode === "compact"
-      ? Math.max(1, Math.floor(containerWidth / actualCardSize))
-      : columnMode === "auto"
-        ? isXlLayout
-          ? 2
-          : 1
-        : parseInt(columnMode);
-
   const activeFilterCount = Object.values(activeFilters).filter(
     (v) => v !== null,
   ).length;
   const hasActiveSearch = deferredSearchTerm.trim().length > 0;
-  const isShowingLoadingState =
+  const isInitialLoadingState =
     isLoading &&
     items.length === 0 &&
     !hasActiveSearch &&
     activeFilterCount === 0;
   const isTrulyEmptyCollection =
     items.length === 0 && !hasActiveSearch && activeFilterCount === 0;
-  const shouldVirtualize = false;
-  const totalRows = Math.ceil(processedItems.length / effectiveColumnCount);
-  const estimatedRowHeight =
-    viewMode === "compact"
-      ? Math.max(96, actualCardSize + 20)
-      : ESTIMATED_REGULAR_ROW_HEIGHT;
+
+  const itemIdsKey = useMemo(
+    () => items.map((item) => item.id).join("\u0000"),
+    [items],
+  );
+  const [renderedItemCount, setRenderedItemCount] = useState(
+    INITIAL_RENDERED_ITEM_COUNT,
+  );
+  const [viewportSize, setViewportSize] = useState(() => ({
+    width: typeof window === "undefined" ? 1200 : window.innerWidth,
+    height: typeof window === "undefined" ? 800 : window.innerHeight,
+  }));
+  const [containerWidth, setContainerWidth] = useState(1200);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const onResize = () => setIsXlLayout(window.innerWidth >= 1280);
+    const container = listContainerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      const nextWidth = entry?.contentRect.width;
+      if (!nextWidth) return;
+      setContainerWidth((previous) =>
+        Math.abs(previous - nextWidth) > 2 ? nextWidth : previous,
+      );
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [processedItems.length]);
+
+  useEffect(() => {
+    const onResize = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  const regularColumnCount =
+    columnMode === "auto"
+      ? viewportSize.width >= 1280
+        ? 2
+        : 1
+      : parseInt(columnMode, 10);
+  const regularColumnWidth =
+    (containerWidth - GRID_GAP * (regularColumnCount - 1)) /
+    regularColumnCount;
+  const usesThinRegularCards =
+    viewMode === "regular" &&
+    regularColumnWidth > 0 &&
+    regularColumnWidth < REGULAR_CARD_THIN_BREAKPOINT;
+  const regularCardEstimatedHeight = usesThinRegularCards
+    ? REGULAR_THIN_CARD_ESTIMATED_HEIGHT
+    : REGULAR_CARD_ESTIMATED_HEIGHT;
+
+  const renderedItemBatchSize = useMemo(() => {
+    if (viewMode === "compact") {
+      const columnCount = Math.max(
+        1,
+        Math.floor((containerWidth + GRID_GAP) / (actualCardSize + GRID_GAP)),
+      );
+      const visibleRowCount = Math.max(
+        1,
+        Math.ceil(
+          viewportSize.height /
+            (actualCardSize * COMPACT_CARD_ASPECT_RATIO + GRID_GAP),
+        ),
+      );
+      return Math.max(
+        RENDERED_ITEM_BATCH_SIZE,
+        columnCount * (visibleRowCount + 4),
+      );
+    }
+
+    const visibleRowCount = Math.max(
+      1,
+      Math.ceil(viewportSize.height / regularCardEstimatedHeight),
+    );
+    return Math.max(
+      REGULAR_RENDERED_ITEM_BATCH_SIZE,
+      regularColumnCount * (visibleRowCount + 5),
+    );
+  }, [
+    actualCardSize,
+    containerWidth,
+    regularCardEstimatedHeight,
+    regularColumnCount,
+    viewMode,
+    viewportSize.height,
+  ]);
+
   useEffect(() => {
-    if (!shouldVirtualize) {
-      setVirtualRows({ start: 0, end: Math.max(0, totalRows - 1) });
+    setRenderedItemCount(
+      Math.max(INITIAL_RENDERED_ITEM_COUNT, renderedItemBatchSize),
+    );
+  }, [
+    activeFilters,
+    columnMode,
+    compactCardSizeIndex,
+    currentSort,
+    deferredSearchTerm,
+    itemIdsKey,
+    sortDirection,
+    title,
+    viewMode,
+    renderedItemBatchSize,
+  ]);
+
+  const hasMoreItems = renderedItemCount < processedItems.length;
+  const loadMoreRootMargin =
+    viewMode === "regular"
+      ? Math.max(
+          REGULAR_PRELOAD_MINIMUM_PX,
+          viewportSize.height * REGULAR_PRELOAD_VIEWPORTS,
+        )
+      : Math.max(800, viewportSize.height * 1.5);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target || !hasMoreItems) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        startTransition(() => {
+          setRenderedItemCount((previous) =>
+            Math.min(previous + renderedItemBatchSize, processedItems.length),
+          );
+        });
+      },
+      { rootMargin: `${loadMoreRootMargin}px 0px` },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [
+    hasMoreItems,
+    processedItems.length,
+    renderedItemBatchSize,
+    renderedItemCount,
+    loadMoreRootMargin,
+  ]);
+
+  const renderedItems = useMemo(
+    () => processedItems.slice(0, renderedItemCount),
+    [processedItems, renderedItemCount],
+  );
+  const gridRenderKey = useMemo(
+    () => `${title}\u0000${viewMode}\u0000${itemIdsKey}`,
+    [itemIdsKey, title, viewMode],
+  );
+  const [isInitialGridReady, setIsInitialGridReady] = useState(false);
+  const [showDelayedSkeletons, setShowDelayedSkeletons] = useState(false);
+
+  useEffect(() => {
+    setIsInitialGridReady(false);
+    setShowDelayedSkeletons(false);
+
+    if (!isInitialLoadingState && processedItems.length === 0) {
       return;
     }
 
-    const updateVirtualRows = () => {
-      const container = listContainerRef.current;
-      if (!container) return;
+    let isCancelled = false;
+    let revealTimeoutId: ReturnType<typeof globalThis.setTimeout> | null =
+      null;
+    let idleCallbackId: number | null = null;
+    let firstFrameId: number | null = null;
+    let secondFrameId: number | null = null;
 
-      const rect = container.getBoundingClientRect();
-      const viewportTop = window.scrollY;
-      const viewportBottom = viewportTop + window.innerHeight;
-      const containerTop = viewportTop + rect.top;
-
-      const relativeTop = Math.max(0, viewportTop - containerTop);
-      const relativeBottom = Math.max(0, viewportBottom - containerTop);
-
-      const start = Math.max(
-        0,
-        Math.floor(relativeTop / estimatedRowHeight) - VIRTUAL_OVERSCAN_ROWS,
-      );
-      const end = Math.min(
-        Math.max(0, totalRows - 1),
-        Math.ceil(relativeBottom / estimatedRowHeight) + VIRTUAL_OVERSCAN_ROWS,
-      );
-
-      setVirtualRows((prev) =>
-        prev.start === start && prev.end === end ? prev : { start, end },
-      );
-    };
-
-    let frameId = 0;
-    const scheduleUpdate = () => {
-      if (frameId) return;
-      frameId = window.requestAnimationFrame(() => {
-        frameId = 0;
-        updateVirtualRows();
+    const revealGrid = () => {
+      if (isCancelled || isInitialLoadingState) return;
+      startTransition(() => {
+        setIsInitialGridReady(true);
       });
     };
 
-    updateVirtualRows();
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
-    window.addEventListener("resize", scheduleUpdate);
-    return () => {
-      if (frameId) window.cancelAnimationFrame(frameId);
-      window.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
-    };
-  }, [estimatedRowHeight, shouldVirtualize, totalRows]);
+    const skeletonTimeoutId = window.setTimeout(() => {
+      if (isCancelled) return;
+      setShowDelayedSkeletons(true);
 
-  useEffect(() => {
-    if (!shouldVirtualize) return;
-    const initialVisibleRows = Math.max(
-      1,
-      Math.ceil(window.innerHeight / estimatedRowHeight) +
-        VIRTUAL_OVERSCAN_ROWS,
-    );
-    setVirtualRows({
-      start: 0,
-      end: Math.min(Math.max(0, totalRows - 1), initialVisibleRows),
-    });
+      if (renderedItems.length > FAST_INITIAL_RENDER_ITEM_LIMIT) {
+        firstFrameId = window.requestAnimationFrame(() => {
+          secondFrameId = window.requestAnimationFrame(revealGrid);
+        });
+      }
+    }, SKELETON_GRACE_PERIOD_MS);
+
+    if (
+      !isInitialLoadingState &&
+      renderedItems.length <= FAST_INITIAL_RENDER_ITEM_LIMIT
+    ) {
+      if ("requestIdleCallback" in window) {
+        idleCallbackId = window.requestIdleCallback(revealGrid, {
+          timeout: SKELETON_GRACE_PERIOD_MS - 20,
+        });
+      } else {
+        revealTimeoutId = globalThis.setTimeout(revealGrid, 0);
+      }
+    }
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(skeletonTimeoutId);
+      if (revealTimeoutId !== null) window.clearTimeout(revealTimeoutId);
+      if (idleCallbackId !== null) window.cancelIdleCallback(idleCallbackId);
+      if (firstFrameId !== null) window.cancelAnimationFrame(firstFrameId);
+      if (secondFrameId !== null) window.cancelAnimationFrame(secondFrameId);
+    };
   }, [
-    shouldVirtualize,
-    estimatedRowHeight,
-    effectiveColumnCount,
-    viewMode,
-    columnMode,
-    totalRows,
+    gridRenderKey,
+    isInitialLoadingState,
+    processedItems.length,
+    renderedItems.length,
+    startTransition,
   ]);
 
-  const { startIndex, endIndex, topSpacerHeight, bottomSpacerHeight } =
-    useMemo(() => {
-      if (!shouldVirtualize) {
-        return {
-          startIndex: 0,
-          endIndex: processedItems.length,
-          topSpacerHeight: 0,
-          bottomSpacerHeight: 0,
-        };
-      }
-
-      const startIndex = virtualRows.start * effectiveColumnCount;
-      const endIndex = Math.min(
-        processedItems.length,
-        (virtualRows.end + 1) * effectiveColumnCount,
-      );
-      const topSpacerHeight = virtualRows.start * estimatedRowHeight;
-      const bottomSpacerHeight = Math.max(
-        0,
-        (totalRows - virtualRows.end - 1) * estimatedRowHeight,
-      );
-
-      return { startIndex, endIndex, topSpacerHeight, bottomSpacerHeight };
-    }, [
-      shouldVirtualize,
-      virtualRows.start,
-      virtualRows.end,
-      effectiveColumnCount,
-      estimatedRowHeight,
-      processedItems.length,
-      totalRows,
-    ]);
-
-  const renderedItems = useMemo(
-    () => processedItems.slice(startIndex, endIndex),
-    [processedItems, startIndex, endIndex],
-  );
+  const isWaitingForInitialGrid =
+    !isInitialLoadingState && processedItems.length > 0 && !isInitialGridReady;
+  const shouldShowSkeletonGrid =
+    showDelayedSkeletons && (isInitialLoadingState || isWaitingForInitialGrid);
 
   const regularGridClass = {
     auto: "grid-cols-1 xl:grid-cols-2",
@@ -525,33 +610,210 @@ function GenericItemPageInternal<T extends { id: string }>({
     gridTemplateColumns: `repeat(auto-fill, minmax(${actualCardSize}px, 1fr))`,
   };
 
-  const skeletonCards =
+  const createSkeletonCards = (count: number, keyPrefix: string) =>
     viewMode === "compact"
-      ? Array.from({ length: 12 }, (_, i) => (
+      ? Array.from({ length: count }, (_, i) => (
           <Skeleton
-            key={`skeleton-${i}`}
-            className="aspect-square rounded-2xl"
-            style={{ minWidth: actualCardSize }}
+            key={`${keyPrefix}-${i}`}
+            className={cn(
+              "aspect-[71/95] w-full max-w-[220px] mx-auto rounded-2xl",
+            )}
           />
         ))
-      : Array.from({ length: 6 }, (_, i) => (
+      : Array.from({ length: count }, (_, i) => (
           <div
-            key={`skeleton-${i}`}
-            className="rounded-3xl bg-card p-6 h-90 flex flex-col gap-4"
+            key={`${keyPrefix}-${i}`}
+            className={cn(
+              "rounded-3xl bg-card overflow-hidden",
+              usesThinRegularCards ? "h-150" : "h-90",
+            )}
           >
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 rounded-xl" />
-              <Skeleton className="h-6 w-2/5" />
-            </div>
-            <Skeleton className="h-48 w-full rounded-2xl" />
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <div className="flex gap-2 mt-auto">
-              <Skeleton className="h-9 w-24 rounded-xl" />
-              <Skeleton className="h-9 w-24 rounded-xl" />
-            </div>
+            {usesThinRegularCards ? (
+              <div className="flex h-full flex-col gap-4 p-4">
+                <div className="flex w-[15.5rem] max-w-[15.5rem] shrink-0 flex-col items-center gap-5 self-center">
+                  <Skeleton
+                    className={cn(
+                      "relative z-10 h-10 w-20 rounded-lg",
+                    )}
+                  />
+                  <Skeleton
+                    className={cn(
+                      "h-[25rem] w-[15.5rem] rounded-xl",
+                    )}
+                  />
+                  <Skeleton
+                    className={cn(
+                      "h-9 w-[12.5rem] rounded-md",
+                    )}
+                  />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <div className="flex min-h-14 items-center gap-3 pr-8">
+                    <Skeleton
+                      className={cn(
+                        "h-4 w-10 rounded-md",
+                      )}
+                    />
+                    <Skeleton
+                      className={cn(
+                        "h-8 flex-1 rounded-md",
+                      )}
+                    />
+                  </div>
+                  <div className="mt-1 flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      {Array.from({ length: 5 }, (_, propIndex) => (
+                        <Skeleton
+                          key={`${keyPrefix}-${i}-thin-prop-${propIndex}`}
+                          className={cn(
+                            "h-8 w-8 rounded-lg",
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Skeleton
+                        className={cn(
+                          "h-8 w-8 rounded-lg",
+                        )}
+                      />
+                      <div className="ml-auto flex gap-2">
+                        <Skeleton
+                          className={cn(
+                            "h-8 w-20 rounded-lg",
+                          )}
+                        />
+                        <Skeleton
+                          className={cn(
+                            "h-8 w-20 rounded-lg",
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-full gap-6 p-6">
+                <div className="flex w-56 shrink-0 flex-col items-center gap-5">
+                  <Skeleton
+                    className={cn(
+                      "relative z-10 h-10 w-20 rounded-lg",
+                    )}
+                  />
+                  <Skeleton
+                    className={cn(
+                      "h-60 w-55 rounded-xl",
+                    )}
+                  />
+                  <Skeleton
+                    className={cn(
+                      "h-9 w-40 rounded-md",
+                    )}
+                  />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-3">
+                  <div className="flex min-h-14 items-center gap-3 border-b border-border/40 pb-2 pr-8">
+                    <Skeleton
+                      className={cn(
+                        "h-4 w-10 rounded-md",
+                      )}
+                    />
+                    <Skeleton
+                      className={cn(
+                        "h-8 flex-1 rounded-md",
+                      )}
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2 overflow-hidden">
+                    <Skeleton
+                      className={cn(
+                        "h-4 w-full rounded-md",
+                      )}
+                    />
+                    <Skeleton
+                      className={cn(
+                        "h-4 w-11/12 rounded-md",
+                      )}
+                    />
+                    <Skeleton
+                      className={cn(
+                        "h-4 w-4/5 rounded-md",
+                      )}
+                    />
+                  </div>
+                  <div className="mt-auto flex flex-col gap-4">
+                    <div className="flex gap-2 border-t border-border/40 pt-4">
+                      {Array.from({ length: 6 }, (_, propIndex) => (
+                        <Skeleton
+                          key={`${keyPrefix}-${i}-prop-${propIndex}`}
+                          className={cn(
+                            "h-10 w-10 rounded-xl",
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Skeleton
+                        className={cn(
+                          "h-9 w-9 rounded-lg",
+                        )}
+                      />
+                      <div className="ml-auto flex gap-2">
+                        <Skeleton
+                          className={cn(
+                            "h-9 w-24 rounded-lg",
+                          )}
+                        />
+                        <Skeleton
+                          className={cn(
+                            "h-9 w-24 rounded-lg",
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ));
+  const skeletonCardCount =
+    viewMode === "compact" ? Math.min(renderedItemBatchSize, 12) : 6;
+  const initialSkeletonCards = createSkeletonCards(
+    skeletonCardCount,
+    "initial-skeleton",
+  );
+  const incrementalSkeletonCards = createSkeletonCards(
+    skeletonCardCount,
+    "incremental-skeleton",
+  );
+  const emptyStateActions =
+    !reforged && (onAddNew || onAddFromTemplate) ? (
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+        {onAddFromTemplate && (
+          <Button
+            onClick={onAddFromTemplate}
+            size="lg"
+            variant="outline"
+            className="font-bold cursor-pointer transition-colors"
+          >
+            <BookBookmark className="mr-2 h-5 w-5" weight="duotone" />
+            {addFromTemplateLabel}
+          </Button>
+        )}
+        {onAddNew && (
+          <Button
+            onClick={onAddNew}
+            size="lg"
+            className="font-bold shadow-md cursor-pointer transition-colors"
+          >
+            <Plus className="mr-2 h-5 w-5" weight="bold" />
+            {addNewLabel}
+          </Button>
+        )}
+      </div>
+    ) : null;
 
   const toggleItemClass =
     "h-9 px-3.5 text-sm font-medium gap-2 cursor-pointer rounded-none first:rounded-l-xl last:rounded-r-xl data-[state=on]:bg-primary/10 data-[state=on]:text-primary hover:bg-accent hover:text-foreground transition-colors";
@@ -611,7 +873,7 @@ function GenericItemPageInternal<T extends { id: string }>({
             <span className="text-foreground">{subtitle}</span>
             <div className="h-1 w-1 rounded-full bg-border" />
             <span>
-              {isShowingLoadingState
+              {isInitialLoadingState
                 ? "Loading items..."
                 : `${processedItems.length} of ${items.length} items`}
             </span>
@@ -627,6 +889,7 @@ function GenericItemPageInternal<T extends { id: string }>({
                 variant="outline"
                 className="font-bold cursor-pointer transition-colors"
               >
+                <BookBookmark className="mr-2 h-5 w-5" weight="duotone" />
                 {addFromTemplateLabel}
               </Button>
             )}
@@ -884,33 +1147,36 @@ function GenericItemPageInternal<T extends { id: string }>({
 
       {headerContent && <div className="py-2">{headerContent}</div>}
 
-      {isShowingLoadingState ? (
+      {shouldShowSkeletonGrid ? (
         <div
           className={cn(
-            "grid gap-4",
-            viewMode === "compact" ? "" : regularGridClass,
+            "grid",
+            viewMode === "compact"
+              ? "gap-4"
+              : cn("gap-x-4 gap-y-2", regularGridClass),
           )}
           style={viewMode === "compact" ? compactGridStyle : undefined}
         >
-          {skeletonCards}
+          {initialSkeletonCards}
         </div>
+      ) : isInitialLoadingState || isWaitingForInitialGrid ? (
+        <div ref={listContainerRef} aria-busy="true" />
       ) : processedItems.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center justify-center py-32 text-center border-2 border-dashed border-border rounded-2xl bg-card/30"
+          className="flex flex-col items-center justify-center py-32 text-center rounded-2xl bg-card/30"
         >
           {isTrulyEmptyCollection ? (
             <>
-              <div className="mb-6 text-3xl text-muted-foreground/70">
-                :(
-              </div>
+              <div className="mb-6 text-3xl text-muted-foreground/70">:(</div>
               <h3 className="text-xl font-bold text-foreground">
                 No {title.toLowerCase()} yet
               </h3>
               <p className="text-muted-foreground max-w-md mt-2">
                 {emptyStateFlavor}
               </p>
+              {emptyStateActions}
             </>
           ) : (
             <>
@@ -927,6 +1193,7 @@ function GenericItemPageInternal<T extends { id: string }>({
                 We couldn't find anything matching your search. Try adjusting
                 your filters or creating a new item.
               </p>
+              {emptyStateActions}
               <Button
                 variant="link"
                 onClick={() => {
@@ -942,14 +1209,12 @@ function GenericItemPageInternal<T extends { id: string }>({
         </motion.div>
       ) : (
         <div ref={listContainerRef}>
-          {topSpacerHeight > 0 && (
-            <div style={{ height: topSpacerHeight }} aria-hidden="true" />
-          )}
-
           <div
             className={cn(
-              "grid gap-4",
-              viewMode === "compact" ? "" : regularGridClass,
+              "grid",
+              viewMode === "compact"
+                ? "gap-4"
+                : cn("gap-x-4 gap-y-2", regularGridClass),
             )}
             style={viewMode === "compact" ? compactGridStyle : undefined}
           >
@@ -958,20 +1223,21 @@ function GenericItemPageInternal<T extends { id: string }>({
                 <CardRenderer
                   item={item}
                   viewMode={viewMode}
-                  renderCard={(entry) => renderCard(entry, { selectedAce })}
-                  renderCompactCard={
-                    renderCompactCard
-                      ? (entry) => renderCompactCard(entry, { selectedAce })
-                      : undefined
-                  }
+                  renderCard={renderCard}
+                  renderCompactCard={renderCompactCard}
+                  renderContext={renderContext}
                 />
               </div>
             ))}
+            {hasMoreItems && (
+              <div
+                ref={loadMoreRef}
+                className="col-span-full h-px w-full"
+                aria-hidden="true"
+              />
+            )}
+            {hasMoreItems && isPending && incrementalSkeletonCards}
           </div>
-
-          {bottomSpacerHeight > 0 && (
-            <div style={{ height: bottomSpacerHeight }} aria-hidden="true" />
-          )}
         </div>
       )}
     </div>

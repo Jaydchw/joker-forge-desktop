@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { GenericItemPage } from "@/components/pages/generic-item-page";
 import { GenericItemCard } from "@/components/pages/generic-item-card";
@@ -56,6 +56,8 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function EnhancementsPage() {
   const { data, updateEnhancements, isHydrating } = useProjectData();
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const modName = useModName();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editingItem, setEditingItem] = useState<EnhancementData | null>(null);
@@ -180,19 +182,20 @@ export default function EnhancementsPage() {
 
   const handleDelete = useCallback(
     (id: string) =>
-      updateEnhancements(data.enhancements.filter((e) => e.id !== id)),
-    [data.enhancements, updateEnhancements],
+      updateEnhancements((previous) => previous.filter((e) => e.id !== id)),
+    [updateEnhancements],
   );
 
   const handleExport = useCallback(
     async (item: EnhancementData) => {
       try {
+        const currentData = dataRef.current;
         await exportSingleItemRust(
           item as any,
           "enhancement",
-          data.metadata.prefix,
+          currentData.metadata.prefix,
           {
-            globalUserVariables: collectGlobalVariables(data).map(
+            globalUserVariables: collectGlobalVariables(currentData).map(
               (entry) => entry.variable,
             ),
           },
@@ -202,7 +205,7 @@ export default function EnhancementsPage() {
         window.alert(`Enhancement export failed: ${message}`);
       }
     },
-    [data],
+    [],
   );
 
   const {
@@ -252,9 +255,12 @@ export default function EnhancementsPage() {
             id: crypto.randomUUID(),
             name: `${item.name} (Copy)`,
             objectKey: `${item.objectKey}_copy`,
-            orderValue: data.enhancements.length + 1,
+            orderValue: 0,
           };
-          updateEnhancements([...data.enhancements, duplicatedItem]);
+          updateEnhancements((previous) => [
+            ...previous,
+            { ...duplicatedItem, orderValue: previous.length + 1 },
+          ]);
         }}
         image={
           item.image ? (
@@ -507,9 +513,12 @@ export default function EnhancementsPage() {
                 id: crypto.randomUUID(),
                 name: `${item.name} (Copy)`,
                 objectKey: `${item.objectKey}_copy`,
-                orderValue: data.enhancements.length + 1,
+                orderValue: 0,
               };
-              updateEnhancements([...data.enhancements, duplicatedEnhancement]);
+              updateEnhancements((previous) => [
+                ...previous,
+                { ...duplicatedEnhancement, orderValue: previous.length + 1 },
+              ]);
             },
             variant: "ghost",
           },
@@ -527,7 +536,6 @@ export default function EnhancementsPage() {
       createItemTemplate,
       requestDelete,
       handleExport,
-      data.enhancements,
       updateEnhancements,
     ],
   );
