@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { appDataDir, dirname, join } from "@tauri-apps/api/path";
-import { mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import {
+  exists,
+  mkdir,
+  readDir,
+  readFile,
+  readTextFile,
+  remove,
+  writeFile,
+  writeTextFile,
+} from "@tauri-apps/plugin-fs";
 import type { Rule } from "@/components/rule-builder/types";
 import {
   getConsumableSetByKey,
@@ -70,12 +79,17 @@ const STORAGE_KEY = "joker_forge_template_store";
 const LEGACY_STORAGE_FILE_NAME = "joker_forge_templates.json";
 const TAURI_STORAGE_DIR_NAME = "joker_forge_storage";
 const STORAGE_FILE_NAME = "templates.json";
+const TEMPLATES_DIR_NAME = "templates";
+const TEMPLATE_MANIFEST_FILE_NAME = "manifest.json";
+const ITEM_TEMPLATE_FILE_NAME = "item.json";
+const ASSET_REF_PREFIX = "asset://";
 const TEMPLATE_EVENT_KEY = "joker_forge_template_update";
 
 let tauriStorePathPromise: Promise<{
   rootDir: string;
   currentStorePath: string;
   legacyStorePath: string;
+  templatesDir: string;
 }> | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 
@@ -116,6 +130,193 @@ const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 const createTemplateId = (): string =>
   `template_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+const toSafeFileStem = (value: string, fallback = "template"): string => {
+  const normalized = value
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+};
+
+const allocateFileStem = (candidate: string, usedStems: Set<string>): string => {
+  const base = toSafeFileStem(candidate);
+  let next = base;
+  let suffix = 2;
+  while (usedStems.has(next.toLowerCase())) {
+    next = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  usedStems.add(next.toLowerCase());
+  return next;
+};
+
+const isImageDataUrl = (value: unknown): value is string =>
+  typeof value === "string" && /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(value);
+
+const isAssetRef = (value: unknown): value is string =>
+  typeof value === "string" && value.startsWith(ASSET_REF_PREFIX);
+
+const mimeToExtension = (mime: string): string => {
+  const normalized = mime.toLowerCase();
+  if (normalized === "image/jpeg" || normalized === "image/jpg") return "jpg";
+  if (normalized === "image/webp") return "webp";
+  if (normalized === "image/gif") return "gif";
+  if (normalized === "image/bmp") return "bmp";
+  return "png";
+};
+
+const getMimeFromAssetPath = (path: string): string => {
+  const extension = path.split(".").pop()?.toLowerCase();
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "webp") return "image/webp";
+  if (extension === "gif") return "image/gif";
+  if (extension === "bmp") return "image/bmp";
+  return "image/png";
+};
+
+const parseImageDataUrl = (
+  value: string,
+): { mime: string; bytes: Uint8Array } | null => {
+  const match = value.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/);
+  if (!match) return null;
+
+  try {
+    const binary = atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return { mime: match[1], bytes };
+  } catch {
+    return null;
+  }
+};
+
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+};
+
+const assetRefToRelativePath = (value: string): string | null => {
+  if (!isAssetRef(value)) return null;
+  const relativePath = value.slice(ASSET_REF_PREFIX.length);
+  if (
+    !relativePath ||
+    relativePath.includes("..") ||
+    relativePath.startsWith("/") ||
+    relativePath.startsWith("\\")
+  ) {
+    return null;
+  }
+  return relativePath;
+};
+
+const writeImageAsset = async (
+  templateDir: string,
+  relativeStem: string,
+  dataUrl: string,
+): Promise<string> => {
+  const parsed = parseImageDataUrl(dataUrl);
+  if (!parsed) return dataUrl;
+
+  const relativePath = `${relativeStem}.${mimeToExtension(parsed.mime)}`;
+  const pathParts = relativePath.split("/");
+  let currentDir = templateDir;
+  for (const part of pathParts.slice(0, -1)) {
+    currentDir = await join(currentDir, part);
+    await mkdir(currentDir, { recursive: true });
+  }
+  await writeFile(await join(templateDir, ...pathParts), parsed.bytes);
+  return `${ASSET_REF_PREFIX}${relativePath}`;
+};
+
+const resolveImageAsset = async (
+  templateDir: string,
+  value: string,
+): Promise<string> => {
+  const relativePath = assetRefToRelativePath(value);
+  if (!relativePath) return value;
+
+  try {
+    const bytes = await readFile(await join(templateDir, ...relativePath.split("/")));
+    return `data:${getMimeFromAssetPath(relativePath)};base64,${bytesToBase64(bytes)}`;
+  } catch {
+    return "";
+  }
+};
+
+const externalizeItemTemplatePayloadImages = async (
+  payload: Record<string, unknown>,
+  templateDir: string,
+): Promise<Record<string, unknown>> => {
+  const next = deepClone(payload);
+
+  if (isImageDataUrl(next.image)) {
+    next.image = await writeImageAsset(templateDir, "assets/image", next.image);
+  }
+  if (isImageDataUrl(next.overlayImage)) {
+    next.overlayImage = await writeImageAsset(
+      templateDir,
+      "assets/overlay-image",
+      next.overlayImage,
+    );
+  }
+
+  const layers = next.imageLayers;
+  if (Array.isArray(layers)) {
+    const usedLayerStems = new Set<string>();
+    for (const layer of layers as Array<Record<string, unknown>>) {
+      if (!isImageDataUrl(layer.imageDataUrl)) continue;
+      const layerId = allocateFileStem(
+        typeof layer.id === "string" ? layer.id : "layer",
+        usedLayerStems,
+      );
+      layer.imageDataUrl = await writeImageAsset(
+        templateDir,
+        `assets/layers/${layerId}`,
+        layer.imageDataUrl,
+      );
+    }
+  }
+
+  return next;
+};
+
+const hydrateItemTemplatePayloadImages = async (
+  payload: Record<string, unknown>,
+  templateDir: string,
+): Promise<Record<string, unknown>> => {
+  const next = deepClone(payload);
+
+  if (isAssetRef(next.image)) {
+    next.image = await resolveImageAsset(templateDir, next.image);
+  }
+  if (isAssetRef(next.overlayImage)) {
+    next.overlayImage = await resolveImageAsset(templateDir, next.overlayImage);
+  }
+
+  const layers = next.imageLayers;
+  if (Array.isArray(layers)) {
+    for (const layer of layers as Array<Record<string, unknown>>) {
+      if (isAssetRef(layer.imageDataUrl)) {
+        layer.imageDataUrl = await resolveImageAsset(
+          templateDir,
+          layer.imageDataUrl,
+        );
+      }
+    }
+  }
+
+  return next;
+};
+
 const isTauriRuntime = (): boolean => {
   if (typeof window === "undefined") return false;
   const tauriWindow = window as Window & {
@@ -129,6 +330,7 @@ const getTauriStorePaths = async (): Promise<{
   rootDir: string;
   currentStorePath: string;
   legacyStorePath: string;
+  templatesDir: string;
 }> => {
   if (!tauriStorePathPromise) {
     tauriStorePathPromise = appDataDir().then(async (dir) => {
@@ -137,6 +339,7 @@ const getTauriStorePaths = async (): Promise<{
         rootDir,
         currentStorePath: await join(rootDir, STORAGE_FILE_NAME),
         legacyStorePath: await join(dir, LEGACY_STORAGE_FILE_NAME),
+        templatesDir: await join(rootDir, TEMPLATES_DIR_NAME),
       };
     });
   }
@@ -147,6 +350,7 @@ const ensureTauriStoreDirectory = async (): Promise<void> => {
   const paths = await getTauriStorePaths();
   const parentDir = await dirname(paths.currentStorePath);
   await mkdir(parentDir, { recursive: true });
+  await mkdir(paths.templatesDir, { recursive: true });
 };
 
 const isTemplateBundleObject = (candidate: unknown): candidate is TemplateBundle => {
@@ -326,17 +530,164 @@ const persistStore = async (store: TemplateStore): Promise<void> => {
 
   if (!isTauriRuntime()) return;
 
-  const { currentStorePath } = await getTauriStorePaths();
+  const { templatesDir, currentStorePath } = await getTauriStorePaths();
   await ensureTauriStoreDirectory();
+
+  // Keep a compact index for older builds and recovery if the folder rewrite is interrupted.
   await writeTextFile(currentStorePath, JSON.stringify(store));
+
+  if (await exists(templatesDir)) {
+    await remove(templatesDir, { recursive: true });
+  }
+  await mkdir(templatesDir, { recursive: true });
+
+  const usedItemStemsByType = new Map<ItemTemplateItemType, Set<string>>();
+  const usedRuleStemsByType = new Map<RuleTemplateItemType, Set<string>>();
+
+  for (const template of store.templates) {
+    if (template.kind === "item") {
+      const used =
+        usedItemStemsByType.get(template.itemType) ?? new Set<string>();
+      usedItemStemsByType.set(template.itemType, used);
+
+      const folderName = allocateFileStem(template.name, used);
+      const templateDir = await join(
+        templatesDir,
+        "items",
+        template.itemType,
+        folderName,
+      );
+      await mkdir(templateDir, { recursive: true });
+
+      const payload = await externalizeItemTemplatePayloadImages(
+        template.payload,
+        templateDir,
+      );
+      await writeTextFile(
+        await join(templateDir, ITEM_TEMPLATE_FILE_NAME),
+        JSON.stringify({ ...template, payload }, null, 2),
+      );
+      continue;
+    }
+
+    const used =
+      usedRuleStemsByType.get(template.itemType) ?? new Set<string>();
+    usedRuleStemsByType.set(template.itemType, used);
+
+    const fileName = `${allocateFileStem(template.name, used)}.jfrule`;
+    const ruleDir = await join(templatesDir, "rules", template.itemType);
+    await mkdir(ruleDir, { recursive: true });
+    await writeTextFile(
+      await join(ruleDir, fileName),
+      JSON.stringify(template, null, 2),
+    );
+  }
+
+  await writeTextFile(
+    await join(templatesDir, TEMPLATE_MANIFEST_FILE_NAME),
+    JSON.stringify({ version: 1, updatedAt: new Date().toISOString() }, null, 2),
+  );
+};
+
+const loadStoreFromFolderTemplates = async (): Promise<TemplateStore | null> => {
+  const { templatesDir } = await getTauriStorePaths();
+  if (!(await exists(templatesDir))) return null;
+
+  const hasManifest = await exists(
+    await join(templatesDir, TEMPLATE_MANIFEST_FILE_NAME),
+  );
+  const templates: TemplateEntry[] = [];
+
+  try {
+    const itemsRoot = await join(templatesDir, "items");
+    if (await exists(itemsRoot)) {
+      for (const typeEntry of await readDir(itemsRoot)) {
+        if (!typeEntry.isDirectory || !typeEntry.name) continue;
+        if (!ITEM_TEMPLATE_TYPES.has(typeEntry.name as ItemTemplateItemType)) {
+          continue;
+        }
+        const itemType = typeEntry.name as ItemTemplateItemType;
+        const typeDir = await join(itemsRoot, typeEntry.name);
+        for (const templateEntry of await readDir(typeDir)) {
+          if (!templateEntry.isDirectory || !templateEntry.name) continue;
+          const templateDir = await join(typeDir, templateEntry.name);
+          try {
+            const raw = await readTextFile(
+              await join(templateDir, ITEM_TEMPLATE_FILE_NAME),
+            );
+            const template = sanitizeTemplateEntry(JSON.parse(raw));
+            if (!template || template.kind !== "item") continue;
+            templates.push({
+              ...template,
+              itemType,
+              payload: await hydrateItemTemplatePayloadImages(
+                template.payload,
+                templateDir,
+              ),
+            });
+          } catch {
+            // Ignore broken template folders and keep loading.
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore item template folder failures and keep trying rules.
+  }
+
+  try {
+    const rulesRoot = await join(templatesDir, "rules");
+    if (await exists(rulesRoot)) {
+      for (const typeEntry of await readDir(rulesRoot)) {
+        if (!typeEntry.isDirectory || !typeEntry.name) continue;
+        if (!RULE_TEMPLATE_TYPES.has(typeEntry.name as RuleTemplateItemType)) {
+          continue;
+        }
+        const itemType = typeEntry.name as RuleTemplateItemType;
+        const typeDir = await join(rulesRoot, typeEntry.name);
+        for (const fileEntry of await readDir(typeDir)) {
+          if (fileEntry.isDirectory || !fileEntry.name) continue;
+          if (!fileEntry.name.toLowerCase().endsWith(".jfrule")) continue;
+          try {
+            const raw = await readTextFile(await join(typeDir, fileEntry.name));
+            const template = sanitizeTemplateEntry(JSON.parse(raw));
+            if (!template || template.kind !== "rule") continue;
+            templates.push({ ...template, itemType });
+          } catch {
+            // Ignore broken rule template files and keep loading.
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore rule template folder failures.
+  }
+
+  if (!hasManifest && templates.length === 0) return null;
+
+  templates.sort((left, right) => {
+    const createdDelta = right.createdAt - left.createdAt;
+    if (createdDelta !== 0) return createdDelta;
+    return right.updatedAt - left.updatedAt;
+  });
+  return { version: 1, templates };
 };
 
 const loadStoreFromDisk = async (): Promise<TemplateStore> => {
   if (isTauriRuntime()) {
     try {
+      const folderStore = await loadStoreFromFolderTemplates();
+      if (folderStore) return folderStore;
+    } catch {
+      // fallback to legacy files below
+    }
+
+    try {
       const { currentStorePath } = await getTauriStorePaths();
       const fileContent = await readTextFile(currentStorePath);
-      return sanitizeTemplateStore(JSON.parse(fileContent));
+      const parsed = sanitizeTemplateStore(JSON.parse(fileContent));
+      await persistStore(parsed);
+      return parsed;
     } catch {
       try {
         const { legacyStorePath } = await getTauriStorePaths();

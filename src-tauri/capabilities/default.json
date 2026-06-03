@@ -32,6 +32,9 @@
       "allow": [
         {
           "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$APPDATA/**"
         }
       ]
     }

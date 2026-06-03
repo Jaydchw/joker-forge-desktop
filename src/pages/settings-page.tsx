@@ -20,6 +20,8 @@ import {
 } from "@phosphor-icons/react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { appDataDir, join } from "@tauri-apps/api/path";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -852,6 +854,25 @@ export default function SettingsPage() {
         type: "danger",
         title: "Copy Failed",
         message: `Could not copy mod data to clipboard.\n${message}`,
+      });
+    }
+  };
+
+  const handleOpenAppDataLocation = async () => {
+    try {
+      const rootDir = await join(await appDataDir(), "joker_forge_storage");
+      await openPath(rootDir);
+      pushGlobalAlert({
+        type: "success",
+        title: "AppData Opened",
+        message: "Opened the Joker Forge storage folder.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      pushGlobalAlert({
+        type: "danger",
+        title: "Open Failed",
+        message: `Could not open the app data folder.\n${message}`,
       });
     }
   };
@@ -1692,6 +1713,14 @@ export default function SettingsPage() {
                     onClick={() => void handleCopyModDataToClipboard()}
                   >
                     Copy Mod Data to Clipboard
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    onClick={() => void handleOpenAppDataLocation()}
+                  >
+                    <FolderOpen className="mr-1.5 h-4 w-4" />
+                    Open AppData Folder
                   </Button>
                 </div>
               </div>

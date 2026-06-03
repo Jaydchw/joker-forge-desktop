@@ -3,9 +3,11 @@ import { appDataDir, join } from "@tauri-apps/api/path";
 import {
   exists,
   mkdir,
+  readFile,
   readDir,
   readTextFile,
   remove,
+  writeFile,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
 import {
@@ -114,6 +116,8 @@ const THEME_PREFERENCE_KEY = "joker_forge_theme_preference";
 const THEME_CHANGE_EVENT = "joker_forge_theme_change";
 const STORAGE_ERROR_ALERT_THROTTLE_MS = 4000;
 const RECENT_ACTIVITY_LIMIT = 10;
+const PROJECT_FILE_NAME = "project.json";
+const ASSET_REF_PREFIX = "asset://";
 
 let lastStorageErrorAlertAt = 0;
 let tauriStorePathsPromise: Promise<{
@@ -758,6 +762,258 @@ const toSafeFileStem = (value: string): string => {
   return normalized || "project";
 };
 
+const toSafeAssetSegment = (value: string): string =>
+  toSafeFileStem(value).replace(/\.+$/g, "") || "asset";
+
+const getAssetKeyCandidate = (item: Record<string, unknown>): string => {
+  for (const field of ["objectKey", "key", "id"]) {
+    const value = item[field];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "item";
+};
+
+const allocateAssetSegment = (
+  candidate: string,
+  usedSegments: Set<string>,
+): string => {
+  const baseSegment = toSafeAssetSegment(candidate);
+  let nextSegment = baseSegment;
+  let suffix = 2;
+
+  while (usedSegments.has(nextSegment.toLowerCase())) {
+    nextSegment = `${baseSegment}-${suffix}`;
+    suffix += 1;
+  }
+
+  usedSegments.add(nextSegment.toLowerCase());
+  return nextSegment;
+};
+
+const isImageDataUrl = (value: unknown): value is string =>
+  typeof value === "string" && /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(value);
+
+const isAssetRef = (value: unknown): value is string =>
+  typeof value === "string" && value.startsWith(ASSET_REF_PREFIX);
+
+const mimeToExtension = (mime: string): string => {
+  const normalized = mime.toLowerCase();
+  if (normalized === "image/jpeg" || normalized === "image/jpg") return "jpg";
+  if (normalized === "image/webp") return "webp";
+  if (normalized === "image/gif") return "gif";
+  if (normalized === "image/bmp") return "bmp";
+  return "png";
+};
+
+const parseImageDataUrl = (
+  value: string,
+): { mime: string; bytes: Uint8Array } | null => {
+  const match = value.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/);
+  if (!match) return null;
+
+  try {
+    const binary = atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return { mime: match[1], bytes };
+  } catch {
+    return null;
+  }
+};
+
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+};
+
+const assetRefToRelativePath = (value: string): string | null => {
+  if (!isAssetRef(value)) return null;
+  const relativePath = value.slice(ASSET_REF_PREFIX.length);
+  if (
+    !relativePath ||
+    relativePath.includes("..") ||
+    relativePath.startsWith("/") ||
+    relativePath.startsWith("\\")
+  ) {
+    return null;
+  }
+  return relativePath;
+};
+
+const getMimeFromAssetPath = (path: string): string => {
+  const extension = path.split(".").pop()?.toLowerCase();
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "webp") return "image/webp";
+  if (extension === "gif") return "image/gif";
+  if (extension === "bmp") return "image/bmp";
+  return "image/png";
+};
+
+const cloneProjectData = (project: ProjectData): ProjectData =>
+  JSON.parse(JSON.stringify(project)) as ProjectData;
+
+const collectionAssetKeys: TrackableCollectionKey[] = [
+  "jokers",
+  "consumables",
+  "rarities",
+  "consumableSets",
+  "decks",
+  "vouchers",
+  "boosters",
+  "seals",
+  "editions",
+  "enhancements",
+  "sounds",
+];
+
+const writeImageAsset = async (
+  assetsRoot: string,
+  relativeStem: string,
+  dataUrl: string,
+): Promise<string> => {
+  const parsed = parseImageDataUrl(dataUrl);
+  if (!parsed) return dataUrl;
+
+  const relativePath = `${relativeStem}.${mimeToExtension(parsed.mime)}`;
+  const pathParts = relativePath.split("/");
+  let currentDir = assetsRoot;
+  for (const part of pathParts.slice(0, -1)) {
+    currentDir = await join(currentDir, part);
+    await mkdir(currentDir, { recursive: true });
+  }
+  const assetPath = await join(assetsRoot, ...pathParts);
+  await writeFile(assetPath, parsed.bytes);
+  return `${ASSET_REF_PREFIX}${relativePath}`;
+};
+
+const resolveImageAsset = async (
+  assetsRoot: string,
+  value: string,
+): Promise<string> => {
+  const relativePath = assetRefToRelativePath(value);
+  if (!relativePath) return value;
+
+  try {
+    const bytes = await readFile(await join(assetsRoot, ...relativePath.split("/")));
+    return `data:${getMimeFromAssetPath(relativePath)};base64,${bytesToBase64(bytes)}`;
+  } catch {
+    return "";
+  }
+};
+
+const externalizeProjectImages = async (
+  project: ProjectData,
+  assetsRoot: string,
+): Promise<ProjectData> => {
+  const next = cloneProjectData(project);
+
+  if (isImageDataUrl(next.metadata.iconImage)) {
+    next.metadata.iconImage = await writeImageAsset(
+      assetsRoot,
+      "metadata/mod-icon",
+      next.metadata.iconImage,
+    );
+  }
+  if (isImageDataUrl(next.metadata.gameImage)) {
+    next.metadata.gameImage = await writeImageAsset(
+      assetsRoot,
+      "metadata/game-logo",
+      next.metadata.gameImage,
+    );
+  }
+
+  for (const key of collectionAssetKeys) {
+    const items = next[key];
+    if (!Array.isArray(items)) continue;
+    const usedItemSegments = new Set<string>();
+
+    for (const item of items as unknown as Array<Record<string, unknown>>) {
+      const itemSegment = allocateAssetSegment(
+        getAssetKeyCandidate(item),
+        usedItemSegments,
+      );
+      const basePath = `${key}/${itemSegment}`;
+
+      if (isImageDataUrl(item.image)) {
+        item.image = await writeImageAsset(assetsRoot, `${basePath}/image`, item.image);
+      }
+      if (isImageDataUrl(item.overlayImage)) {
+        item.overlayImage = await writeImageAsset(
+          assetsRoot,
+          `${basePath}/overlay-image`,
+          item.overlayImage,
+        );
+      }
+
+      const layers = item.imageLayers;
+      if (Array.isArray(layers)) {
+        for (const layer of layers as Array<Record<string, unknown>>) {
+          if (!isImageDataUrl(layer.imageDataUrl)) continue;
+          const layerId = toSafeAssetSegment(
+            typeof layer.id === "string" ? layer.id : "layer",
+          );
+          layer.imageDataUrl = await writeImageAsset(
+            assetsRoot,
+            `${basePath}/layers/${layerId}`,
+            layer.imageDataUrl,
+          );
+        }
+      }
+    }
+  }
+
+  return next;
+};
+
+const hydrateProjectImages = async (
+  project: ProjectData,
+  assetsRoot: string,
+): Promise<ProjectData> => {
+  const next = cloneProjectData(project);
+
+  if (isAssetRef(next.metadata.iconImage)) {
+    next.metadata.iconImage = await resolveImageAsset(assetsRoot, next.metadata.iconImage);
+  }
+  if (isAssetRef(next.metadata.gameImage)) {
+    next.metadata.gameImage = await resolveImageAsset(assetsRoot, next.metadata.gameImage);
+  }
+
+  for (const key of collectionAssetKeys) {
+    const items = next[key];
+    if (!Array.isArray(items)) continue;
+
+    for (const item of items as unknown as Array<Record<string, unknown>>) {
+      if (isAssetRef(item.image)) {
+        item.image = await resolveImageAsset(assetsRoot, item.image);
+      }
+      if (isAssetRef(item.overlayImage)) {
+        item.overlayImage = await resolveImageAsset(assetsRoot, item.overlayImage);
+      }
+
+      const layers = item.imageLayers;
+      if (Array.isArray(layers)) {
+        for (const layer of layers as Array<Record<string, unknown>>) {
+          if (isAssetRef(layer.imageDataUrl)) {
+            layer.imageDataUrl = await resolveImageAsset(
+              assetsRoot,
+              layer.imageDataUrl,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  return next;
+};
+
 const persistStoreToTauriFiles = async (store: ProjectStore): Promise<void> => {
   const paths = await getTauriStorePaths();
   await ensureTauriStoreDirectories();
@@ -766,29 +1022,43 @@ const persistStoreToTauriFiles = async (store: ProjectStore): Promise<void> => {
   await writeTextFile(paths.settingsPath, JSON.stringify(segmented.settings));
 
   const existingEntries = await readDir(paths.projectsDir);
-  const existingProjectFiles = existingEntries
-    .filter((entry) => !entry.isDirectory && typeof entry.name === "string")
-    .map((entry) => entry.name as string)
-    .filter((name) => name.toLowerCase().endsWith(".json"));
+  const existingProjectEntries = existingEntries
+    .filter((entry) => typeof entry.name === "string")
+    .map((entry) => ({
+      name: entry.name as string,
+      isDirectory: Boolean(entry.isDirectory),
+    }));
 
-  const expectedFiles = new Set<string>();
+  const expectedEntries = new Set<string>();
   for (const [projectId, project] of Object.entries(segmented.projects)) {
-    const fileName = `${toSafeFileStem(projectId)}.json`;
-    expectedFiles.add(fileName);
-    const path = await join(paths.projectsDir, fileName);
+    const projectDirName = toSafeFileStem(projectId);
+    expectedEntries.add(projectDirName);
+    const projectDir = await join(paths.projectsDir, projectDirName);
+    const assetsRoot = await join(projectDir, "assets");
+    await mkdir(projectDir, { recursive: true });
+
+    if (await exists(assetsRoot)) {
+      await remove(assetsRoot, { recursive: true });
+    }
+    await mkdir(assetsRoot, { recursive: true });
+
+    const projectForStorage = await externalizeProjectImages(project, assetsRoot);
     await writeTextFile(
-      path,
+      await join(projectDir, PROJECT_FILE_NAME),
       JSON.stringify({
         version: 1,
         projectId,
-        project,
+        project: projectForStorage,
       }),
     );
   }
 
-  for (const existingFile of existingProjectFiles) {
-    if (expectedFiles.has(existingFile)) continue;
-    const obsoletePath = await join(paths.projectsDir, existingFile);
+  for (const existingEntry of existingProjectEntries) {
+    const isLegacyJsonFile =
+      !existingEntry.isDirectory && existingEntry.name.toLowerCase().endsWith(".json");
+    if (!isLegacyJsonFile && expectedEntries.has(existingEntry.name)) continue;
+    if (!isLegacyJsonFile && !existingEntry.isDirectory) continue;
+    const obsoletePath = await join(paths.projectsDir, existingEntry.name);
     try {
       await remove(obsoletePath);
     } catch {
@@ -1020,9 +1290,16 @@ const loadStoreFromTauriFile = async (): Promise<ProjectStore | null> => {
     const projects: Record<string, ProjectData> = {};
 
     for (const entry of projectEntries) {
-      if (entry.isDirectory || !entry.name || !entry.name.endsWith(".json")) continue;
+      if (!entry.name) continue;
       try {
-        const filePath = await join(paths.projectsDir, entry.name);
+        const projectPath = await join(paths.projectsDir, entry.name);
+        const filePath = entry.isDirectory
+          ? await join(projectPath, PROJECT_FILE_NAME)
+          : entry.name.endsWith(".json")
+            ? projectPath
+            : "";
+        if (!filePath) continue;
+
         const raw = await readTextFile(filePath);
         const parsed = JSON.parse(raw) as {
           projectId?: unknown;
@@ -1030,7 +1307,12 @@ const loadStoreFromTauriFile = async (): Promise<ProjectStore | null> => {
         };
         if (typeof parsed.projectId !== "string") continue;
         const project = sanitizeProjectData(parsed.project);
-        projects[parsed.projectId] = project;
+        projects[parsed.projectId] = entry.isDirectory
+          ? await hydrateProjectImages(
+              project,
+              await join(projectPath, "assets"),
+            )
+          : project;
       } catch {
         // Ignore broken project files and continue loading others.
       }
