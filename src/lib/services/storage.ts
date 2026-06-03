@@ -127,11 +127,16 @@ let pendingLocalStoreUpdate: StoreUpdateEventDetail | null = null;
 let localStoreUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
 let cachedProjectStore: ProjectStore | null = null;
 let loadStoredStorePromise: Promise<ProjectStore> | null = null;
+let storeRevision = 0;
 
 type StoreUpdateEventDetail = {
   store: ProjectStore;
   sourceId: string;
 };
+
+type MetadataUpdateArg =
+  | Partial<ModMetadata>
+  | ((previous: ModMetadata) => Partial<ModMetadata> | null | undefined);
 
 const scheduleLocalStoreUpdate = (detail: StoreUpdateEventDetail) => {
   pendingLocalStoreUpdate = detail;
@@ -957,10 +962,7 @@ const sanitizeStoreFromUnknown = (parsed: unknown): ProjectStore => {
       parsedObject.projects as Record<string, ProjectData>,
     ).forEach(([key, value]) => {
       const sanitized = sanitizeProjectData(value);
-      sanitizedProjects[key] = {
-        ...sanitized,
-        metadata: { ...sanitized.metadata, id: key },
-      };
+      sanitizedProjects[key] = sanitized;
     });
 
     const fallbackId = Object.keys(sanitizedProjects)[0];
@@ -1028,10 +1030,7 @@ const loadStoreFromTauriFile = async (): Promise<ProjectStore | null> => {
         };
         if (typeof parsed.projectId !== "string") continue;
         const project = sanitizeProjectData(parsed.project);
-        projects[parsed.projectId] = {
-          ...project,
-          metadata: { ...project.metadata, id: parsed.projectId },
-        };
+        projects[parsed.projectId] = project;
       } catch {
         // Ignore broken project files and continue loading others.
       }
@@ -1056,9 +1055,15 @@ const loadStoreFromTauriFile = async (): Promise<ProjectStore | null> => {
   }
 };
 
-const loadStoredStore = async (): Promise<ProjectStore> => {
+const loadStoredStore = async (
+  options: { preferCache?: boolean } = {},
+): Promise<ProjectStore> => {
+  if (options.preferCache && cachedProjectStore) {
+    return cachedProjectStore;
+  }
   if (loadStoredStorePromise) return loadStoredStorePromise;
 
+  const loadStartedAtRevision = storeRevision;
   loadStoredStorePromise = (async () => {
     const tauriStore = await loadStoreFromTauriFile();
     if (tauriStore) return tauriStore;
@@ -1078,8 +1083,10 @@ const loadStoredStore = async (): Promise<ProjectStore> => {
     return loadStoreFromLocalStorage();
   })()
     .then((nextStore) => {
-      cachedProjectStore = nextStore;
-      return nextStore;
+      if (loadStartedAtRevision === storeRevision || !cachedProjectStore) {
+        cachedProjectStore = nextStore;
+      }
+      return cachedProjectStore;
     })
     .finally(() => {
       loadStoredStorePromise = null;
@@ -1113,7 +1120,7 @@ export const useProjectData = () => {
         }
       }
 
-      void loadStoredStore().then((nextStore) => {
+      void loadStoredStore({ preferCache: event?.type !== "storage" }).then((nextStore) => {
         cachedProjectStore = nextStore;
         setStore(nextStore);
         setIsHydrating(false);
@@ -1121,7 +1128,7 @@ export const useProjectData = () => {
     };
 
     let isMounted = true;
-    void loadStoredStore().then((nextStore) => {
+    void loadStoredStore({ preferCache: true }).then((nextStore) => {
       if (!isMounted) return;
       cachedProjectStore = nextStore;
       setStore(nextStore);
@@ -1158,6 +1165,7 @@ export const useProjectData = () => {
   }, [currentProject]);
 
   const saveStore = useCallback((nextStore: ProjectStore) => {
+    const revision = ++storeRevision;
     cachedProjectStore = nextStore;
     scheduleLocalStoreUpdate({
       store: nextStore,
@@ -1166,6 +1174,7 @@ export const useProjectData = () => {
 
     persistQueue = persistQueue
       .then(async () => {
+        if (revision !== storeRevision) return;
         if (isTauriRuntime()) {
           try {
             await persistStoreToTauriFiles(nextStore);
@@ -1189,10 +1198,20 @@ export const useProjectData = () => {
   }, []);
 
   const updateMetadata = useCallback(
-    (updates: Partial<ModMetadata>) => {
+    (updatesOrUpdater: MetadataUpdateArg) => {
       setStore((prev) => {
-        const currentId = prev.currentProjectId;
-        const current = prev.projects[currentId] || DEFAULT_DATA;
+        const baseStore = cachedProjectStore ?? prev;
+        const currentId = baseStore.currentProjectId;
+        const current = baseStore.projects[currentId] || DEFAULT_DATA;
+        const updates =
+          typeof updatesOrUpdater === "function"
+            ? updatesOrUpdater(current.metadata)
+            : updatesOrUpdater;
+
+        if (!updates || Object.keys(updates).length === 0) {
+          return baseStore;
+        }
+
         const nextMetadata: ModMetadata = { ...current.metadata, ...updates };
         const metadataActivity = buildMetadataActivityEntry(
           current.metadata,
@@ -1207,22 +1226,9 @@ export const useProjectData = () => {
           ),
         };
 
-        if (updates.id && updates.id !== currentId) {
-          const { [currentId]: _removed, ...remaining } = prev.projects;
-          const uniqueId = ensureUniqueProjectId(updates.id, remaining);
-          updatedProject.metadata.id = uniqueId;
-          const nextStore = {
-            ...prev,
-            currentProjectId: uniqueId,
-            projects: { ...remaining, [uniqueId]: updatedProject },
-          };
-          saveStore(nextStore);
-          return nextStore;
-        }
-
         const nextStore = {
-          ...prev,
-          projects: { ...prev.projects, [currentId]: updatedProject },
+          ...baseStore,
+          projects: { ...baseStore.projects, [currentId]: updatedProject },
         };
         saveStore(nextStore);
         return nextStore;
@@ -1239,8 +1245,9 @@ export const useProjectData = () => {
         | ((previous: ProjectData[K]) => ProjectData[K]),
     ) => {
       setStore((prev) => {
-        const currentId = prev.currentProjectId;
-        const current = prev.projects[currentId] || DEFAULT_DATA;
+        const baseStore = cachedProjectStore ?? prev;
+        const currentId = baseStore.currentProjectId;
+        const current = baseStore.projects[currentId] || DEFAULT_DATA;
         const resolvedItems =
           typeof itemsOrUpdater === "function"
             ? (
@@ -1286,8 +1293,8 @@ export const useProjectData = () => {
           },
         };
         const nextStore = {
-          ...prev,
-          projects: { ...prev.projects, [currentId]: updatedProject },
+          ...baseStore,
+          projects: { ...baseStore.projects, [currentId]: updatedProject },
         };
         saveStore(nextStore);
         return nextStore;
@@ -1299,8 +1306,9 @@ export const useProjectData = () => {
   const switchProject = useCallback(
     (projectId: string) => {
       setStore((prev) => {
-        if (!prev.projects[projectId]) return prev;
-        const nextStore = { ...prev, currentProjectId: projectId };
+        const baseStore = cachedProjectStore ?? prev;
+        if (!baseStore.projects[projectId]) return baseStore;
+        const nextStore = { ...baseStore, currentProjectId: projectId };
         saveStore(nextStore);
         return nextStore;
       });
@@ -1312,12 +1320,13 @@ export const useProjectData = () => {
     (metadataOverrides: Partial<ModMetadata> = {}) => {
       let createdId = "";
       setStore((prev) => {
+        const baseStore = cachedProjectStore ?? prev;
         const baseMetadata = sanitizeMetadata({
           ...DEFAULT_METADATA,
           ...metadataOverrides,
         });
         const baseId = baseMetadata.id || DEFAULT_METADATA.id;
-        const uniqueId = ensureUniqueProjectId(baseId, prev.projects);
+        const uniqueId = ensureUniqueProjectId(baseId, baseStore.projects);
         const finalMetadata = {
           ...baseMetadata,
           id: uniqueId,
@@ -1329,9 +1338,9 @@ export const useProjectData = () => {
           metadata: finalMetadata,
         };
         const nextStore: ProjectStore = {
-          ...prev,
+          ...baseStore,
           currentProjectId: uniqueId,
-          projects: { ...prev.projects, [uniqueId]: newProject },
+          projects: { ...baseStore.projects, [uniqueId]: newProject },
         };
         createdId = uniqueId;
         saveStore(nextStore);
@@ -1345,9 +1354,10 @@ export const useProjectData = () => {
   const deleteProject = useCallback(
     (projectId: string) => {
       setStore((prev) => {
-        if (!prev.projects[projectId]) return prev;
+        const baseStore = cachedProjectStore ?? prev;
+        if (!baseStore.projects[projectId]) return baseStore;
 
-        const { [projectId]: _removed, ...remaining } = prev.projects;
+        const { [projectId]: _removed, ...remaining } = baseStore.projects;
         const remainingIds = Object.keys(remaining);
 
         if (remainingIds.length === 0) {
@@ -1366,12 +1376,12 @@ export const useProjectData = () => {
         }
 
         const nextCurrentId =
-          prev.currentProjectId === projectId
+          baseStore.currentProjectId === projectId
             ? remainingIds[0]
-            : prev.currentProjectId;
+            : baseStore.currentProjectId;
 
         const nextStore: ProjectStore = {
-          ...prev,
+          ...baseStore,
           currentProjectId: nextCurrentId,
           projects: remaining,
         };
@@ -1388,10 +1398,11 @@ export const useProjectData = () => {
   const importProject = useCallback(
     (projectData: ProjectData) => {
       setStore((prev) => {
+        const baseStore = cachedProjectStore ?? prev;
         const importedName = (projectData.metadata?.name || "").trim().toLowerCase();
-        const existingId = Object.keys(prev.projects).find(
+        const existingId = Object.keys(baseStore.projects).find(
           (id) =>
-            (prev.projects[id].metadata.name || "").trim().toLowerCase() ===
+            (baseStore.projects[id].metadata.name || "").trim().toLowerCase() ===
             importedName,
         );
 
@@ -1401,7 +1412,7 @@ export const useProjectData = () => {
         if (existingId) {
           nextCurrentId = existingId;
           nextProjects = {
-            ...prev.projects,
+            ...baseStore.projects,
             [existingId]: {
               ...projectData,
               metadata: { ...projectData.metadata, id: existingId },
@@ -1409,17 +1420,17 @@ export const useProjectData = () => {
           };
         } else {
           const baseId = projectData.metadata.id || DEFAULT_METADATA.id;
-          const uniqueId = ensureUniqueProjectId(baseId, prev.projects);
+          const uniqueId = ensureUniqueProjectId(baseId, baseStore.projects);
           const finalProject: ProjectData = {
             ...projectData,
             metadata: { ...projectData.metadata, id: uniqueId },
           };
           nextCurrentId = uniqueId;
-          nextProjects = { ...prev.projects, [uniqueId]: finalProject };
+          nextProjects = { ...baseStore.projects, [uniqueId]: finalProject };
         }
 
         const nextStore: ProjectStore = {
-          ...prev,
+          ...baseStore,
           currentProjectId: nextCurrentId,
           projects: nextProjects,
         };
@@ -1430,8 +1441,8 @@ export const useProjectData = () => {
     [saveStore],
   );
 
-  const projects = Object.values(store.projects).map((project) => ({
-    id: project.metadata.id,
+  const projects = Object.entries(store.projects).map(([projectId, project]) => ({
+    id: projectId,
     name: project.metadata.name,
     version: project.metadata.version,
   }));
