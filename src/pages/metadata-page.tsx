@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useProjectData } from "@/lib/services/storage";
 import type { ModMetadata } from "@/lib/core/types";
 import {
@@ -24,6 +24,12 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ListInput } from "@/components/ui/list-input";
+import { GenericDialogColorPicker } from "@/components/ui/generic-dialog-color-picker";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -138,29 +144,20 @@ export default function MetadataPage() {
   const [isCopied, setIsCopied] = useState(false);
 
   const [authorsRaw, setAuthorsRaw] = useState(metadata.author.join(", "));
-  const previousNameRef = useRef(metadata.name);
 
   const gameImageSrc = metadata.gameImage || "/images/balatro.png";
   const iconImageSrc = metadata.iconImage || "/images/modicon.png";
 
-  useEffect(() => {
-    if (metadata.name && metadata.name !== previousNameRef.current) {
-      const oldId = generateModIdFromName(previousNameRef.current || "");
-      const oldPrefix = generatePrefixFromId(oldId);
-
-      if (metadata.id === oldId) {
-        const newId = generateModIdFromName(metadata.name);
-        updateMetadata({ id: newId });
-
-        if (metadata.prefix === oldPrefix) {
-          updateMetadata({ prefix: generatePrefixFromId(newId) });
-        }
-      }
-      previousNameRef.current = metadata.name;
-    }
-  }, [metadata.name, metadata.id, metadata.prefix, updateMetadata]);
-
   const validation = validateModMetadata(metadata);
+
+  const handleNameChange = (value: string) => {
+    const nextId = generateModIdFromName(value);
+    updateMetadata({
+      name: value,
+      id: nextId,
+      prefix: generatePrefixFromId(nextId),
+    });
+  };
 
   const handleAuthorsChange = (value: string) => {
     setAuthorsRaw(value);
@@ -203,14 +200,6 @@ export default function MetadataPage() {
     setIsCopied(true);
     toast.success("JSON copied to clipboard");
     setTimeout(() => setIsCopied(false), 2000);
-  };
-
-  const handleColorChange = (
-    value: string,
-    field: "badge_colour" | "badge_text_colour",
-  ) => {
-    const cleanValue = value.replace("#", "").toUpperCase();
-    updateMetadata({ [field]: cleanValue });
   };
 
   return (
@@ -283,9 +272,7 @@ export default function MetadataPage() {
 
       <section className="space-y-8">
         <div className="flex items-center gap-3 text-2xl font-bold text-foreground">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <FileText className="h-6 w-6" weight="duotone" />
-          </div>
+          <FileText className="h-6 w-6 text-green-500" weight="duotone" />
           <h3>Basic Information</h3>
         </div>
 
@@ -296,7 +283,7 @@ export default function MetadataPage() {
               <Tag className="absolute left-4 top-3.5 h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
                 value={metadata.name}
-                onChange={(e) => updateMetadata({ name: e.target.value })}
+                onChange={(e) => handleNameChange(e.target.value)}
                 className={cn(
                   "pl-12 h-12 text-lg rounded-xl",
                   validation.errors.name && "border-destructive",
@@ -408,7 +395,7 @@ export default function MetadataPage() {
             </div>
             <Switch
               id="vanilla-switch"
-              checked={metadata.disable_vanilla}
+              checked={Boolean(metadata.disable_vanilla)}
               onCheckedChange={(c) => updateMetadata({ disable_vanilla: c })}
               className="cursor-pointer"
             />
@@ -420,9 +407,7 @@ export default function MetadataPage() {
 
       <section className="space-y-8">
         <div className="flex items-center gap-3 text-2xl font-bold text-foreground">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <ImageIcon className="h-6 w-6" weight="duotone" />
-          </div>
+          <ImageIcon className="h-6 w-6 text-green-500" weight="duotone" />
           <h3>Assets</h3>
         </div>
 
@@ -434,7 +419,7 @@ export default function MetadataPage() {
                 333x216px
               </span>
             </div>
-            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg min-h-75 relative group cursor-pointer">
+            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-colors duration-300 hover:shadow-lg min-h-75 relative group cursor-pointer">
               <input
                 type="file"
                 accept="image/*"
@@ -446,36 +431,41 @@ export default function MetadataPage() {
               />
               <img
                 src={gameImageSrc}
-                className="max-w-full max-h-45 object-contain shadow-xl rounded-lg [image-rendering:pixelated] transition-transform group-hover:scale-105 duration-300 relative z-0"
+                className="max-w-full max-h-45 object-contain shadow-xl rounded-lg [image-rendering:pixelated] relative z-0"
                 alt="Game Logo"
               />
 
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3 rounded-xl backdrop-blur-[2px] pointer-events-none z-20">
                 <Button
                   variant="secondary"
-                  className="relative font-bold shadow-lg transition-transform group-hover:scale-105 pointer-events-none"
+                  className="relative font-bold shadow-lg pointer-events-none"
                   size="default"
                   tabIndex={-1}
                 >
                   <Upload className="mr-2 h-4 w-4" weight="bold" />
                   Upload New
                 </Button>
-                {metadata.gameImage && (
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="shadow-lg hover:scale-110 transition-transform cursor-pointer pointer-events-auto z-30 relative"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      updateMetadata({
-                        gameImage: "",
-                        hasUserUploadedGameIcon: false,
-                      });
-                    }}
-                  >
-                    <Trash className="h-4 w-4" weight="bold" />
-                  </Button>
+                {metadata.hasUserUploadedGameIcon && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="shadow-lg cursor-pointer pointer-events-auto z-30 relative"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          updateMetadata({
+                            gameImage: "",
+                            hasUserUploadedGameIcon: false,
+                          });
+                        }}
+                      >
+                        <Trash className="h-4 w-4" weight="bold" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Reset game logo</TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -488,7 +478,7 @@ export default function MetadataPage() {
                 34x34px
               </span>
             </div>
-            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg min-h-75 relative group cursor-pointer">
+            <div className="border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-6 bg-muted/20 hover:bg-muted/40 transition-colors duration-300 hover:shadow-lg min-h-75 relative group cursor-pointer">
               <input
                 type="file"
                 accept="image/*"
@@ -500,36 +490,41 @@ export default function MetadataPage() {
               />
               <img
                 src={iconImageSrc}
-                className="w-24 h-24 object-contain shadow-xl rounded-lg [image-rendering:pixelated] scale-150 transition-transform group-hover:scale-[1.6] duration-300 relative z-0"
+                className="w-24 h-24 object-contain shadow-xl rounded-lg [image-rendering:pixelated] scale-150 relative z-0"
                 alt="Mod Icon"
               />
 
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3 rounded-xl backdrop-blur-[2px] pointer-events-none z-20">
                 <Button
                   variant="secondary"
-                  className="relative font-bold shadow-lg transition-transform group-hover:scale-105 pointer-events-none"
+                  className="relative font-bold shadow-lg pointer-events-none"
                   size="default"
                   tabIndex={-1}
                 >
                   <Upload className="mr-2 h-4 w-4" weight="bold" />
                   Upload New
                 </Button>
-                {metadata.iconImage && (
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="shadow-lg hover:scale-110 transition-transform cursor-pointer pointer-events-auto z-30 relative"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      updateMetadata({
-                        iconImage: "",
-                        hasUserUploadedIcon: false,
-                      });
-                    }}
-                  >
-                    <Trash className="h-4 w-4" weight="bold" />
-                  </Button>
+                {metadata.hasUserUploadedIcon && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="shadow-lg cursor-pointer pointer-events-auto z-30 relative"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          updateMetadata({
+                            iconImage: "",
+                            hasUserUploadedIcon: false,
+                          });
+                        }}
+                      >
+                        <Trash className="h-4 w-4" weight="bold" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Reset mod icon</TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -541,9 +536,7 @@ export default function MetadataPage() {
 
       <section className="space-y-8">
         <div className="flex items-center gap-3 text-2xl font-bold text-foreground">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <Palette className="h-6 w-6" weight="duotone" />
-          </div>
+          <Palette className="h-6 w-6 text-green-500" weight="duotone" />
           <h3>Appearance</h3>
         </div>
 
@@ -564,60 +557,26 @@ export default function MetadataPage() {
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label className="text-base">Badge Color</Label>
-                <div className="flex gap-3">
-                  <div className="relative h-12 w-16 shrink-0 rounded-xl overflow-hidden shadow-sm border-2 border-border hover:border-primary/50 transition-colors cursor-pointer">
-                    <input
-                      type="color"
-                      value={`#${metadata.badge_colour}`}
-                      onChange={(e) =>
-                        handleColorChange(e.target.value, "badge_colour")
-                      }
-                      className="absolute -top-2 -left-2 w-[200%] h-[200%] cursor-pointer p-0 m-0 border-0"
-                    />
-                  </div>
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-3 text-muted-foreground font-mono">
-                      #
-                    </span>
-                    <Input
-                      value={metadata.badge_colour}
-                      onChange={(e) =>
-                        updateMetadata({ badge_colour: e.target.value })
-                      }
-                      placeholder="666665"
-                      className="pl-7 h-12 font-mono uppercase rounded-xl"
-                    />
-                  </div>
-                </div>
+                <GenericDialogColorPicker
+                  value={metadata.badge_colour}
+                  onChange={(value) => updateMetadata({ badge_colour: value })}
+                  defaultColor="#666665"
+                  valueMode="without-hash"
+                  placeholder="#666665"
+                />
               </div>
 
               <div className="space-y-3">
                 <Label className="text-base">Text Color</Label>
-                <div className="flex gap-3">
-                  <div className="relative h-12 w-16 shrink-0 rounded-xl overflow-hidden shadow-sm border-2 border-border hover:border-primary/50 transition-colors cursor-pointer">
-                    <input
-                      type="color"
-                      value={`#${metadata.badge_text_colour}`}
-                      onChange={(e) =>
-                        handleColorChange(e.target.value, "badge_text_colour")
-                      }
-                      className="absolute -top-2 -left-2 w-[200%] h-[200%] cursor-pointer p-0 m-0 border-0"
-                    />
-                  </div>
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-3 text-muted-foreground font-mono">
-                      #
-                    </span>
-                    <Input
-                      value={metadata.badge_text_colour}
-                      onChange={(e) =>
-                        updateMetadata({ badge_text_colour: e.target.value })
-                      }
-                      placeholder="FFFFFF"
-                      className="pl-7 h-12 font-mono uppercase rounded-xl"
-                    />
-                  </div>
-                </div>
+                <GenericDialogColorPicker
+                  value={metadata.badge_text_colour}
+                  onChange={(value) =>
+                    updateMetadata({ badge_text_colour: value })
+                  }
+                  defaultColor="#FFFFFF"
+                  valueMode="without-hash"
+                  placeholder="#FFFFFF"
+                />
               </div>
             </div>
           </div>
@@ -644,9 +603,7 @@ export default function MetadataPage() {
 
       <section className="space-y-8">
         <div className="flex items-center gap-3 text-2xl font-bold text-foreground">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <ShieldCheck className="h-6 w-6" weight="duotone" />
-          </div>
+          <ShieldCheck className="h-6 w-6 text-green-500" weight="duotone" />
           <h3>Advanced & Dependencies</h3>
         </div>
 

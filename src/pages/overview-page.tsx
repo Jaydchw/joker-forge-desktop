@@ -48,6 +48,13 @@ import { useVanillaReforgedData } from "@/lib/items/vanilla-reforged";
 import { invoke } from "@tauri-apps/api/core";
 
 const LAUNCH_GAME_ON_EXPORT_KEY = "joker_forge_launch_game_on_export";
+type OverviewEditableMetadataField =
+  | "name"
+  | "id"
+  | "prefix"
+  | "version"
+  | "author"
+  | "description";
 
 export function OverviewPage() {
   const navigate = useNavigate();
@@ -66,7 +73,7 @@ export function OverviewPage() {
   const vanillaStats = vanillaReforged.data;
 
   const [editingField, setEditingField] = useState<
-    "none" | "name" | "id" | "prefix" | "version" | "author" | "description"
+    "none" | OverviewEditableMetadataField
   >("none");
   const [tempValue, setTempValue] = useState("");
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
@@ -217,10 +224,7 @@ export function OverviewPage() {
     return parts.join(".");
   };
 
-  const startEdit = (
-    field: "name" | "id" | "prefix" | "version" | "author" | "description",
-    value: string,
-  ) => {
+  const startEdit = (field: OverviewEditableMetadataField, value: string) => {
     setEditingField(field);
     setTempValue(value);
   };
@@ -230,31 +234,75 @@ export function OverviewPage() {
     setTempValue("");
   };
 
+  const handleNameChange = (value: string) => {
+    setTempValue(value);
+    const nextId = generateModIdFromName(value);
+    updateMetadata({
+      name: value,
+      id: nextId,
+      prefix: generatePrefixFromId(nextId),
+    });
+  };
+
+  const handleIdChange = (value: string) => {
+    const sanitized = sanitizeIdentifier(value);
+    setTempValue(sanitized);
+    updateMetadata({ id: sanitized });
+  };
+
+  const handlePrefixChange = (value: string) => {
+    const sanitized = sanitizeIdentifier(value);
+    setTempValue(sanitized);
+    updateMetadata({ prefix: sanitized });
+  };
+
+  const handleVersionChange = (value: string) => {
+    const sanitized = sanitizeVersionInput(value);
+    setTempValue(sanitized);
+    updateMetadata({ version: sanitized });
+  };
+
+  const handleAuthorChange = (value: string) => {
+    setTempValue(value);
+    updateMetadata({
+      author: value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    });
+  };
+
+  const handleDescriptionChange = (value: string) => {
+    setTempValue(value);
+    updateMetadata({ description: value });
+  };
+
   const saveEdit = () => {
+    if (editingField === "none") return;
+
+    const field = editingField;
     const nextValue = tempValue.trim();
-    if (editingField === "name") {
-      if (nextValue) {
-        const nextId = generateModIdFromName(nextValue);
-        const nextPrefix = generatePrefixFromId(nextId);
-        updateMetadata({ name: nextValue, id: nextId, prefix: nextPrefix });
-      }
-    } else if (editingField === "id") {
+    if (field === "name") {
+      // Name edits are committed on each keystroke so id/prefix stay live.
+    } else if (field === "id") {
       const sanitized = sanitizeIdentifier(nextValue);
       if (sanitized && identifierRegex.test(sanitized)) {
         updateMetadata({ id: sanitized });
       }
-    } else if (editingField === "prefix") {
+    } else if (field === "prefix") {
       const sanitized = sanitizeIdentifier(nextValue);
       if (sanitized && identifierRegex.test(sanitized)) {
         updateMetadata({ prefix: sanitized });
       }
-    } else if (editingField === "version") {
+    } else if (field === "version") {
       if (versionRegex.test(nextValue)) {
         updateMetadata({ version: nextValue });
       }
-    } else if (editingField === "author") {
-      if (nextValue) updateMetadata({ author: [nextValue] });
-    } else if (editingField === "description") {
+    } else if (field === "author") {
+      if (nextValue) {
+        updateMetadata({ author: [nextValue] });
+      }
+    } else if (field === "description") {
       updateMetadata({ description: tempValue });
     }
 
@@ -449,7 +497,7 @@ export function OverviewPage() {
                 <input
                   ref={inputRef as React.RefObject<HTMLInputElement>}
                   value={tempValue}
-                  onChange={(event) => setTempValue(event.target.value)}
+                  onChange={(event) => handleNameChange(event.target.value)}
                   onBlur={saveEdit}
                   onKeyDown={handleKeyDown}
                   className="text-5xl font-bold tracking-tight text-foreground bg-transparent border-none p-0 outline-none focus:outline-none w-full"
@@ -471,9 +519,7 @@ export function OverviewPage() {
                   <input
                     ref={inputRef as React.RefObject<HTMLInputElement>}
                     value={tempValue}
-                    onChange={(event) =>
-                      setTempValue(sanitizeIdentifier(event.target.value))
-                    }
+                    onChange={(event) => handleIdChange(event.target.value)}
                     onBlur={saveEdit}
                     onKeyDown={handleKeyDown}
                     className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono border-none outline-none focus:outline-none"
@@ -494,9 +540,7 @@ export function OverviewPage() {
                   <input
                     ref={inputRef as React.RefObject<HTMLInputElement>}
                     value={tempValue}
-                    onChange={(event) =>
-                      setTempValue(sanitizeIdentifier(event.target.value))
-                    }
+                    onChange={(event) => handlePrefixChange(event.target.value)}
                     onBlur={saveEdit}
                     onKeyDown={handleKeyDown}
                     className="bg-accent px-1.5 py-0.5 rounded text-foreground font-mono border-none outline-none focus:outline-none"
@@ -515,9 +559,7 @@ export function OverviewPage() {
                 <input
                   ref={inputRef as React.RefObject<HTMLInputElement>}
                   value={tempValue}
-                  onChange={(event) =>
-                    setTempValue(sanitizeVersionInput(event.target.value))
-                  }
+                  onChange={(event) => handleVersionChange(event.target.value)}
                   onBlur={saveEdit}
                   onKeyDown={handleKeyDown}
                   placeholder="x.y.z"
@@ -538,7 +580,7 @@ export function OverviewPage() {
                   <input
                     ref={inputRef as React.RefObject<HTMLInputElement>}
                     value={tempValue}
-                    onChange={(event) => setTempValue(event.target.value)}
+                    onChange={(event) => handleAuthorChange(event.target.value)}
                     onBlur={saveEdit}
                     onKeyDown={handleKeyDown}
                     className="bg-transparent border-none p-0 outline-none focus:outline-none text-foreground text-sm font-medium"
@@ -558,7 +600,9 @@ export function OverviewPage() {
               <textarea
                 ref={inputRef as React.RefObject<HTMLTextAreaElement>}
                 value={tempValue}
-                onChange={(event) => setTempValue(event.target.value)}
+                onChange={(event) =>
+                  handleDescriptionChange(event.target.value)
+                }
                 onBlur={saveEdit}
                 onKeyDown={handleKeyDown}
                 className="text-lg text-muted-foreground leading-relaxed max-w-3xl border-l-4 border-primary/20 pl-4 py-1 bg-transparent resize-none w-full outline-none focus:outline-none"
