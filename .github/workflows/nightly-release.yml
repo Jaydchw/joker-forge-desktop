@@ -94,6 +94,10 @@ jobs:
             artifact_glob: |
               src-tauri/target/release/bundle/appimage/*.AppImage
               src-tauri/target/release/bundle/deb/*.deb
+          - platform: macos
+            os: macos-latest
+            bundle_args: --bundles dmg
+            artifact_glob: src-tauri/target/release/bundle/dmg/*.dmg
 
     steps:
       - name: Checkout

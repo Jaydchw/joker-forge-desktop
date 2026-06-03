@@ -10,7 +10,7 @@ This project uses:
 
 - Create and manage mod data through a desktop UI
 - Export generated content for your mod workflow
-- Run as a native desktop app on Windows and Linux (macOS support can be added later)
+- Run as a native desktop app on Windows, Linux, and macOS
 
 ## Downloads
 
@@ -124,6 +124,6 @@ Stable and nightly install side-by-side as separate apps.
 
 - Workflow file: `.github/workflows/nightly-release.yml`
 - Trigger: every push to `main`
-- Builds: Windows (NSIS) + Linux (AppImage + DEB)
+- Builds: Windows (NSIS) + Linux (AppImage + DEB) + macOS (unsigned DMG)
 - Publishes a GitHub prerelease with commit messages since the previous nightly
 - Retention: keeps the latest 14 nightly releases, older ones are auto-deleted
