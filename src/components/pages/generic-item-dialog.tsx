@@ -659,7 +659,7 @@ const PreviewPanel = memo(
     const panLastRef = useRef<{ x: number; y: number } | null>(null);
 
     const handleWheelZoom = useCallback(
-      (e: React.WheelEvent<HTMLDivElement>) => {
+      (e: WheelEvent) => {
         if (e.cancelable) {
           e.preventDefault();
         }
@@ -672,6 +672,19 @@ const PreviewPanel = memo(
       },
       [],
     );
+
+    useEffect(() => {
+      const previewContainer = previewContainerRef.current;
+      if (!previewContainer) return;
+
+      previewContainer.addEventListener("wheel", handleWheelZoom, {
+        passive: false,
+      });
+
+      return () => {
+        previewContainer.removeEventListener("wheel", handleWheelZoom);
+      };
+    }, [handleWheelZoom]);
 
     const handlePanStart = useCallback(
       (e: React.PointerEvent<HTMLDivElement>) => {
@@ -754,7 +767,6 @@ const PreviewPanel = memo(
 
           <div
             ref={previewContainerRef}
-            onWheel={handleWheelZoom}
             onPointerDown={handlePanStart}
             onPointerMove={handlePanMove}
             onPointerUp={handlePanEnd}
