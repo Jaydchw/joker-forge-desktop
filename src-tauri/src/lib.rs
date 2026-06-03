@@ -2,7 +2,96 @@ mod cli_codegen_item;
 mod mod_engine;
 
 use mod_engine::{commands, state::AppState};
-use std::{env, process};
+use std::{
+    env,
+    fs,
+    path::{Path, PathBuf},
+    process,
+    sync::Mutex,
+};
+use tauri::{Emitter, Manager, State};
+
+const FILE_OPEN_EVENT: &str = "jokerforge-file-open";
+const ASSOCIATED_EXTENSIONS: [&str; 3] = ["jokerforge", "jftemplate", "jftheme"];
+
+struct PendingFileOpenPaths(Mutex<Vec<String>>);
+
+fn is_associated_file_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| {
+            ASSOCIATED_EXTENSIONS
+                .iter()
+                .any(|candidate| extension.eq_ignore_ascii_case(candidate))
+        })
+        .unwrap_or(false)
+}
+
+fn file_url_to_path(value: &str) -> Option<PathBuf> {
+    let url = tauri::Url::parse(value).ok()?;
+    if url.scheme() != "file" {
+        return None;
+    }
+    url.to_file_path().ok()
+}
+
+fn resolve_file_open_arg(value: &str, cwd: Option<&str>) -> Option<String> {
+    let path = if value.starts_with("file://") {
+        file_url_to_path(value)?
+    } else {
+        let candidate = PathBuf::from(value);
+        if candidate.is_absolute() {
+            candidate
+        } else {
+            PathBuf::from(cwd?).join(candidate)
+        }
+    };
+
+    if !is_associated_file_path(&path) {
+        return None;
+    }
+
+    Some(path.to_string_lossy().to_string())
+}
+
+fn associated_file_paths_from_args(args: &[String], cwd: Option<&str>) -> Vec<String> {
+    args.iter()
+        .filter_map(|arg| resolve_file_open_arg(arg, cwd))
+        .collect()
+}
+
+fn emit_file_open_paths(app: &tauri::AppHandle, paths: Vec<String>) {
+    if paths.is_empty() {
+        return;
+    }
+    let _ = app.emit(FILE_OPEN_EVENT, paths);
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_focus();
+    }
+}
+
+#[tauri::command]
+fn take_pending_file_open_paths(state: State<'_, PendingFileOpenPaths>) -> Vec<String> {
+    match state.0.lock() {
+        Ok(mut pending) => std::mem::take(&mut *pending),
+        Err(_) => Vec::new(),
+    }
+}
+
+#[tauri::command]
+fn read_associated_file(path: String) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    if !is_associated_file_path(&path) {
+        return Err("Unsupported Joker Forge file type.".to_string());
+    }
+    fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "Failed to read associated file {}: {}",
+            path.display(),
+            error
+        )
+    })
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,8 +108,23 @@ pub fn run() {
     }
 
     let app_state = AppState::new().expect("failed to initialize mod engine state");
+    let cwd = env::current_dir()
+        .ok()
+        .map(|path| path.to_string_lossy().to_string());
+    let initial_file_open_paths = associated_file_paths_from_args(&args, cwd.as_deref());
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let paths = associated_file_paths_from_args(&args, Some(&cwd));
+            emit_file_open_paths(app, paths);
+        }));
+    }
+
+    builder
+        .manage(PendingFileOpenPaths(Mutex::new(initial_file_open_paths)))
         .manage(app_state)
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -53,7 +157,10 @@ pub fn run() {
             commands::open_folder_in_file_manager,
             commands::can_launch_balatro,
             commands::launch_or_relaunch_balatro,
+            take_pending_file_open_paths,
+            read_associated_file,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, _event| {});
 }

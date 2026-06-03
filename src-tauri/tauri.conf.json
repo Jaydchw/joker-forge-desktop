@@ -1,7 +1,7 @@
 {
-  "productName": "Joker Forge",
-  "version": "2.0.0-beta",
-  "identifier": "com.jaydchw.joker-forge-desktop",
+  "productName": "Joker Forge Nightly",
+  "version": "2.0.0-beta-nightly.local",
+  "identifier": "com.jaydchw.joker-forge-desktop.nightly",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Joker Forge",
+        "title": "Joker Forge Nightly",
         "width": 1600,
         "height": 900,
         "minWidth": 1100,
@@ -30,6 +30,32 @@
     "active": true,
     "targets": [
       "nsis"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "jokerforge"
+        ],
+        "name": "Joker Forge Project",
+        "description": "Joker Forge project file",
+        "mimeType": "application/x-jokerforge-project"
+      },
+      {
+        "ext": [
+          "jftemplate"
+        ],
+        "name": "Joker Forge Template",
+        "description": "Joker Forge template bundle",
+        "mimeType": "application/x-jokerforge-template"
+      },
+      {
+        "ext": [
+          "jftheme"
+        ],
+        "name": "Joker Forge Theme",
+        "description": "Joker Forge theme file",
+        "mimeType": "application/x-jokerforge-theme"
+      }
     ],
     "icon": [
       "icons/32x32.png",

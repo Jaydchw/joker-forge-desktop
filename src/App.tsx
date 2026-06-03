@@ -24,6 +24,7 @@ import VanillaReforgedVouchersPage from "@/pages/vanilla-reforged/vanilla-reforg
 import VanillaReforgedDecksPage from "@/pages/vanilla-reforged/vanilla-reforged-decks-page";
 import NotFoundPage from "@/pages/not-found-page";
 import { EntityBridgeListener } from "@/components/bridge/entity-bridge-listener";
+import { FileAssociationListener } from "@/components/bridge/file-association-listener";
 import { CustomContextMenu } from "@/components/ui/custom-context-menu";
 import { useEffect } from "react";
 import { checkForReleaseUpdateOnLaunch } from "@/lib/services/release-updater";
@@ -41,6 +42,7 @@ function App() {
       <UpdateDialog />
       <GithubStarDialog />
       <EntityBridgeListener />
+      <FileAssociationListener />
       <Toaster position="bottom-right" richColors closeButton />
       <CustomContextMenu>
         <div className="h-full w-full">
