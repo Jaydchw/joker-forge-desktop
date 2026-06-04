@@ -1,6 +1,7 @@
 import type { ProjectData, ProjectStats } from "@/lib/services/storage";
 import type { ModMetadata } from "@/lib/core/types";
 import { sanitizeDescription } from "@/lib/description/description-sanitizer";
+import { ensureUniqueItemOrderValues } from "@/lib/items/item-order";
 
 const DEFAULT_METADATA: ModMetadata = {
   id: "my_custom_mod",
@@ -705,42 +706,40 @@ export const normalizeProjectData = (payload: unknown): ProjectData => {
   const projectWithoutStats: Omit<ProjectData, "stats"> = {
     metadata: normalizeMetadata(obj.metadata),
     recentActivity: [],
-    jokers: normalizeCollection(
-      pick("jokers"),
-      "joker",
-    ) as unknown as ProjectData["jokers"],
-    consumables: normalizeCollection(
-      pick("consumables"),
-      "consumable",
-    ) as unknown as ProjectData["consumables"],
+    jokers: ensureUniqueItemOrderValues(
+      normalizeCollection(pick("jokers"), "joker") as ProjectData["jokers"],
+    ),
+    consumables: ensureUniqueItemOrderValues(
+      normalizeCollection(
+        pick("consumables"),
+        "consumable",
+      ) as ProjectData["consumables"],
+    ),
     rarities: normalizeRarities(raritySource) as ProjectData["rarities"],
     consumableSets: normalizeConsumableSets(
       pick("consumableSets"),
     ) as ProjectData["consumableSets"],
-    decks: normalizeCollection(
-      pick("decks"),
-      "deck",
-    ) as unknown as ProjectData["decks"],
-    vouchers: normalizeCollection(
-      pick("vouchers"),
-      "voucher",
-    ) as unknown as ProjectData["vouchers"],
-    boosters: normalizeCollection(
-      pick("boosters"),
-      "booster",
-    ) as unknown as ProjectData["boosters"],
-    seals: normalizeCollection(
-      pick("seals"),
-      "seal",
-    ) as unknown as ProjectData["seals"],
-    editions: normalizeCollection(
-      pick("editions"),
-      "edition",
-    ) as unknown as ProjectData["editions"],
-    enhancements: normalizeCollection(
-      pick("enhancements"),
-      "enhancement",
-    ) as unknown as ProjectData["enhancements"],
+    decks: ensureUniqueItemOrderValues(
+      normalizeCollection(pick("decks"), "deck") as ProjectData["decks"],
+    ),
+    vouchers: ensureUniqueItemOrderValues(
+      normalizeCollection(pick("vouchers"), "voucher") as ProjectData["vouchers"],
+    ),
+    boosters: ensureUniqueItemOrderValues(
+      normalizeCollection(pick("boosters"), "booster") as ProjectData["boosters"],
+    ),
+    seals: ensureUniqueItemOrderValues(
+      normalizeCollection(pick("seals"), "seal") as ProjectData["seals"],
+    ),
+    editions: ensureUniqueItemOrderValues(
+      normalizeCollection(pick("editions"), "edition") as ProjectData["editions"],
+    ),
+    enhancements: ensureUniqueItemOrderValues(
+      normalizeCollection(
+        pick("enhancements"),
+        "enhancement",
+      ) as ProjectData["enhancements"],
+    ),
     sounds: normalizeSounds(pick("sounds")) as ProjectData["sounds"],
   };
 

@@ -32,6 +32,7 @@ import {
 import { updateDataRegistry } from "@/lib/balatro/balatro-utils";
 import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import { clearThemeStorage } from "@/lib/app/theme-manager";
+import { ensureUniqueItemOrderValues } from "@/lib/items/item-order";
 
 export interface ProjectStats {
   jokers: number;
@@ -1186,16 +1187,18 @@ const sanitizeProjectData = (input: any): ProjectData => {
     metadata: sanitizeMetadata(input.metadata),
     stats: { ...DEFAULT_DATA.stats, ...(input.stats || {}) },
     recentActivity: sanitizeRecentActivity(input.recentActivity),
-    jokers: toLocalizedArray(input.jokers),
-    consumables: toLocalizedArray(input.consumables),
+    jokers: ensureUniqueItemOrderValues(toLocalizedArray(input.jokers)),
+    consumables: ensureUniqueItemOrderValues(toLocalizedArray(input.consumables)),
     rarities: toArray(input.rarities),
     consumableSets: toArray(input.consumableSets),
-    decks: toLocalizedArray(input.decks),
-    vouchers: toLocalizedArray(input.vouchers),
-    boosters: toLocalizedArray(input.boosters),
-    seals: toLocalizedArray(input.seals),
-    editions: toLocalizedArray(input.editions),
-    enhancements: toLocalizedArray(input.enhancements),
+    decks: ensureUniqueItemOrderValues(toLocalizedArray(input.decks)),
+    vouchers: ensureUniqueItemOrderValues(toLocalizedArray(input.vouchers)),
+    boosters: ensureUniqueItemOrderValues(toLocalizedArray(input.boosters)),
+    seals: ensureUniqueItemOrderValues(toLocalizedArray(input.seals)),
+    editions: ensureUniqueItemOrderValues(toLocalizedArray(input.editions)),
+    enhancements: ensureUniqueItemOrderValues(
+      toLocalizedArray(input.enhancements),
+    ),
     sounds: toArray(input.sounds),
   };
 };
