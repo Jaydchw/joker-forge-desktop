@@ -615,11 +615,7 @@ pub fn consumable_data_to_def(
     pos: AtlasPosInput,
     soul_pos: Option<AtlasPosInput>,
 ) -> ConsumableDef {
-    let requested_atlas = input
-        .atlas
-        .as_deref()
-        .unwrap_or("CustomConsumables")
-        .trim();
+    let requested_atlas = input.atlas.as_deref().unwrap_or("CustomConsumables").trim();
     let atlas = if requested_atlas.is_empty()
         || requested_atlas.eq_ignore_ascii_case("Consumables")
         || requested_atlas.eq_ignore_ascii_case("CustomConsumables")
@@ -726,11 +722,7 @@ pub fn voucher_data_to_def(
     pos: AtlasPosInput,
     soul_pos: Option<AtlasPosInput>,
 ) -> VoucherDef {
-    let requested_atlas = input
-        .atlas
-        .as_deref()
-        .unwrap_or("CustomVouchers")
-        .trim();
+    let requested_atlas = input.atlas.as_deref().unwrap_or("CustomVouchers").trim();
     let atlas = if requested_atlas.is_empty()
         || requested_atlas.eq_ignore_ascii_case("Voucher")
         || requested_atlas.eq_ignore_ascii_case("CustomVouchers")
@@ -1329,7 +1321,10 @@ fn render_localization_lua(descriptions: &LocalizationDescriptions) -> String {
             ));
 
             if let Some(unlock) = &entry.unlock {
-                out.push_str(&format!(",\n        unlock = {}", build_lua_string_array(unlock, 4)));
+                out.push_str(&format!(
+                    ",\n        unlock = {}",
+                    build_lua_string_array(unlock, 4)
+                ));
             }
 
             out.push_str("\n      }");
@@ -1676,34 +1671,19 @@ pub fn build_main_lua(
     load_globals: bool,
     run_scoped_globals: &[UserVariableDef],
 ) -> String {
-    let mut sorted_jokers: Vec<&BatchJokerEntry> = jokers.iter().collect();
-    sorted_jokers.sort_by(|a, b| a.joker_data.object_key.cmp(&b.joker_data.object_key));
+    let sorted_jokers: Vec<&BatchJokerEntry> = jokers.iter().collect();
 
-    let mut sorted_consumables: Vec<&BatchConsumableEntry> = consumables.iter().collect();
-    sorted_consumables.sort_by(|a, b| {
-        a.consumable_data
-            .object_key
-            .cmp(&b.consumable_data.object_key)
-    });
+    let sorted_consumables: Vec<&BatchConsumableEntry> = consumables.iter().collect();
 
-    let mut sorted_vouchers: Vec<&BatchVoucherEntry> = vouchers.iter().collect();
-    sorted_vouchers.sort_by(|a, b| a.voucher_data.object_key.cmp(&b.voucher_data.object_key));
+    let sorted_vouchers: Vec<&BatchVoucherEntry> = vouchers.iter().collect();
 
-    let mut sorted_decks: Vec<&BatchDeckEntry> = decks.iter().collect();
-    sorted_decks.sort_by(|a, b| a.deck_data.object_key.cmp(&b.deck_data.object_key));
+    let sorted_decks: Vec<&BatchDeckEntry> = decks.iter().collect();
 
-    let mut sorted_enhancements: Vec<&BatchEnhancementEntry> = enhancements.iter().collect();
-    sorted_enhancements.sort_by(|a, b| {
-        a.enhancement_data
-            .object_key
-            .cmp(&b.enhancement_data.object_key)
-    });
+    let sorted_enhancements: Vec<&BatchEnhancementEntry> = enhancements.iter().collect();
 
-    let mut sorted_seals: Vec<&BatchSealEntry> = seals.iter().collect();
-    sorted_seals.sort_by(|a, b| a.seal_data.object_key.cmp(&b.seal_data.object_key));
+    let sorted_seals: Vec<&BatchSealEntry> = seals.iter().collect();
 
-    let mut sorted_editions: Vec<&BatchEditionEntry> = editions.iter().collect();
-    sorted_editions.sort_by(|a, b| a.edition_data.object_key.cmp(&b.edition_data.object_key));
+    let sorted_editions: Vec<&BatchEditionEntry> = editions.iter().collect();
 
     let mut atlas_decls = String::new();
     if !sorted_jokers.is_empty() {
@@ -1845,7 +1825,12 @@ SMODS.current_mod.reset_game_globals = function(run_start)\n\
 
 pub fn build_sounds_lua(sounds: &[SoundDataInput]) -> String {
     let mut sorted_sounds: Vec<&SoundDataInput> = sounds.iter().collect();
-    sorted_sounds.sort_by(|a, b| a.key.trim().to_ascii_lowercase().cmp(&b.key.trim().to_ascii_lowercase()));
+    sorted_sounds.sort_by(|a, b| {
+        a.key
+            .trim()
+            .to_ascii_lowercase()
+            .cmp(&b.key.trim().to_ascii_lowercase())
+    });
 
     let mut lines: Vec<String> = Vec::new();
     for sound in sorted_sounds {
@@ -1860,7 +1845,10 @@ pub fn build_sounds_lua(sounds: &[SoundDataInput]) -> String {
         let mut block = vec![
             "SMODS.Sound({".to_string(),
             format!("    key = '{}',", escape_lua_string(key)),
-            format!("    path = '{}',", escape_lua_string(&format!("sounds/{}", path))),
+            format!(
+                "    path = '{}',",
+                escape_lua_string(&format!("sounds/{}", path))
+            ),
             format!("    pitch = {},", sound.pitch.unwrap_or(1.0)),
             format!("    volume = {},", sound.volume.unwrap_or(1.0)),
         ];

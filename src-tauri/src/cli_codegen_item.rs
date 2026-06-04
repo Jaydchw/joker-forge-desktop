@@ -1,7 +1,7 @@
 use crate::mod_engine::commands;
 use crate::mod_engine::export::{AtlasPosInput, UserVariableInput};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 
@@ -293,14 +293,12 @@ fn load_catalog_schema(json_str: &str) -> HashMap<String, NodeSchema> {
                     .unwrap_or("text")
                     .to_string();
                 let select_values = if ptype == "select" {
-                    p.get("options")
-                        .and_then(Value::as_array)
-                        .map(|opts| {
-                            opts.iter()
-                                .filter_map(|o| o.get("value").and_then(Value::as_str))
-                                .map(str::to_string)
-                                .collect::<HashSet<_>>()
-                        })
+                    p.get("options").and_then(Value::as_array).map(|opts| {
+                        opts.iter()
+                            .filter_map(|o| o.get("value").and_then(Value::as_str))
+                            .map(str::to_string)
+                            .collect::<HashSet<_>>()
+                    })
                 } else {
                     None
                 };
@@ -375,9 +373,15 @@ fn validate_rulebuilder_item_data(item_type: &str, item_data: &Value) -> Result<
                     coordinate, effect_type, item_type
                 )
             })?;
-            let params = effect.get("params").and_then(Value::as_object).ok_or_else(|| {
-                format!("{} effect '{}' params must be an object", coordinate, effect_type)
-            })?;
+            let params = effect
+                .get("params")
+                .and_then(Value::as_object)
+                .ok_or_else(|| {
+                    format!(
+                        "{} effect '{}' params must be an object",
+                        coordinate, effect_type
+                    )
+                })?;
             for (pk, pv) in params {
                 let p_schema = schema.params.get(pk).ok_or_else(|| {
                     format!(
@@ -895,7 +899,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let raw = next(i, args)?;
                 let parts: Vec<&str> = raw.split(':').collect();
                 if parts.len() < 3 {
-                    return Err("--user-var expects name:type:initial[:global[:persistent]]".to_string());
+                    return Err(
+                        "--user-var expects name:type:initial[:global[:persistent]]".to_string()
+                    );
                 }
                 let is_global = parts.get(3).map(|v| parse_bool(v, false)).unwrap_or(false);
                 let is_persistent = parts.get(4).map(|v| parse_bool(v, false)).unwrap_or(false);
@@ -1017,9 +1023,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
             }
             "--condition-group-index" | "-cgi" => {
                 let idx = ensure_rule(&mut rules, &mut current_rule_index);
-                let gidx = next(i, args)?
-                    .parse::<usize>()
-                    .map_err(|_| "--condition-group-index expects a non-negative integer".to_string())?;
+                let gidx = next(i, args)?.parse::<usize>().map_err(|_| {
+                    "--condition-group-index expects a non-negative integer".to_string()
+                })?;
                 let groups = rules[idx]
                     .get("conditionGroups")
                     .and_then(Value::as_array)
@@ -1060,7 +1066,11 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     .and_then(Value::as_array)
                     .ok_or_else(|| "Internal error: effects is not an array".to_string())?;
                 if eidx >= effects.len() {
-                    return Err(format!("--effect-index {} out of range (have {})", eidx, effects.len()));
+                    return Err(format!(
+                        "--effect-index {} out of range (have {})",
+                        eidx,
+                        effects.len()
+                    ));
                 }
                 current_effect_index = Some(eidx);
                 i += 2;
@@ -1083,8 +1093,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
             }
             "--effect-param-json" | "-epj" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let idx = current_effect_index
-                    .ok_or_else(|| "--effect-param-json requires a preceding --effect".to_string())?;
+                let idx = current_effect_index.ok_or_else(|| {
+                    "--effect-param-json requires a preceding --effect".to_string()
+                })?;
                 let raw = next(i, args)?;
                 let map = parse_json_map(&raw, "--effect-param-json")?;
                 let effects = rules[ridx]
@@ -1096,7 +1107,14 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     .and_then(Value::as_object_mut)
                     .ok_or_else(|| "Internal error: effect params is not an object".to_string())?;
                 for (k, v) in map {
-                    params.insert(k, if v.is_object() { v } else { wrapped_param_value(&v.to_string().trim_matches('"')) });
+                    params.insert(
+                        k,
+                        if v.is_object() {
+                            v
+                        } else {
+                            wrapped_param_value(&v.to_string().trim_matches('"'))
+                        },
+                    );
                 }
                 i += 2;
             }
@@ -1112,15 +1130,21 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     let random_groups = rules[ridx]
                         .get_mut("randomGroups")
                         .and_then(Value::as_array_mut)
-                        .ok_or_else(|| "Internal error: randomGroups is not an array".to_string())?;
+                        .ok_or_else(|| {
+                            "Internal error: randomGroups is not an array".to_string()
+                        })?;
                     let effects = random_groups[rg_idx]
                         .get_mut("effects")
                         .and_then(Value::as_array_mut)
-                        .ok_or_else(|| "Internal error: random group effects is not an array".to_string())?;
+                        .ok_or_else(|| {
+                            "Internal error: random group effects is not an array".to_string()
+                        })?;
                     let params = effects[re_idx]
                         .get_mut("params")
                         .and_then(Value::as_object_mut)
-                        .ok_or_else(|| "Internal error: random effect params is not an object".to_string())?;
+                        .ok_or_else(|| {
+                            "Internal error: random effect params is not an object".to_string()
+                        })?;
                     params.insert("value".to_string(), wrapped);
                     i += 2;
                     continue;
@@ -1138,11 +1162,15 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     let effects = loops[lg_idx]
                         .get_mut("effects")
                         .and_then(Value::as_array_mut)
-                        .ok_or_else(|| "Internal error: loop effects is not an array".to_string())?;
+                        .ok_or_else(|| {
+                            "Internal error: loop effects is not an array".to_string()
+                        })?;
                     let params = effects[le_idx]
                         .get_mut("params")
                         .and_then(Value::as_object_mut)
-                        .ok_or_else(|| "Internal error: loop effect params is not an object".to_string())?;
+                        .ok_or_else(|| {
+                            "Internal error: loop effect params is not an object".to_string()
+                        })?;
                     params.insert("value".to_string(), wrapped);
                     i += 2;
                     continue;
@@ -1156,7 +1184,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     let params = effects[eidx]
                         .get_mut("params")
                         .and_then(Value::as_object_mut)
-                        .ok_or_else(|| "Internal error: effect params is not an object".to_string())?;
+                        .ok_or_else(|| {
+                            "Internal error: effect params is not an object".to_string()
+                        })?;
                     params.insert("value".to_string(), wrapped);
                     i += 2;
                     continue;
@@ -1170,7 +1200,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     let groups = rules[ridx]
                         .get_mut("conditionGroups")
                         .and_then(Value::as_array_mut)
-                        .ok_or_else(|| "Internal error: conditionGroups is not an array".to_string())?;
+                        .ok_or_else(|| {
+                            "Internal error: conditionGroups is not an array".to_string()
+                        })?;
                     let conditions = groups[gidx]
                         .get_mut("conditions")
                         .and_then(Value::as_array_mut)
@@ -1178,7 +1210,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     let params = conditions[cidx]
                         .get_mut("params")
                         .and_then(Value::as_object_mut)
-                        .ok_or_else(|| "Internal error: condition params is not an object".to_string())?;
+                        .ok_or_else(|| {
+                            "Internal error: condition params is not an object".to_string()
+                        })?;
                     params.insert("value".to_string(), wrapped);
                     i += 2;
                     continue;
@@ -1201,9 +1235,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     current_condition_group_index = Some(condition_groups.len() - 1);
                 }
                 let gidx = current_condition_group_index.unwrap_or(0);
-                let group = condition_groups
-                    .get_mut(gidx)
-                    .ok_or_else(|| "Internal error: missing selected condition group".to_string())?;
+                let group = condition_groups.get_mut(gidx).ok_or_else(|| {
+                    "Internal error: missing selected condition group".to_string()
+                })?;
                 let conditions = group
                     .get_mut("conditions")
                     .and_then(Value::as_array_mut)
@@ -1219,8 +1253,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
             }
             "--condition-index" | "-ci" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let gidx = current_condition_group_index
-                    .ok_or_else(|| "--condition-index requires a selected condition group".to_string())?;
+                let gidx = current_condition_group_index.ok_or_else(|| {
+                    "--condition-index requires a selected condition group".to_string()
+                })?;
                 let cidx = next(i, args)?
                     .parse::<usize>()
                     .map_err(|_| "--condition-index expects a non-negative integer".to_string())?;
@@ -1233,17 +1268,23 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     .and_then(Value::as_array)
                     .ok_or_else(|| "Internal error: conditions is not an array".to_string())?;
                 if cidx >= conditions.len() {
-                    return Err(format!("--condition-index {} out of range (have {})", cidx, conditions.len()));
+                    return Err(format!(
+                        "--condition-index {} out of range (have {})",
+                        cidx,
+                        conditions.len()
+                    ));
                 }
                 current_condition_index = Some(cidx);
                 i += 2;
             }
             "--condition-negate" | "-cn" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let gidx = current_condition_group_index
-                    .ok_or_else(|| "--condition-negate requires a selected condition group".to_string())?;
-                let cidx = current_condition_index
-                    .ok_or_else(|| "--condition-negate requires a preceding --condition".to_string())?;
+                let gidx = current_condition_group_index.ok_or_else(|| {
+                    "--condition-negate requires a selected condition group".to_string()
+                })?;
+                let cidx = current_condition_index.ok_or_else(|| {
+                    "--condition-negate requires a preceding --condition".to_string()
+                })?;
                 let negate = parse_bool(&next(i, args)?, false);
                 let groups = rules[ridx]
                     .get_mut("conditionGroups")
@@ -1254,10 +1295,12 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
             }
             "--condition-operator" | "-co" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let gidx = current_condition_group_index
-                    .ok_or_else(|| "--condition-operator requires a selected condition group".to_string())?;
-                let cidx = current_condition_index
-                    .ok_or_else(|| "--condition-operator requires a preceding --condition".to_string())?;
+                let gidx = current_condition_group_index.ok_or_else(|| {
+                    "--condition-operator requires a selected condition group".to_string()
+                })?;
+                let cidx = current_condition_index.ok_or_else(|| {
+                    "--condition-operator requires a preceding --condition".to_string()
+                })?;
                 let op = next(i, args)?.to_ascii_lowercase();
                 if op != "and" && op != "or" {
                     return Err("--condition-operator expects 'and' or 'or'".to_string());
@@ -1272,17 +1315,19 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
             "--condition-param" | "-cp" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
                 let raw = next(i, args)?;
-                let cidx = current_condition_index
-                    .ok_or_else(|| "--condition-param requires a preceding --condition".to_string())?;
-                let gidx = current_condition_group_index
-                    .ok_or_else(|| "--condition-param requires a selected condition group".to_string())?;
+                let cidx = current_condition_index.ok_or_else(|| {
+                    "--condition-param requires a preceding --condition".to_string()
+                })?;
+                let gidx = current_condition_group_index.ok_or_else(|| {
+                    "--condition-param requires a selected condition group".to_string()
+                })?;
                 let condition_groups = rules[ridx]
                     .get_mut("conditionGroups")
                     .and_then(Value::as_array_mut)
                     .ok_or_else(|| "Internal error: conditionGroups is not an array".to_string())?;
-                let group = condition_groups
-                    .get_mut(gidx)
-                    .ok_or_else(|| "Internal error: missing selected condition group".to_string())?;
+                let group = condition_groups.get_mut(gidx).ok_or_else(|| {
+                    "Internal error: missing selected condition group".to_string()
+                })?;
                 let conditions = group
                     .get_mut("conditions")
                     .and_then(Value::as_array_mut)
@@ -1290,16 +1335,20 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let params = conditions[cidx]
                     .get_mut("params")
                     .and_then(Value::as_object_mut)
-                    .ok_or_else(|| "Internal error: condition params is not an object".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: condition params is not an object".to_string()
+                    })?;
                 insert_param_assignments(params, &raw)?;
                 i += 2;
             }
             "--condition-param-json" | "-cpj" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let cidx = current_condition_index
-                    .ok_or_else(|| "--condition-param-json requires a preceding --condition".to_string())?;
-                let gidx = current_condition_group_index
-                    .ok_or_else(|| "--condition-param-json requires a selected condition group".to_string())?;
+                let cidx = current_condition_index.ok_or_else(|| {
+                    "--condition-param-json requires a preceding --condition".to_string()
+                })?;
+                let gidx = current_condition_group_index.ok_or_else(|| {
+                    "--condition-param-json requires a selected condition group".to_string()
+                })?;
                 let raw = next(i, args)?;
                 let map = parse_json_map(&raw, "--condition-param-json")?;
                 let condition_groups = rules[ridx]
@@ -1313,9 +1362,18 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let params = conditions[cidx]
                     .get_mut("params")
                     .and_then(Value::as_object_mut)
-                    .ok_or_else(|| "Internal error: condition params is not an object".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: condition params is not an object".to_string()
+                    })?;
                 for (k, v) in map {
-                    params.insert(k, if v.is_object() { v } else { wrapped_param_value(&v.to_string().trim_matches('"')) });
+                    params.insert(
+                        k,
+                        if v.is_object() {
+                            v
+                        } else {
+                            wrapped_param_value(&v.to_string().trim_matches('"'))
+                        },
+                    );
                 }
                 i += 2;
             }
@@ -1323,17 +1381,19 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
                 let raw_value = next(i, args)?;
                 let wrapped = wrapped_param_value(&raw_value);
-                let cidx = current_condition_index
-                    .ok_or_else(|| "--condition-value requires a preceding --condition".to_string())?;
-                let gidx = current_condition_group_index
-                    .ok_or_else(|| "--condition-value requires a selected condition group".to_string())?;
+                let cidx = current_condition_index.ok_or_else(|| {
+                    "--condition-value requires a preceding --condition".to_string()
+                })?;
+                let gidx = current_condition_group_index.ok_or_else(|| {
+                    "--condition-value requires a selected condition group".to_string()
+                })?;
                 let condition_groups = rules[ridx]
                     .get_mut("conditionGroups")
                     .and_then(Value::as_array_mut)
                     .ok_or_else(|| "Internal error: conditionGroups is not an array".to_string())?;
-                let group = condition_groups
-                    .get_mut(gidx)
-                    .ok_or_else(|| "Internal error: missing selected condition group".to_string())?;
+                let group = condition_groups.get_mut(gidx).ok_or_else(|| {
+                    "Internal error: missing selected condition group".to_string()
+                })?;
                 let conditions = group
                     .get_mut("conditions")
                     .and_then(Value::as_array_mut)
@@ -1341,7 +1401,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let params = conditions[cidx]
                     .get_mut("params")
                     .and_then(Value::as_object_mut)
-                    .ok_or_else(|| "Internal error: condition params is not an object".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: condition params is not an object".to_string()
+                    })?;
                 params.insert("value".to_string(), wrapped);
                 i += 2;
             }
@@ -1379,7 +1441,11 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     .and_then(Value::as_array)
                     .ok_or_else(|| "Internal error: randomGroups is not an array".to_string())?;
                 if rgidx >= groups.len() {
-                    return Err(format!("--random-index {} out of range (have {})", rgidx, groups.len()));
+                    return Err(format!(
+                        "--random-index {} out of range (have {})",
+                        rgidx,
+                        groups.len()
+                    ));
                 }
                 current_random_group_index = Some(rgidx);
                 current_random_effect_index = None;
@@ -1421,7 +1487,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let effects = random_groups[rg_idx]
                     .get_mut("effects")
                     .and_then(Value::as_array_mut)
-                    .ok_or_else(|| "Internal error: random group effects is not an array".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: random group effects is not an array".to_string()
+                    })?;
                 effects.push(json!({
                     "id": format!("random_effect_{}_{}", rg_idx, effects.len()),
                     "type": effect_type,
@@ -1432,11 +1500,12 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
             }
             "--random-effect-index" | "-rei" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let rg_idx = current_random_group_index
-                    .ok_or_else(|| "--random-effect-index requires a selected random group".to_string())?;
-                let re_idx = next(i, args)?
-                    .parse::<usize>()
-                    .map_err(|_| "--random-effect-index expects a non-negative integer".to_string())?;
+                let rg_idx = current_random_group_index.ok_or_else(|| {
+                    "--random-effect-index requires a selected random group".to_string()
+                })?;
+                let re_idx = next(i, args)?.parse::<usize>().map_err(|_| {
+                    "--random-effect-index expects a non-negative integer".to_string()
+                })?;
                 let random_groups = rules[ridx]
                     .get("randomGroups")
                     .and_then(Value::as_array)
@@ -1444,9 +1513,15 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let effects = random_groups[rg_idx]
                     .get("effects")
                     .and_then(Value::as_array)
-                    .ok_or_else(|| "Internal error: random group effects is not an array".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: random group effects is not an array".to_string()
+                    })?;
                 if re_idx >= effects.len() {
-                    return Err(format!("--random-effect-index {} out of range (have {})", re_idx, effects.len()));
+                    return Err(format!(
+                        "--random-effect-index {} out of range (have {})",
+                        re_idx,
+                        effects.len()
+                    ));
                 }
                 current_random_effect_index = Some(re_idx);
                 i += 2;
@@ -1454,10 +1529,12 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
             "--random-effect-param" | "-rep" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
                 let raw = next(i, args)?;
-                let rg_idx = current_random_group_index
-                    .ok_or_else(|| "--random-effect-param requires a preceding --random".to_string())?;
-                let re_idx = current_random_effect_index
-                    .ok_or_else(|| "--random-effect-param requires a preceding --random-effect".to_string())?;
+                let rg_idx = current_random_group_index.ok_or_else(|| {
+                    "--random-effect-param requires a preceding --random".to_string()
+                })?;
+                let re_idx = current_random_effect_index.ok_or_else(|| {
+                    "--random-effect-param requires a preceding --random-effect".to_string()
+                })?;
                 let random_groups = rules[ridx]
                     .get_mut("randomGroups")
                     .and_then(Value::as_array_mut)
@@ -1465,20 +1542,26 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let effects = random_groups[rg_idx]
                     .get_mut("effects")
                     .and_then(Value::as_array_mut)
-                    .ok_or_else(|| "Internal error: random group effects is not an array".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: random group effects is not an array".to_string()
+                    })?;
                 let params = effects[re_idx]
                     .get_mut("params")
                     .and_then(Value::as_object_mut)
-                    .ok_or_else(|| "Internal error: random effect params is not an object".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: random effect params is not an object".to_string()
+                    })?;
                 insert_param_assignments(params, &raw)?;
                 i += 2;
             }
             "--random-effect-param-json" | "-repj" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let rg_idx = current_random_group_index
-                    .ok_or_else(|| "--random-effect-param-json requires a selected random group".to_string())?;
-                let re_idx = current_random_effect_index
-                    .ok_or_else(|| "--random-effect-param-json requires a selected random effect".to_string())?;
+                let rg_idx = current_random_group_index.ok_or_else(|| {
+                    "--random-effect-param-json requires a selected random group".to_string()
+                })?;
+                let re_idx = current_random_effect_index.ok_or_else(|| {
+                    "--random-effect-param-json requires a selected random effect".to_string()
+                })?;
                 let raw = next(i, args)?;
                 let map = parse_json_map(&raw, "--random-effect-param-json")?;
                 let random_groups = rules[ridx]
@@ -1488,13 +1571,24 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let effects = random_groups[rg_idx]
                     .get_mut("effects")
                     .and_then(Value::as_array_mut)
-                    .ok_or_else(|| "Internal error: random group effects is not an array".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: random group effects is not an array".to_string()
+                    })?;
                 let params = effects[re_idx]
                     .get_mut("params")
                     .and_then(Value::as_object_mut)
-                    .ok_or_else(|| "Internal error: random effect params is not an object".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: random effect params is not an object".to_string()
+                    })?;
                 for (k, v) in map {
-                    params.insert(k, if v.is_object() { v } else { wrapped_param_value(&v.to_string().trim_matches('"')) });
+                    params.insert(
+                        k,
+                        if v.is_object() {
+                            v
+                        } else {
+                            wrapped_param_value(&v.to_string().trim_matches('"'))
+                        },
+                    );
                 }
                 i += 2;
             }
@@ -1525,7 +1619,11 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     .and_then(Value::as_array)
                     .ok_or_else(|| "Internal error: loops is not an array".to_string())?;
                 if lidx >= loops.len() {
-                    return Err(format!("--loop-index {} out of range (have {})", lidx, loops.len()));
+                    return Err(format!(
+                        "--loop-index {} out of range (have {})",
+                        lidx,
+                        loops.len()
+                    ));
                 }
                 current_loop_group_index = Some(lidx);
                 current_loop_effect_index = None;
@@ -1554,11 +1652,12 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
             }
             "--loop-effect-index" | "-lei" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let lg_idx = current_loop_group_index
-                    .ok_or_else(|| "--loop-effect-index requires a selected loop group".to_string())?;
-                let le_idx = next(i, args)?
-                    .parse::<usize>()
-                    .map_err(|_| "--loop-effect-index expects a non-negative integer".to_string())?;
+                let lg_idx = current_loop_group_index.ok_or_else(|| {
+                    "--loop-effect-index requires a selected loop group".to_string()
+                })?;
+                let le_idx = next(i, args)?.parse::<usize>().map_err(|_| {
+                    "--loop-effect-index expects a non-negative integer".to_string()
+                })?;
                 let loops = rules[ridx]
                     .get("loops")
                     .and_then(Value::as_array)
@@ -1568,7 +1667,11 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                     .and_then(Value::as_array)
                     .ok_or_else(|| "Internal error: loop effects is not an array".to_string())?;
                 if le_idx >= effects.len() {
-                    return Err(format!("--loop-effect-index {} out of range (have {})", le_idx, effects.len()));
+                    return Err(format!(
+                        "--loop-effect-index {} out of range (have {})",
+                        le_idx,
+                        effects.len()
+                    ));
                 }
                 current_loop_effect_index = Some(le_idx);
                 i += 2;
@@ -1578,8 +1681,9 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let raw = next(i, args)?;
                 let lg_idx = current_loop_group_index
                     .ok_or_else(|| "--loop-effect-param requires a preceding --loop".to_string())?;
-                let le_idx = current_loop_effect_index
-                    .ok_or_else(|| "--loop-effect-param requires a preceding --loop-effect".to_string())?;
+                let le_idx = current_loop_effect_index.ok_or_else(|| {
+                    "--loop-effect-param requires a preceding --loop-effect".to_string()
+                })?;
                 let loops = rules[ridx]
                     .get_mut("loops")
                     .and_then(Value::as_array_mut)
@@ -1591,16 +1695,20 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let params = effects[le_idx]
                     .get_mut("params")
                     .and_then(Value::as_object_mut)
-                    .ok_or_else(|| "Internal error: loop effect params is not an object".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: loop effect params is not an object".to_string()
+                    })?;
                 insert_param_assignments(params, &raw)?;
                 i += 2;
             }
             "--loop-effect-param-json" | "-lepj" => {
                 let ridx = ensure_rule(&mut rules, &mut current_rule_index);
-                let lg_idx = current_loop_group_index
-                    .ok_or_else(|| "--loop-effect-param-json requires a selected loop group".to_string())?;
-                let le_idx = current_loop_effect_index
-                    .ok_or_else(|| "--loop-effect-param-json requires a selected loop effect".to_string())?;
+                let lg_idx = current_loop_group_index.ok_or_else(|| {
+                    "--loop-effect-param-json requires a selected loop group".to_string()
+                })?;
+                let le_idx = current_loop_effect_index.ok_or_else(|| {
+                    "--loop-effect-param-json requires a selected loop effect".to_string()
+                })?;
                 let raw = next(i, args)?;
                 let map = parse_json_map(&raw, "--loop-effect-param-json")?;
                 let loops = rules[ridx]
@@ -1614,9 +1722,18 @@ fn build_quick_codegen_request(args: &[String]) -> Result<QuickBuildResult, Stri
                 let params = effects[le_idx]
                     .get_mut("params")
                     .and_then(Value::as_object_mut)
-                    .ok_or_else(|| "Internal error: loop effect params is not an object".to_string())?;
+                    .ok_or_else(|| {
+                        "Internal error: loop effect params is not an object".to_string()
+                    })?;
                 for (k, v) in map {
-                    params.insert(k, if v.is_object() { v } else { wrapped_param_value(&v.to_string().trim_matches('"')) });
+                    params.insert(
+                        k,
+                        if v.is_object() {
+                            v
+                        } else {
+                            wrapped_param_value(&v.to_string().trim_matches('"'))
+                        },
+                    );
                 }
                 i += 2;
             }
@@ -1854,7 +1971,8 @@ pub fn run_codegen_item_command(args: &[String]) -> Result<(), String> {
         let request_view = request_preview_json(&request);
         println!(
             "{}",
-            serde_json::to_string_pretty(&request_view).unwrap_or_else(|_| request_view.to_string())
+            serde_json::to_string_pretty(&request_view)
+                .unwrap_or_else(|_| request_view.to_string())
         );
     }
     if !dry_run {
@@ -1871,4 +1989,3 @@ pub fn run_codegen_item_command(args: &[String]) -> Result<(), String> {
     }
     Ok(())
 }
-

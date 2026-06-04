@@ -578,7 +578,8 @@ pub fn compile_item_from_data_with_segments(
         "joker" => {
             let parsed: JokerDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid joker data: {}", e))?;
-            let mut def = super::export::joker_data_to_def(&parsed, &mod_prefix, base_pos, soul_pos);
+            let mut def =
+                super::export::joker_data_to_def(&parsed, &mod_prefix, base_pos, soul_pos);
             merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_joker_with_options(&def, &mod_prefix, include_loc_txt);
             LuaEmitter::new().emit_chunk_with_segments(&chunk)

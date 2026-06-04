@@ -3,8 +3,7 @@ mod mod_engine;
 
 use mod_engine::{commands, state::AppState};
 use std::{
-    env,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     process,
     sync::Mutex,
