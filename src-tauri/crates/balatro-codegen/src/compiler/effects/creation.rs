@@ -163,9 +163,17 @@ pub fn create_consumable(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
     let specific_card = get_typed_str_param(effect, "specific_card")
         .or_else(|| get_typed_str_param(effect, "consumableKey"))
         .unwrap_or_else(|| "random".to_string());
-    let is_negative = get_typed_str_param(effect, "is_negative")
-        .map(|v| v == "y" || v == "negative" || v == "true")
-        .unwrap_or(false);
+    let edition = get_typed_str_param(effect, "edition").unwrap_or_else(|| {
+        if get_typed_str_param(effect, "is_negative")
+            .map(|v| v == "y" || v == "negative" || v == "true")
+            .unwrap_or(false)
+        {
+            "e_negative".to_string()
+        } else {
+            "none".to_string()
+        }
+    });
+    let is_negative = is_negative_edition(&edition);
     let soulable = get_typed_str_param(effect, "soulable")
         .map(|v| v == "y" || v == "true")
         .unwrap_or(false);
@@ -189,8 +197,10 @@ pub fn create_consumable(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
     let has_random_set_override = specific_card.starts_with("random_set:");
 
     let mut payload_parts: Vec<String> = vec!["area = G.consumeables".to_string()];
-    if is_negative {
-        payload_parts.push("edition = 'e_negative'".to_string());
+    if let Some(edition_payload) =
+        edition_payload_entry(&edition, "create_consumable_edition", &ctx.mod_prefix)
+    {
+        payload_parts.push(edition_payload);
     }
     if soulable {
         payload_parts.push("soulable = true".to_string());
@@ -218,8 +228,10 @@ pub fn create_consumable(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
             "area = G.consumeables".to_string(),
             format!("set = {}", set_expr),
         ];
-        if is_negative {
-            dyn_payload_parts.push("edition = 'e_negative'".to_string());
+        if let Some(edition_payload) =
+            edition_payload_entry(&edition, "create_consumable_edition", &ctx.mod_prefix)
+        {
+            dyn_payload_parts.push(edition_payload);
         }
         if soulable {
             dyn_payload_parts.push("soulable = true".to_string());
@@ -685,4 +697,38 @@ fn normalize_joker_key(key: &str) -> String {
     } else {
         format!("j_{}", key)
     }
+}
+
+fn is_negative_edition(edition: &str) -> bool {
+    matches!(edition, "e_negative" | "negative" | "y" | "true")
+}
+
+fn normalize_edition_key(edition: &str, mod_prefix: &str) -> String {
+    if edition.starts_with("e_") {
+        return edition.to_string();
+    }
+
+    if matches!(edition, "foil" | "holo" | "polychrome" | "negative") || mod_prefix.is_empty() {
+        return format!("e_{}", edition);
+    }
+
+    format!("e_{}_{}", mod_prefix, edition)
+}
+
+fn edition_payload_entry(edition: &str, seed: &str, mod_prefix: &str) -> Option<String> {
+    if edition.is_empty() || edition == "none" {
+        return None;
+    }
+
+    if edition == "random" {
+        return Some(format!(
+            "edition = SMODS.poll_edition({{ key = '{}', no_negative = true, guaranteed = true }})",
+            seed
+        ));
+    }
+
+    Some(format!(
+        "edition = '{}'",
+        normalize_edition_key(edition, mod_prefix).replace('\'', "\\'")
+    ))
 }

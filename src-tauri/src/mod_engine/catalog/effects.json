@@ -2591,20 +2591,21 @@
         "default": "n"
       },
       {
-        "id": "is_negative",
+        "id": "edition",
         "type": "select",
         "label": "Edition",
         "options": [
           {
-            "value": "n",
+            "value": "none",
             "label": "No Edition"
           },
           {
-            "value": "y",
-            "label": "Negative Edition"
+            "value": "random",
+            "label": "Random Edition"
           }
         ],
-        "default": "n"
+        "default": "none",
+        "optionSource": "editions"
       },
       {
         "id": "count",
@@ -2744,7 +2745,7 @@
         "optionSource": "allConsumables"
       },
       {
-        "id": "is_negative",
+        "id": "edition",
         "type": "select",
         "label": "Edition",
         "options": [
@@ -2753,11 +2754,12 @@
             "label": "No Edition"
           },
           {
-            "value": "negative",
-            "label": "Negative Edition"
+            "value": "random",
+            "label": "Random Edition"
           }
         ],
-        "default": "none"
+        "default": "none",
+        "optionSource": "editions"
       }
     ],
     "category": "Consumables",

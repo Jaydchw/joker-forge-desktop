@@ -855,7 +855,7 @@ pub fn copy_joker(effect: &EffectDef, ctx: &mut CompileContext, trigger: &str) -
 /// Copy Consumable: copies a consumable card from the consumables area.
 pub fn copy_consumable(
     effect: &EffectDef,
-    _ctx: &mut CompileContext,
+    ctx: &mut CompileContext,
     trigger: &str,
 ) -> EffectOutput {
     let consumable_type = effect
@@ -868,12 +868,25 @@ pub fn copy_consumable(
         .get("specific_card")
         .and_then(|v| v.as_str())
         .unwrap_or("random");
-    let is_negative = effect
+    let edition = effect
         .params
-        .get("is_negative")
+        .get("edition")
         .and_then(|v| v.as_str())
-        .map(|s| s == "negative")
-        .unwrap_or(false);
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            if effect
+                .params
+                .get("is_negative")
+                .and_then(|v| v.as_str())
+                .map(|s| s == "negative")
+                .unwrap_or(false)
+            {
+                "e_negative".to_string()
+            } else {
+                "none".to_string()
+            }
+        });
+    let is_negative = is_negative_edition(&edition);
     let custom_message = effect
         .params
         .get("customMessage")
@@ -897,11 +910,7 @@ pub fn copy_consumable(
     } else {
         "G.GAME.consumeable_buffer = 0"
     };
-    let negative_set = if is_negative {
-        "\n                        copied_card:set_edition(\"e_negative\", true)"
-    } else {
-        ""
-    };
+    let edition_set = edition_set_code(&edition, "copy_consumable_edition", &ctx.mod_prefix);
 
     let msg_lua = custom_message
         .map(|m| format!("\"{}\"", m))
@@ -938,7 +947,7 @@ pub fn copy_consumable(
             {buffer}\n\
             G.E_MANAGER:add_event(Event({{\n\
                 func = function()\n\
-                    local copied_card = copy_card(card_to_copy){negative}\n\
+                    local copied_card = copy_card(card_to_copy){edition}\n\
                     copied_card:add_to_deck()\n\
                     G.consumeables:emplace(copied_card)\n\
                     {reset}\n\
@@ -951,7 +960,7 @@ pub fn copy_consumable(
         filter_end = filter_end,
         slot_check = slot_check,
         buffer = buffer_code,
-        negative = negative_set,
+        edition = edition_set,
         reset = buffer_reset,
         status = status_target,
         msg = msg_lua,
@@ -1745,6 +1754,41 @@ pub fn fool_effect(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutpu
     
         segment_id: None,
     }
+}
+
+fn is_negative_edition(edition: &str) -> bool {
+    matches!(edition, "e_negative" | "negative" | "y" | "true")
+}
+
+fn normalize_edition_key(edition: &str, mod_prefix: &str) -> String {
+    if edition.starts_with("e_") {
+        return edition.to_string();
+    }
+
+    if matches!(edition, "foil" | "holo" | "polychrome" | "negative") || mod_prefix.is_empty() {
+        return format!("e_{}", edition);
+    }
+
+    format!("e_{}_{}", mod_prefix, edition)
+}
+
+fn edition_set_code(edition: &str, seed: &str, mod_prefix: &str) -> String {
+    if edition.is_empty() || edition == "none" {
+        return String::new();
+    }
+
+    if edition == "random" {
+        return format!(
+            "\n                        local random_edition = SMODS.poll_edition({{ key = '{}', no_negative = true, guaranteed = true }})\
+             \n                        if random_edition then copied_card:set_edition(random_edition, true) end",
+            seed
+        );
+    }
+
+    format!(
+        "\n                        copied_card:set_edition(\"{}\", true)",
+        normalize_edition_key(edition, mod_prefix).replace('"', "\\\"")
+    )
 }
 
 // ---------------------------------------------------------------------------
