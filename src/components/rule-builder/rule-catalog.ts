@@ -31,6 +31,7 @@ import {
   ALL_JOKERS,
   ALL_CONSUMABLES,
   CONSUMABLE_SETS,
+  CUSTOM_BOOSTERS,
   CUSTOM_CONSUMABLES,
   DECKS,
   EDITIONS,
@@ -44,6 +45,7 @@ import {
   SUITS,
   TAGS,
   TAROT_CARDS,
+  VANILLA_BOOSTERS,
   VOUCHERS,
 } from "@/lib/balatro/balatro-utils";
 
@@ -132,6 +134,11 @@ const OPTION_SOURCES: Record<string, () => CatalogOption[]> = {
   jokers: () => asOptionArray(ALL_JOKERS()),
   rarities: () => asOptionArray(RARITIES()),
   consumables: () => asOptionArray(CUSTOM_CONSUMABLES()),
+  boosters: () =>
+    uniqueByValue([
+      ...asOptionArray(VANILLA_BOOSTERS),
+      ...asOptionArray(CUSTOM_BOOSTERS()),
+    ]),
   consumableSets: () => asOptionArray(CONSUMABLE_SETS()),
   enhancements: () => asOptionArray(ENHANCEMENTS()),
   editions: () => asOptionArray(EDITIONS()),

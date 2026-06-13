@@ -4942,6 +4942,7 @@
         "type": "text",
         "label": "Booster Key",
         "default": "",
+        "optionSource": "boosters",
         "showWhen": {
           "parameter": "method_type",
           "values": ["specific"]
