@@ -148,6 +148,7 @@ export default function VouchersPage() {
       unlocked: true,
       discovered: true,
       cost: 10,
+      draw_shader_sprite: false,
       rules: [],
       orderValue: data.vouchers.length + 1,
     };

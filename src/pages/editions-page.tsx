@@ -136,6 +136,7 @@ export default function EditionsPage() {
       unlocked: true,
       discovered: true,
       rules: [],
+      shader: false,
       weight: 10,
       sound: "",
       orderValue: data.editions.length + 1,

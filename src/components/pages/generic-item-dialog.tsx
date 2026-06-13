@@ -360,9 +360,12 @@ const MemoizedField = memo(
               />
             );
           }
-          const rawSelectValue = String(safeValue ?? "");
           const hasEmptyOption =
             field.options?.some((opt) => String(opt.value) === "") ?? false;
+          const rawSelectValue =
+            safeValue === false && hasEmptyOption
+              ? ""
+              : String(safeValue ?? "");
           const resolvedSelectValue =
             rawSelectValue === "" && hasEmptyOption
               ? EMPTY_SELECT_SENTINEL

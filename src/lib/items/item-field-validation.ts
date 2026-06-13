@@ -104,10 +104,15 @@ export const validateFieldValueBasic = (
     if (sanitizedValue === undefined || sanitizedValue === null) {
       return { sanitizedValue, error: null };
     }
-    const normalizedValue = String(sanitizedValue);
+    const hasEmptyOption = options.some((option) => String(option.value) === "");
+    const normalizedValue =
+      sanitizedValue === false && hasEmptyOption ? "" : String(sanitizedValue);
     const allowed = new Set(options.map((option) => String(option.value)));
     if (!allowed.has(normalizedValue)) {
       return { sanitizedValue, error: "Please choose a valid option." };
+    }
+    if (normalizedValue !== String(sanitizedValue)) {
+      return { sanitizedValue: normalizedValue, error: null };
     }
   }
 
