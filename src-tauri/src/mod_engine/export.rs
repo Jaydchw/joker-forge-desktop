@@ -1665,6 +1665,8 @@ pub fn build_main_lua(
     enhancements: &[BatchEnhancementEntry],
     seals: &[BatchSealEntry],
     editions: &[BatchEditionEntry],
+    has_mod_icon: bool,
+    has_game_logo: bool,
     load_rarities: bool,
     load_consumable_sets: bool,
     load_sounds: bool,
@@ -1686,6 +1688,12 @@ pub fn build_main_lua(
     let sorted_editions: Vec<&BatchEditionEntry> = editions.iter().collect();
 
     let mut atlas_decls = String::new();
+    if has_mod_icon {
+        atlas_decls.push_str("SMODS.Atlas({\n    key = \"modicon\",\n    path = \"ModIcon.png\",\n    px = 34,\n    py = 34,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
+    }
+    if has_game_logo {
+        atlas_decls.push_str("SMODS.Atlas({\n    key = \"balatro\",\n    path = \"balatro.png\",\n    px = 333,\n    py = 216,\n    prefix_config = { key = false },\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
+    }
     if !sorted_jokers.is_empty() {
         atlas_decls.push_str("SMODS.Atlas({\n    key = \"CustomJokers\",\n    path = \"CustomJokers.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
     }
@@ -2129,6 +2137,8 @@ mod tests {
             &[],
             &[],
             &[],
+            false,
+            false,
             false,
             false,
             false,

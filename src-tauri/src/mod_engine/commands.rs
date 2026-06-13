@@ -803,6 +803,10 @@ pub fn export_mod_package(
     include_loc_txt: bool,
     use_localization_file: bool,
     localization_locale: Option<String>,
+    mod_icon_1x_png: Option<Vec<u8>>,
+    mod_icon_2x_png: Option<Vec<u8>>,
+    game_logo_1x_png: Option<Vec<u8>>,
+    game_logo_2x_png: Option<Vec<u8>>,
     atlas_1x_png: Option<Vec<u8>>,
     atlas_2x_png: Option<Vec<u8>>,
     consumables_atlas_1x_png: Option<Vec<u8>>,
@@ -880,6 +884,8 @@ pub fn export_mod_package(
         &enhancements,
         &seals,
         &editions,
+        mod_icon_1x_png.as_ref().is_some() || mod_icon_2x_png.as_ref().is_some(),
+        game_logo_1x_png.as_ref().is_some() || game_logo_2x_png.as_ref().is_some(),
         !rarities.is_empty(),
         !consumable_sets.is_empty(),
         !sounds.is_empty(),
@@ -1000,6 +1006,22 @@ pub fn export_mod_package(
         fs::write(&path, bytes).map_err(|e| format!("Failed to write {}: {}", path.display(), e))
     };
 
+    if let Some(b) = mod_icon_1x_png {
+        write_atlas("1x", "ModIcon.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = mod_icon_2x_png {
+        write_atlas("2x", "ModIcon.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = game_logo_1x_png {
+        write_atlas("1x", "balatro.png", b)?;
+        file_count += 1;
+    }
+    if let Some(b) = game_logo_2x_png {
+        write_atlas("2x", "balatro.png", b)?;
+        file_count += 1;
+    }
     if let Some(b) = atlas_1x_png {
         write_atlas("1x", "CustomJokers.png", b)?;
         file_count += 1;

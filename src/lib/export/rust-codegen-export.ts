@@ -90,6 +90,36 @@ interface AtlasBuildResult {
   soulPositionsById: Record<string, AtlasPos>;
 }
 
+const buildFixedSizeImage = async (
+  src: string,
+  width: number,
+  height: number,
+  scale: number,
+): Promise<string | null> => {
+  const image = await loadImage(src);
+  if (!image) return null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Failed to build image asset: missing canvas context.");
+  }
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/png");
+};
+
+const buildModIcon = (src: string, scale: number) =>
+  buildFixedSizeImage(src, 34, 34, scale);
+
+const buildGameLogo = (src: string, scale: number) =>
+  buildFixedSizeImage(src, 333, 216, scale);
+
 const loadImage = (src: string): Promise<HTMLImageElement | null> => {
   return new Promise((resolve) => {
     if (!src || src.trim().length === 0) {
@@ -474,6 +504,19 @@ export const exportModRust = async (
   const sealsAtlas1x = sortedSeals.length > 0 ? await buildItemAtlas(sortedSeals, 1) : null;
   const sealsAtlas2x = sortedSeals.length > 0 ? await buildItemAtlas(sortedSeals, 2) : null;
 
+  const modIconSource =
+    metadata.iconImage && (metadata.hasUserUploadedIcon || metadata.iconImage.trim())
+      ? metadata.iconImage
+      : "";
+  const gameLogoSource =
+    metadata.gameImage && (metadata.hasUserUploadedGameIcon || metadata.gameImage.trim())
+      ? metadata.gameImage
+      : "";
+  const modIcon1x = modIconSource ? await buildModIcon(modIconSource, 1) : null;
+  const modIcon2x = modIconSource ? await buildModIcon(modIconSource, 2) : null;
+  const gameLogo1x = gameLogoSource ? await buildGameLogo(gameLogoSource, 1) : null;
+  const gameLogo2x = gameLogoSource ? await buildGameLogo(gameLogoSource, 2) : null;
+
   const fileCount = await invoke<number>("export_mod_package", {
     modFolderPath,
     metadata,
@@ -591,6 +634,10 @@ export const exportModRust = async (
     includeLocTxt: !useLocalizationFile,
     useLocalizationFile,
     localizationLocale: locale,
+    modIcon1xPng: modIcon1x ? dataURLToUint8Array(modIcon1x) : null,
+    modIcon2xPng: modIcon2x ? dataURLToUint8Array(modIcon2x) : null,
+    gameLogo1xPng: gameLogo1x ? dataURLToUint8Array(gameLogo1x) : null,
+    gameLogo2xPng: gameLogo2x ? dataURLToUint8Array(gameLogo2x) : null,
     atlas1xPng: jokerAtlas1x ? dataURLToUint8Array(jokerAtlas1x.atlasDataUrl) : null,
     atlas2xPng: jokerAtlas2x ? dataURLToUint8Array(jokerAtlas2x.atlasDataUrl) : null,
     consumablesAtlas1xPng: consumablesAtlas1x ? dataURLToUint8Array(consumablesAtlas1x.atlasDataUrl) : null,
