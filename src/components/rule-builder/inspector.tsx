@@ -2116,7 +2116,7 @@ const Inspector: React.FC<InspectorProps> = ({
       }
       onClose={onClose}
       closeLabel="Close Inspector"
-      className="w-88 bg-card/98 border-2 border-border/90 rounded-2xl shadow-2xl max-h-[calc(100vh-5rem)] overflow-hidden"
+      className="rb-inspector w-88 bg-card/98 border-2 border-border/90 rounded-2xl shadow-2xl max-h-[calc(100vh-5rem)] overflow-hidden"
       headerClassName="p-3 border-b border-border/90"
       contentClassName="p-3 overflow-y-auto custom-scrollbar"
     >

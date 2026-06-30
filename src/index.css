@@ -285,6 +285,68 @@
 }
 
 @layer utilities {
+  /*
+   * The rule inspector historically used light zinc and bright Balatro colors
+   * that were designed for its dark surface. Keep those colors in dark mode,
+   * but provide WCAG-conscious text and boundary colors on light surfaces.
+   */
+  :root:not(.dark) .rb-inspector {
+    --muted-foreground: #5f6368;
+    --border: #8a9299;
+    --input: #737b83;
+  }
+
+  :root:not(.dark) .rb-inspector .text-zinc-100,
+  :root:not(.dark) .rb-inspector .text-zinc-200 {
+    color: #252525 !important;
+  }
+
+  :root:not(.dark) .rb-inspector .text-zinc-400,
+  :root:not(.dark) .rb-inspector .text-muted-foreground {
+    color: #5f6368 !important;
+  }
+
+  :root:not(.dark) .rb-inspector .text-balatro-money {
+    color: #825400 !important;
+  }
+
+  :root:not(.dark) .rb-inspector .text-balatro-blue {
+    color: #075e9e !important;
+  }
+
+  :root:not(.dark) .rb-inspector .text-balatro-green,
+  :root:not(.dark) .rb-inspector .text-jungle-green-400 {
+    color: #1f6f50 !important;
+  }
+
+  :root:not(.dark) .rb-inspector .text-balatro-red {
+    color: #b42318 !important;
+  }
+
+  :root:not(.dark) .rb-inspector [data-state="on"][class*="text-jungle-green-400"] {
+    color: #1f6f50 !important;
+  }
+
+  :root:not(.dark) .rb-inspector [class*="hover:text-white"]:hover {
+    color: #252525 !important;
+  }
+
+  :root:not(.dark) .rb-inspector [class*="hover:text-balatro-red"]:hover {
+    color: #b42318 !important;
+  }
+
+  :root:not(.dark) .rb-inspector [class*="border-balatro-blue"] {
+    border-color: #075e9e !important;
+  }
+
+  :root:not(.dark) .rb-inspector [class*="border-jungle-green-400"] {
+    border-color: #1f6f50 !important;
+  }
+
+  :root:not(.dark) .rb-inspector [class*="border-balatro-red"] {
+    border-color: #b42318 !important;
+  }
+
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
