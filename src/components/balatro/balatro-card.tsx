@@ -433,7 +433,7 @@ export function BalatroCard({
             <div
               data-showcase-cost-badge="true"
               className={cn(
-                "bg-balatro-cost-bg border-4 border-balatro-cost-border rounded-t-2xl px-4 py-1 -mb-1 relative shadow-sm",
+                "bg-balatro-cost-bg border-4 border-balatro-money rounded-t-2xl px-4 py-1 -mb-1 relative shadow-sm",
                 hasOverlay ? "z-0" : "z-10",
               )}
             >
@@ -498,13 +498,13 @@ export function BalatroCard({
 
                   <div className="relative mb-3">
                     <div className="absolute inset-0 bg-balatro-whiteshadow rounded-lg translate-y-1" />
-                    <div className="relative bg-balatro-white text-balatro-black font-medium px-3 py-2.5 rounded-lg text-center leading-5 text-sm min-h-12 flex items-center justify-center overflow-visible">
+                    <div className="relative bg-balatro-white text-balatro-black font-medium px-3 py-2.5 rounded-lg text-center min-h-12 flex items-center justify-center overflow-visible">
                       <div className="relative z-10 whitespace-nowrap">
                         <BalatroText
                           text={data.description || "No description provided."}
                           locVars={getLocVars()}
                           replaceVariables={showPlaceholders}
-                          className="block whitespace-nowrap"
+                          className="block whitespace-nowrap text-lg leading-6"
                         />
                       </div>
                     </div>

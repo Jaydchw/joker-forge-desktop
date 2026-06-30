@@ -151,6 +151,7 @@ export function ItemShowcaseDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        data-item-showcase-dialog="true"
         showCloseButton={false}
         className="h-[90vh] w-[49vw]! max-w-none! overflow-hidden border-border/60 bg-card p-0"
       >

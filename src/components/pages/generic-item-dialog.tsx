@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import IconButton from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +47,7 @@ import {
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
   ArrowCounterClockwise,
+  ArrowsOutSimple,
 } from "@phosphor-icons/react";
 import { ItemBadgeSelect } from "@/components/balatro/item-badge-select";
 import { ListInput } from "@/components/ui/list-input";
@@ -73,6 +75,7 @@ import {
   validateFieldValueBasic,
 } from "@/lib/items/item-field-validation";
 import { ImageCropperDialog } from "@/components/pages/image-cropper-dialog";
+import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import {
   getImageDimensions,
   isBalatroCardImageSize,
@@ -679,6 +682,7 @@ const PreviewPanel = memo(
     const [scale, setScale] = useState([1.0]);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
+    const [isShowcaseOpen, setIsShowcaseOpen] = useState(false);
     const previewContainerRef = useRef<HTMLDivElement>(null);
     const panLastRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -757,14 +761,14 @@ const PreviewPanel = memo(
         <div className="h-full bg-muted/10 flex flex-col border-l border-border/40 relative">
           {!isCollapsed && (
             <div
-              className="slider-container absolute top-4 right-4 z-50 flex items-center gap-2 bg-background/80 p-2 rounded-lg border border-border shadow-sm"
+              className="slider-container absolute top-4 left-1/2 z-50 flex -translate-x-1/2 items-center justify-center gap-2 rounded-lg border border-border bg-background/80 p-2 shadow-sm"
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             >
-              <MagnifyingGlassMinus className="w-4 h-4 text-muted-foreground" />
+              <MagnifyingGlassMinus className="h-4 w-4 text-muted-foreground" />
               <Slider
                 value={scale}
                 onValueChange={setScale}
@@ -773,19 +777,38 @@ const PreviewPanel = memo(
                 step={0.1}
                 className="w-24 cursor-pointer"
               />
-              <MagnifyingGlassPlus className="w-4 h-4 text-muted-foreground" />
-              <span className="text-xs font-mono w-8 text-right">
+              <MagnifyingGlassPlus className="h-4 w-4 text-muted-foreground" />
+              <span className="w-8 text-center font-mono text-xs">
                 {(scale[0] * 100).toFixed(0)}%
               </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-[11px]"
+            </div>
+          )}
+
+          {!isCollapsed && (
+            <div
+              className="absolute bottom-14 left-1/2 z-50 flex -translate-x-1/2 items-center justify-center gap-1 rounded-lg border border-border bg-background/80 p-1.5 shadow-sm"
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <IconButton
+                icon={ArrowCounterClockwise}
+                tooltip="Reset preview position"
                 onClick={() => setPan({ x: 0, y: 0 })}
-              >
-                <ArrowCounterClockwise className="h-3.5 w-3.5 mr-1" />
-                Reset Position
-              </Button>
+                iconOnly
+                className="!h-7 !w-7"
+                iconClassName="h-3.5 w-3.5"
+              />
+              <IconButton
+                icon={ArrowsOutSimple}
+                tooltip="Open showcase"
+                onClick={() => setIsShowcaseOpen(true)}
+                iconOnly
+                className="!h-7 !w-7"
+                iconClassName="h-3.5 w-3.5"
+              />
             </div>
           )}
 
@@ -815,6 +838,15 @@ const PreviewPanel = memo(
               Live Preview (drag to pan, scroll to zoom)
             </div>
           )}
+
+          <ItemShowcaseDialog
+            open={isShowcaseOpen}
+            title={item.name || "Item"}
+            fileNameBase={item.name || item.id || "item"}
+            onOpenChange={setIsShowcaseOpen}
+          >
+            {renderPreview(item)}
+          </ItemShowcaseDialog>
         </div>
       </Panel>
     );
@@ -1240,6 +1272,15 @@ function GenericItemDialogInternal<T extends { id: string }>({
     const handleClickOutside = (event: PointerEvent) => {
       if (isPlaceholderDialogOpen) return;
       if (imageCropperState) return;
+      // The showcase is a nested, portalled dialog. Ignore all outside clicks
+      // while it is open so closing it does not also save and close the editor.
+      if (
+        document.querySelector(
+          "[data-item-showcase-dialog='true'][data-state='open']",
+        )
+      ) {
+        return;
+      }
       // Keep the editor open while any Radix select menu is active.
       // Use capture-phase pointerdown so this runs before Radix closes the menu.
       if (
