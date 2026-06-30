@@ -361,7 +361,7 @@ export const GenericItemCard = memo(function GenericItemCard({
       }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       className={cn(
-        "group relative flex gap-6 p-6 rounded-3xl bg-card transition-all duration-300 w-full overflow-hidden",
+        "group isolate relative flex gap-6 p-6 rounded-3xl bg-card transition-all duration-300 w-full overflow-hidden",
         isThin ? "h-150 flex-col p-4 gap-4" : "h-90 flex-row",
         isReadOnly && "bg-card/70",
       )}
