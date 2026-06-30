@@ -22,6 +22,17 @@ import {
   Shapes,
   Trash,
   Rows,
+  Smiley,
+  Sparkle,
+  Flask,
+  Palette,
+  Star,
+  Stamp,
+  Package,
+  Ticket,
+  Cards,
+  ClipboardText,
+  MusicNotes,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/core/utils";
 import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
@@ -86,6 +97,24 @@ const sanitizeExportName = (name: string): string =>
     .replace(/[^a-zA-Z0-9._-]+/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "") || "jokerforge-templates";
+
+const TEMPLATE_TYPE_ICONS = {
+  joker: Smiley,
+  rarity: Sparkle,
+  consumable: Flask,
+  consumableSet: Palette,
+  enhancement: Star,
+  seal: Stamp,
+  edition: Palette,
+  booster: Package,
+  voucher: Ticket,
+  deck: Cards,
+  card: ClipboardText,
+  sound: MusicNotes,
+} as const;
+
+const getTemplateTypeIcon = (itemType: string) =>
+  TEMPLATE_TYPE_ICONS[itemType as keyof typeof TEMPLATE_TYPE_ICONS] ?? Shapes;
 
 const buildTemplatePayload = (
   template: ItemTemplateEntry,
@@ -455,16 +484,20 @@ export function TemplateLibraryDialog({
               >
                 All
               </Button>
-              {availableTypes.map((itemType) => (
-                <Button
-                  key={itemType}
-                  size="sm"
-                  variant={typeFilter === itemType ? "secondary" : "ghost"}
-                  onClick={() => setTypeFilter(itemType)}
-                >
-                  {capitalizeLabel(itemType)}
-                </Button>
-              ))}
+              {availableTypes.map((itemType) => {
+                const ItemTypeIcon = getTemplateTypeIcon(itemType);
+                return (
+                  <Button
+                    key={itemType}
+                    size="sm"
+                    variant={typeFilter === itemType ? "secondary" : "ghost"}
+                    onClick={() => setTypeFilter(itemType)}
+                    icon={<ItemTypeIcon className="h-4 w-4" />}
+                  >
+                    {capitalizeLabel(itemType)}
+                  </Button>
+                );
+              })}
             </div>
             <div className="flex items-center gap-3">
               <button
