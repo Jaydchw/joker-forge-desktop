@@ -72,7 +72,10 @@ const FloatingDock: React.FC<FloatingDockProps> = ({
   ];
 
   return (
-    <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+    <div
+      className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-50"
+      data-rb-panel="true"
+    >
       <div className="bg-card/90 backdrop-blur-md border border-border rounded-xl px-3 py-2 shadow-lg">
         <div className="flex items-center gap-2">
           {allDockItems.map((item) => {
