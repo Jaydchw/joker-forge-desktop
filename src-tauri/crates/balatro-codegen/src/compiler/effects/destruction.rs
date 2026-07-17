@@ -1,6 +1,6 @@
 use crate::compiler::context::CompileContext;
-use crate::compiler::effects::EffectOutput;
 use crate::compiler::effects::utils::is_literal_one_param;
+use crate::compiler::effects::EffectOutput;
 use crate::lua_ast::*;
 use crate::types::EffectDef;
 
@@ -23,8 +23,8 @@ pub fn destroy_card(effect: &EffectDef, _ctx: &mut CompileContext, trigger: &str
             config_vars: vec![],
             message: Some(lua_str(message)),
             colour: Some(lua_raw_expr("G.C.RED")),
-        
-        segment_id: None,
+
+            segment_id: None,
         },
         _ => {
             let mut pre = vec![];
@@ -52,44 +52,143 @@ pub fn destroy_card(effect: &EffectDef, _ctx: &mut CompileContext, trigger: &str
                 config_vars: vec![],
                 message: Some(lua_str(message)),
                 colour: Some(lua_raw_expr("G.C.RED")),
-            
-        segment_id: None,
+
+                segment_id: None,
             }
         }
     }
 }
 
 /// Destroy Joker effect: destroys a specific joker.
-pub fn destroy_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
-    let target = effect
+pub fn destroy_joker(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
+    let selection_method =
+        get_str_param_any(effect, &["selection_method", "target"]).unwrap_or("random");
+    let joker_key = get_str_param(effect, "joker_key").unwrap_or("");
+    let position = get_str_param(effect, "position").unwrap_or("first");
+    let specific_index = crate::compiler::values::resolve_config_value(
+        &effect.params,
+        "specific_index",
+        ctx,
+        "destroy_joker_index",
+    )
+    .lua_str;
+    let bypass_eternal = matches!(
+        get_str_param(effect, "bypass_eternal"),
+        Some("yes" | "true" | "ignore")
+    ) || effect
         .params
-        .get("target")
-        .and_then(|v| v.as_str())
-        .unwrap_or("self");
-
-    let destroy_target = match target {
-        "self" => lua_ident("card"),
-        "random" => lua_raw_expr("pseudorandom_element(G.jokers.cards, pseudoseed('destroy_joker'))"),
-        _ => lua_ident("card"),
+        .get("bypass_eternal")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let animation = get_str_param(effect, "animation").unwrap_or("start_dissolve");
+    let animation = match animation {
+        "shatter" | "explode" => animation,
+        _ => "start_dissolve",
     };
 
-    let destroy_call = lua_expr_stmt(lua_method(destroy_target, "start_dissolve", vec![]));
+    let eternal_check = if bypass_eternal {
+        ""
+    } else {
+        " and not SMODS.is_eternal(joker)"
+    };
 
-    let event_body = vec![destroy_call, lua_return(lua_bool(true))];
+    let selection_code = match selection_method {
+        "self" => "local target_joker = card".to_string(),
+        "specific" if !joker_key.is_empty() => format!(
+            "local target_joker = nil\n\
+            for _, joker in ipairs(G.jokers.cards or {{}}) do\n\
+                if joker.config.center.key == '{}'{} and not joker.getting_sliced then\n\
+                    target_joker = joker\n\
+                    break\n\
+                end\n\
+            end",
+            lua_escape(&normalize_joker_key(joker_key)),
+            eternal_check
+        ),
+        "position" => match position {
+            "last" => format!(
+                "local target_joker = nil\n\
+                for i = #(G.jokers.cards or {{}}), 1, -1 do\n\
+                    local joker = G.jokers.cards[i]\n\
+                    if joker ~= card{} and not joker.getting_sliced then\n\
+                        target_joker = joker\n\
+                        break\n\
+                    end\n\
+                end",
+                eternal_check
+            ),
+            "left" => format!(
+                "local target_joker = nil\n\
+                local my_pos = nil\n\
+                for i, joker in ipairs(G.jokers.cards or {{}}) do\n\
+                    if joker == card then my_pos = i; break end\n\
+                end\n\
+                if my_pos and my_pos > 1 then\n\
+                    local joker = G.jokers.cards[my_pos - 1]\n\
+                    if joker{} and not joker.getting_sliced then target_joker = joker end\n\
+                end",
+                eternal_check
+            ),
+            "right" => format!(
+                "local target_joker = nil\n\
+                local my_pos = nil\n\
+                for i, joker in ipairs(G.jokers.cards or {{}}) do\n\
+                    if joker == card then my_pos = i; break end\n\
+                end\n\
+                if my_pos and my_pos < #G.jokers.cards then\n\
+                    local joker = G.jokers.cards[my_pos + 1]\n\
+                    if joker{} and not joker.getting_sliced then target_joker = joker end\n\
+                end",
+                eternal_check
+            ),
+            "specific" => format!(
+                "local target_joker = nil\n\
+                local joker = G.jokers.cards[{}]\n\
+                if joker and joker ~= card{} and not joker.getting_sliced then\n\
+                    target_joker = joker\n\
+                end",
+                specific_index, eternal_check
+            ),
+            _ => format!(
+                "local target_joker = nil\n\
+                for _, joker in ipairs(G.jokers.cards or {{}}) do\n\
+                    if joker ~= card{} and not joker.getting_sliced then\n\
+                        target_joker = joker\n\
+                        break\n\
+                    end\n\
+                end",
+                eternal_check
+            ),
+        },
+        _ => format!(
+            "local destructable_jokers = {{}}\n\
+            for _, joker in ipairs(G.jokers.cards or {{}}) do\n\
+                if joker ~= card{} and not joker.getting_sliced then\n\
+                    destructable_jokers[#destructable_jokers + 1] = joker\n\
+                end\n\
+            end\n\
+            local target_joker = #destructable_jokers > 0 and pseudorandom_element(destructable_jokers, pseudoseed('destroy_joker')) or nil",
+            eternal_check
+        ),
+    };
 
-    let event = lua_expr_stmt(lua_method(
-        lua_path(&["G", "E_MANAGER"]),
-        "add_event",
-        vec![lua_call(
-            "Event",
-            vec![lua_table_raw(vec![TableEntry::KeyValue(
-                "func".to_string(),
-                Expr::Function {
-                    params: vec![],
-                    body: event_body,
-                },
-            )])],
-        )],
+    let bypass_eternal_code = if bypass_eternal {
+        "\n        if target_joker.ability then target_joker.ability.eternal = nil end"
+    } else {
+        ""
+    };
+
+    let event = lua_raw_stmt(format!(
+        "{selection_code}\n\
+        if target_joker then{bypass_eternal_code}\n\
+            target_joker.getting_sliced = true\n\
+            G.E_MANAGER:add_event(Event({{\n\
+                func = function()\n\
+                    target_joker:{animation}({{G.C.RED}}, nil, 1.6)\n\
+                    return true\n\
+                end\n\
+            }}))\n\
+        end",
     ));
 
     EffectOutput {
@@ -98,9 +197,29 @@ pub fn destroy_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOut
         config_vars: vec![],
         message: Some(lua_str("Destroyed!")),
         colour: Some(lua_raw_expr("G.C.RED")),
-    
+
         segment_id: None,
     }
+}
+
+fn get_str_param<'a>(effect: &'a EffectDef, key: &str) -> Option<&'a str> {
+    effect.params.get(key).and_then(|v| v.as_str())
+}
+
+fn get_str_param_any<'a>(effect: &'a EffectDef, keys: &[&str]) -> Option<&'a str> {
+    keys.iter().find_map(|key| get_str_param(effect, key))
+}
+
+fn normalize_joker_key(key: &str) -> String {
+    if key.starts_with("j_") {
+        key.to_string()
+    } else {
+        format!("j_{}", key)
+    }
+}
+
+fn lua_escape(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 /// Destroy Consumable effect: destroys a consumable from the consumable area.
@@ -115,7 +234,7 @@ pub fn destroy_consumable(_effect: &EffectDef, _ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message: Some(lua_str("Destroyed Consumable!")),
         colour: Some(lua_raw_expr("G.C.RED")),
-    
+
         segment_id: None,
     }
 }
@@ -157,7 +276,7 @@ pub fn destroy_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutp
         config_vars: vec![],
         message: Some(lua_str("Destroyed Cards!")),
         colour: Some(lua_raw_expr("G.C.RED")),
-    
+
         segment_id: None,
     }
 }

@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashMap;
 
 fn make_rule_output(
     rule_id: &str,
@@ -25,6 +26,65 @@ fn index_of(haystack: &str, needle: &str) -> usize {
     haystack
         .find(needle)
         .unwrap_or_else(|| panic!("Expected '{needle}' in:\n{haystack}"))
+}
+
+fn effect_code(effect_type: &str, params: &[(&str, ParamValue)]) -> String {
+    let mut ctx = CompileContext::new(
+        ObjectType::Joker,
+        "mod".to_string(),
+        "test".to_string(),
+        false,
+    );
+    let effect = EffectDef {
+        id: String::new(),
+        effect_type: effect_type.to_string(),
+        params: params
+            .iter()
+            .map(|(key, value)| ((*key).to_string(), value.clone()))
+            .collect::<HashMap<_, _>>(),
+    };
+    let output =
+        effects::compile_effect(&effect, &mut ctx, "hand_played").expect("effect should compile");
+    Emitter::new().emit_stmts(&effects::build_return_block(&[output]))
+}
+
+#[test]
+fn create_joker_uses_snake_case_specific_key_param() {
+    let code = effect_code(
+        "create_joker",
+        &[
+            ("joker_type", ParamValue::Str("specific".to_string())),
+            ("joker_key", ParamValue::Str("j_greedy_joker".to_string())),
+        ],
+    );
+
+    assert!(code.contains("set = 'Joker', key = 'j_greedy_joker'"));
+}
+
+#[test]
+fn create_joker_normalizes_rarity_param_for_smods() {
+    let code = effect_code(
+        "create_joker",
+        &[
+            ("joker_type", ParamValue::Str("random".to_string())),
+            ("rarity", ParamValue::Str("rare".to_string())),
+        ],
+    );
+
+    assert!(code.contains("set = 'Joker', rarity = 'Rare'"));
+}
+
+#[test]
+fn destroy_joker_uses_selection_method_specific_key_param() {
+    let code = effect_code(
+        "destroy_joker",
+        &[
+            ("selection_method", ParamValue::Str("specific".to_string())),
+            ("joker_key", ParamValue::Str("j_greedy_joker".to_string())),
+        ],
+    );
+
+    assert!(code.contains("joker.config.center.key == 'j_greedy_joker'"));
 }
 
 #[test]

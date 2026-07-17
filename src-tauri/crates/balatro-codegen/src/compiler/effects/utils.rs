@@ -14,7 +14,11 @@ pub fn get_str_default(effect: &EffectDef, key: &str, default: &str) -> String {
     match effect.params.get(key) {
         Some(v) => {
             let s = v.to_string_lossy();
-            if s.is_empty() { default.to_string() } else { s }
+            if s.is_empty() {
+                default.to_string()
+            } else {
+                s
+            }
         }
         None => default.to_string(),
     }

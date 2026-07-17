@@ -764,16 +764,14 @@ impl Emitter {
                             | TableEntry::SegmentEnd(_)
                     ) {
                         // Add comma if the next non-comment entry exists
-                        let has_next_value = entries[i + 1..]
-                            .iter()
-                            .any(|e| {
-                                !matches!(
-                                    e,
-                                    TableEntry::Comment(_)
-                                        | TableEntry::SegmentStart(_)
-                                        | TableEntry::SegmentEnd(_)
-                                )
-                            });
+                        let has_next_value = entries[i + 1..].iter().any(|e| {
+                            !matches!(
+                                e,
+                                TableEntry::Comment(_)
+                                    | TableEntry::SegmentStart(_)
+                                    | TableEntry::SegmentEnd(_)
+                            )
+                        });
                         if has_next_value {
                             self.buf.push(',');
                         }
@@ -818,16 +816,14 @@ impl Emitter {
                             | TableEntry::SegmentStart(_)
                             | TableEntry::SegmentEnd(_)
                     ) {
-                        let has_next_value = entries[i + 1..]
-                            .iter()
-                            .any(|e| {
-                                !matches!(
-                                    e,
-                                    TableEntry::Comment(_)
-                                        | TableEntry::SegmentStart(_)
-                                        | TableEntry::SegmentEnd(_)
-                                )
-                            });
+                        let has_next_value = entries[i + 1..].iter().any(|e| {
+                            !matches!(
+                                e,
+                                TableEntry::Comment(_)
+                                    | TableEntry::SegmentStart(_)
+                                    | TableEntry::SegmentEnd(_)
+                            )
+                        });
                         if has_next_value {
                             self.buf.push(',');
                         }
@@ -1034,7 +1030,10 @@ fn is_simple_entry(entry: &TableEntry) -> bool {
 }
 
 fn is_segment_entry(entry: &TableEntry) -> bool {
-    matches!(entry, TableEntry::SegmentStart(_) | TableEntry::SegmentEnd(_))
+    matches!(
+        entry,
+        TableEntry::SegmentStart(_) | TableEntry::SegmentEnd(_)
+    )
 }
 
 fn classify_segment(id: &str) -> (String, String) {

@@ -292,7 +292,9 @@ fn load_catalog_schema(json_str: &str) -> HashMap<String, NodeSchema> {
                     .and_then(Value::as_str)
                     .unwrap_or("text")
                     .to_string();
-                let select_values = if ptype == "select" {
+                let has_dynamic_options =
+                    p.get("optionSource").is_some() || p.get("optionSet").is_some();
+                let select_values = if ptype == "select" && !has_dynamic_options {
                     p.get("options").and_then(Value::as_array).map(|opts| {
                         opts.iter()
                             .filter_map(|o| o.get("value").and_then(Value::as_str))

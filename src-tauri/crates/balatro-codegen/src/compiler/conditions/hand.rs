@@ -1,5 +1,5 @@
-use crate::compiler::context::CompileContext;
 use crate::compiler::conditions::utils::{rank_to_id, str_param, typed_user_var_name};
+use crate::compiler::context::CompileContext;
 use crate::compiler::values::{comparison_op, resolve_condition_value};
 use crate::lua_ast::*;
 use crate::types::ConditionDef;
@@ -456,7 +456,11 @@ pub(crate) fn suit_check_expr_for(condition: &ConditionDef, card_ref: &str) -> S
     }
 
     let specific_suit = str_param(condition, &["specific_suit", "suit"]).unwrap_or("Hearts");
-    format!("{card}:is_suit('{suit}')", card = card_ref, suit = specific_suit)
+    format!(
+        "{card}:is_suit('{suit}')",
+        card = card_ref,
+        suit = specific_suit
+    )
 }
 
 fn rank_check_expr(condition: &ConditionDef) -> String {
@@ -511,5 +515,18 @@ fn quantifier_to_op(quantifier: &str) -> &str {
         "at_least" => "greater_equals",
         "at_most" => "less_equals",
         _ => "greater_equals",
+    }
+}
+
+fn quantifier_compare(
+    quantifier: &str,
+    count_expr: Expr,
+    value_expr: Expr,
+    total_expr: Expr,
+) -> Expr {
+    match quantifier {
+        "all" => comparison_op("equals", count_expr, total_expr),
+        "none" => comparison_op("equals", count_expr, lua_int(0)),
+        _ => comparison_op(quantifier_to_op(quantifier), count_expr, value_expr),
     }
 }

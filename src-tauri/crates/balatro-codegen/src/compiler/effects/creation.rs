@@ -1,6 +1,6 @@
 use crate::compiler::context::CompileContext;
-use crate::compiler::effects::EffectOutput;
 use crate::compiler::effects::utils::is_literal_one_param;
+use crate::compiler::effects::EffectOutput;
 use crate::lua_ast::*;
 use crate::types::EffectDef;
 
@@ -8,138 +8,91 @@ use crate::types::EffectDef;
 ///
 /// This is one of the more complex effects: it needs pre-return code for
 /// the event manager, handles slot limits, editions: and stickers.
-pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
-    let joker_type = get_str_param(effect, "jokerType").unwrap_or("random");
+pub fn create_joker(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
+    let joker_type = get_str_param_any(effect, &["joker_type", "jokerType"]).unwrap_or("random");
+    let rarity = get_str_param(effect, "rarity").unwrap_or("random");
     let edition = get_str_param(effect, "edition");
     let sticker = get_str_param(effect, "sticker");
-    let ignore_slots = get_bool_param(effect, "ignoreSlots");
+    let ignore_slots = get_bool_param(effect, "ignoreSlots")
+        || matches!(
+            get_str_param(effect, "ignore_slots"),
+            Some("ignore" | "true" | "yes")
+        );
 
-    // Build SMODS.add_card payload using native SMODS fields.
-    let mut add_card_entries = vec![TableEntry::KeyValue("set".to_string(), lua_str("Joker"))];
+    let mut card_params = Vec::new();
+    let pool = get_str_param(effect, "pool").unwrap_or("").trim();
+    if joker_type == "pool" && !pool.is_empty() {
+        card_params.push(format!(
+            "set = '{}'",
+            lua_escape(&normalize_pool_key(pool, &ctx.mod_prefix))
+        ));
+    } else {
+        card_params.push("set = 'Joker'".to_string());
+    }
 
-    match joker_type {
-        "specific" => {
-            if let Some(key) = get_str_param(effect, "jokerKey") {
-                let key = normalize_joker_key(key);
-                add_card_entries.push(TableEntry::KeyValue("key".to_string(), lua_str(key)));
-            }
+    if joker_type == "specific" {
+        if let Some(key) = get_str_param_any(effect, &["joker_key", "jokerKey"]) {
+            let key = normalize_joker_key(key);
+            card_params.push(format!("key = '{}'", lua_escape(&key)));
         }
-        "pool" => {
-            if let Some(pool) = get_str_param(effect, "pool") {
-                add_card_entries.push(TableEntry::KeyValue("set".to_string(), lua_str(pool)));
-            }
+    } else if joker_type != "pool" {
+        let rarity = if matches!(joker_type, "common" | "uncommon" | "rare" | "legendary") {
+            joker_type
+        } else {
+            rarity
+        };
+        if let Some(rarity) = normalize_joker_rarity(rarity, &ctx.mod_prefix) {
+            card_params.push(format!("rarity = '{}'", lua_escape(&rarity)));
         }
-        "common" | "uncommon" | "rare" | "legendary" => {
-            add_card_entries.push(TableEntry::KeyValue(
-                "rarity".to_string(),
-                lua_str(joker_type),
-            ));
-        }
-        _ => {} // "random" , no extra params
     }
 
     if let Some(ed) = edition {
-        if !ed.is_empty() && ed != "none" {
-            let normalized = if ed.starts_with("e_") {
-                ed.to_string()
-            } else {
-                format!("e_{}", ed)
-            };
-            add_card_entries.push(TableEntry::KeyValue("edition".to_string(), lua_str(normalized)));
+        if let Some(normalized) = edition_payload_key(ed, &ctx.mod_prefix) {
+            card_params.push(format!("edition = '{}'", lua_escape(&normalized)));
         }
     }
 
     if let Some(st) = sticker {
         if !st.is_empty() && st != "none" {
-            add_card_entries.push(TableEntry::KeyValue(
-                "stickers".to_string(),
-                lua_table_raw(vec![TableEntry::Value(lua_str(st))]),
-            ));
-            add_card_entries.push(TableEntry::KeyValue(
-                "force_stickers".to_string(),
-                lua_table_raw(vec![TableEntry::Value(lua_str(st))]),
-            ));
+            card_params.push(format!("stickers = {{ '{}' }}", lua_escape(st)));
+            card_params.push("force_stickers = true".to_string());
         }
     }
 
-    // Build the event body (actual spawn happens asynchronously via event queue).
-    let add_card_stmt = lua_expr_stmt(lua_call(
-        "SMODS.add_card",
-        vec![lua_table_raw(add_card_entries)],
-    ));
-    let event_body: Vec<Stmt> = vec![
-        lua_if(
-            lua_and(
-                lua_path(&["G", "jokers"]),
-                lua_and(
-                    lua_path(&["G", "jokers", "cards"]),
-                    lua_path(&["G", "jokers", "config"]),
-                ),
-            ),
-            vec![add_card_stmt],
-        ),
-        lua_return(lua_bool(true)),
-    ];
-
-    // Wrap in G.E_MANAGER:add_event(Event({...}))
-    let event_func = Expr::Function {
-        params: vec![],
-        body: event_body,
+    let is_negative = edition.map(is_negative_edition).unwrap_or(false);
+    let bypass_slot_check = ignore_slots || is_negative;
+    let payload = card_params.join(", ");
+    let slot_open = if bypass_slot_check {
+        "local created_joker = true".to_string()
+    } else {
+        "local created_joker = false\nif G.jokers and G.jokers.cards and G.jokers.config and #G.jokers.cards + (G.GAME.joker_buffer or 0) < G.jokers.config.card_limit then\n    created_joker = true\n    G.GAME.joker_buffer = (G.GAME.joker_buffer or 0) + 1".to_string()
+    };
+    let slot_close = if bypass_slot_check {
+        String::new()
+    } else {
+        "\nend".to_string()
+    };
+    let buffer_reset = if bypass_slot_check {
+        ""
+    } else {
+        "\n            G.GAME.joker_buffer = math.max(0, (G.GAME.joker_buffer or 1) - 1)"
     };
 
-    let event_call = lua_expr_stmt(lua_method(
-        lua_path(&["G", "E_MANAGER"]),
-        "add_event",
-        vec![lua_call(
-            "Event",
-            vec![lua_table_raw(vec![TableEntry::KeyValue(
-                "func".to_string(),
-                event_func,
-            )])],
-        )],
-    ));
-
-    // Emit a synchronous created_joker flag so return message logic is valid.
-    let has_slot_check = !ignore_slots;
-    let mut pre_return: Vec<Stmt> = Vec::new();
-    if has_slot_check {
-        pre_return.push(lua_local("created_joker", lua_bool(false)));
-        pre_return.push(lua_if(
-            lua_and(
-                lua_and(
-                    lua_path(&["G", "jokers"]),
-                    lua_and(
-                        lua_path(&["G", "jokers", "cards"]),
-                        lua_path(&["G", "jokers", "config"]),
-                    ),
-                ),
-                lua_lt(
-                    lua_add(
-                        lua_len(lua_path(&["G", "jokers", "cards"])),
-                        lua_or(lua_path(&["G", "GAME", "joker_buffer"]), lua_int(0)),
-                    ),
-                    lua_path(&["G", "jokers", "config", "card_limit"]),
-                ),
-            ),
-            vec![
-                lua_assign(lua_ident("created_joker"), lua_bool(true)),
-                event_call,
-            ],
-        ));
-    } else {
-        pre_return.push(lua_local("created_joker", lua_bool(true)));
-        pre_return.push(event_call);
-    }
+    let pre_return = vec![lua_raw_stmt(format!(
+        "{slot_open}\n\
+        G.E_MANAGER:add_event(Event({{\n\
+            func = function()\n\
+                local joker_card = SMODS.add_card({{ {payload} }}){buffer_reset}\n\
+                return true\n\
+            end\n\
+        }})){slot_close}",
+    ))];
 
     // Message for the return
-    let message = if has_slot_check {
-        Some(lua_and(
-            lua_ident("created_joker"),
-            lua_call("localize", vec![lua_str("k_plus_joker")]),
-        ))
-    } else {
-        Some(lua_call("localize", vec![lua_str("k_plus_joker")]))
-    };
+    let message = Some(lua_and(
+        lua_ident("created_joker"),
+        lua_call("localize", vec![lua_str("k_plus_joker")]),
+    ));
 
     EffectOutput {
         return_fields: vec![],
@@ -147,7 +100,7 @@ pub fn create_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -189,7 +142,8 @@ pub fn create_consumable(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
     .lua_str;
 
     let slot_guard = !ignore_slots && !is_negative;
-    let has_set_var = set_mode == "keyvar" && !key_variable.is_empty() && ctx.has_user_var(&key_variable);
+    let has_set_var =
+        set_mode == "keyvar" && !key_variable.is_empty() && ctx.has_user_var(&key_variable);
     let has_random_set = set_mode == "random";
     let has_specific_key = !specific_card.is_empty()
         && specific_card != "random"
@@ -263,7 +217,7 @@ pub fn create_consumable(effect: &EffectDef, ctx: &mut CompileContext) -> Effect
         config_vars: vec![],
         message: Some(lua_call("localize", vec![lua_str("k_plus_consumable")])),
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -287,7 +241,7 @@ pub fn create_playing_card(effect: &EffectDef, _ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message: Some(lua_str(message)),
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -316,7 +270,7 @@ pub fn create_playing_cards(effect: &EffectDef, ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message: Some(lua_str("Added Cards!")),
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -343,7 +297,7 @@ pub fn create_tag(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput
         config_vars: vec![],
         message: Some(lua_str("Created Tag!")),
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -395,8 +349,8 @@ pub fn create_copy_triggered_card(
             config_vars: vec![],
             message: Some(message),
             colour: Some(lua_raw_expr("G.C.GREEN")),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     } else {
         let non_scoring_body = format!(
@@ -422,8 +376,8 @@ pub fn create_copy_triggered_card(
             config_vars: vec![],
             message: Some(message),
             colour: Some(lua_raw_expr("G.C.GREEN")),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     }
 }
@@ -485,8 +439,8 @@ pub fn create_copy_played_card(
             config_vars: vec![],
             message: Some(message),
             colour: Some(lua_raw_expr("G.C.GREEN")),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     } else {
         let non_scoring_body = format!(
@@ -512,8 +466,8 @@ pub fn create_copy_played_card(
             config_vars: vec![],
             message: Some(message),
             colour: Some(lua_raw_expr("G.C.GREEN")),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     }
 }
@@ -579,7 +533,7 @@ pub fn create_last_played_planet(effect: &EffectDef, _ctx: &mut CompileContext) 
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Planet")),
-    
+
         segment_id: None,
     }
 }
@@ -683,6 +637,10 @@ fn get_str_param<'a>(effect: &'a EffectDef, key: &str) -> Option<&'a str> {
     effect.params.get(key).and_then(|v| v.as_str())
 }
 
+fn get_str_param_any<'a>(effect: &'a EffectDef, keys: &[&str]) -> Option<&'a str> {
+    keys.iter().find_map(|key| get_str_param(effect, key))
+}
+
 fn get_bool_param(effect: &EffectDef, key: &str) -> bool {
     effect
         .params
@@ -699,8 +657,41 @@ fn normalize_joker_key(key: &str) -> String {
     }
 }
 
+fn normalize_pool_key(pool: &str, mod_prefix: &str) -> String {
+    if mod_prefix.is_empty() || pool.starts_with(&format!("{}_", mod_prefix)) {
+        pool.to_string()
+    } else {
+        format!("{}_{}", mod_prefix, pool)
+    }
+}
+
+fn normalize_joker_rarity(rarity: &str, mod_prefix: &str) -> Option<String> {
+    match rarity {
+        "" | "random" | "any" => None,
+        "1" | "common" | "Common" => Some("Common".to_string()),
+        "2" | "uncommon" | "Uncommon" => Some("Uncommon".to_string()),
+        "3" | "rare" | "Rare" => Some("Rare".to_string()),
+        "4" | "legendary" | "Legendary" => Some("Legendary".to_string()),
+        other if mod_prefix.is_empty() || other.starts_with(&format!("{}_", mod_prefix)) => {
+            Some(other.to_string())
+        }
+        other => Some(format!("{}_{}", mod_prefix, other)),
+    }
+}
+
 fn is_negative_edition(edition: &str) -> bool {
     matches!(edition, "e_negative" | "negative" | "y" | "true")
+}
+
+fn edition_payload_key(edition: &str, mod_prefix: &str) -> Option<String> {
+    if edition.is_empty() || edition == "none" {
+        return None;
+    }
+    Some(normalize_edition_key(edition, mod_prefix))
+}
+
+fn lua_escape(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('\'', "\\'")
 }
 
 fn normalize_edition_key(edition: &str, mod_prefix: &str) -> String {

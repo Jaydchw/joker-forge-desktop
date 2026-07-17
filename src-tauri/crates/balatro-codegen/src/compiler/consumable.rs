@@ -258,9 +258,7 @@ fn stmt_references_used_card(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Raw(s) => s.contains("used_card"),
         Stmt::Local(_, init) => init.as_ref().is_some_and(expr_references_used_card),
-        Stmt::Assign(lhs, rhs) => {
-            expr_references_used_card(lhs) || expr_references_used_card(rhs)
-        }
+        Stmt::Assign(lhs, rhs) => expr_references_used_card(lhs) || expr_references_used_card(rhs),
         Stmt::MultiAssign(lhs, rhs) => {
             lhs.iter().any(expr_references_used_card) || rhs.iter().any(expr_references_used_card)
         }
@@ -320,14 +318,21 @@ fn expr_references_used_card(expr: &Expr) -> bool {
                 || matches!(expr, Expr::TableCall(func, _) if expr_references_used_card(func))
         }
         Expr::Function { body, .. } => body.iter().any(stmt_references_used_card),
-        Expr::Nil | Expr::Bool(_) | Expr::Int(_) | Expr::Number(_) | Expr::Str(_) | Expr::LongStr(_) => false,
+        Expr::Nil
+        | Expr::Bool(_)
+        | Expr::Int(_)
+        | Expr::Number(_)
+        | Expr::Str(_)
+        | Expr::LongStr(_) => false,
     }
 }
 
 fn table_entry_references_used_card(entry: &TableEntry) -> bool {
     match entry {
         TableEntry::KeyValue(_, expr) | TableEntry::Value(expr) => expr_references_used_card(expr),
-        TableEntry::IndexValue(k, v) => expr_references_used_card(k) || expr_references_used_card(v),
+        TableEntry::IndexValue(k, v) => {
+            expr_references_used_card(k) || expr_references_used_card(v)
+        }
         TableEntry::Comment(_) | TableEntry::SegmentStart(_) | TableEntry::SegmentEnd(_) => false,
     }
 }

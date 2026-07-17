@@ -1,6 +1,6 @@
 use crate::compiler::context::CompileContext;
-use crate::compiler::effects::{passive::PassiveEffectOutput, EffectOutput};
 use crate::compiler::effects::utils::{get_str, get_str_default, value_to_lua_str};
+use crate::compiler::effects::{passive::PassiveEffectOutput, EffectOutput};
 use crate::lua_ast::*;
 use crate::types::{EffectDef, ParamValue};
 
@@ -76,7 +76,7 @@ pub fn edit_joker_slots(effect: &EffectDef, ctx: &mut CompileContext) -> EffectO
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.DARK_EDITION")),
-    
+
         segment_id: None,
     }
 }
@@ -198,7 +198,7 @@ pub fn edit_joker_size(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.DARK_EDITION")),
-    
+
         segment_id: None,
     }
 }
@@ -307,7 +307,7 @@ pub fn edit_consumable_slots(effect: &EffectDef, ctx: &mut CompileContext) -> Ef
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -500,7 +500,7 @@ pub fn edit_item_size_typed(
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.BLUE")),
-    
+
         segment_id: None,
     }
 }
@@ -676,7 +676,7 @@ pub fn edit_round_counter_typed(
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }

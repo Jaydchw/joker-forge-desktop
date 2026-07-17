@@ -425,7 +425,7 @@ fn compile_random_group(
         config_vars: vec![],
         message: None,
         colour: None,
-    
+
         segment_id: None,
     };
 
@@ -474,7 +474,7 @@ fn compile_loop_group(
         config_vars: vec![],
         message: None,
         colour: None,
-    
+
         segment_id: None,
     }]
 }
@@ -668,9 +668,12 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
         .filter(|r| !r.is_passive && !r.effect_stmts.is_empty())
         .collect();
 
-    let has_passive_calculate = rule_outputs
-        .iter()
-        .any(|r| r.is_passive && r.passive_outputs.iter().any(|po| !po.calculate_stmts.is_empty()));
+    let has_passive_calculate = rule_outputs.iter().any(|r| {
+        r.is_passive
+            && r.passive_outputs
+                .iter()
+                .any(|po| !po.calculate_stmts.is_empty())
+    });
 
     if non_passive.is_empty() && !has_passive_calculate {
         return None;
@@ -1384,8 +1387,9 @@ fn build_global_hook_stmts(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -
             }
         }
 
-        let source_check = |source_rank_type: &str, source_ranks: &[String], subject: &str| {
-            match source_rank_type {
+        let source_check =
+            |source_rank_type: &str, source_ranks: &[String], subject: &str| match source_rank_type
+            {
                 "all" => "true".to_string(),
                 "face_cards" => format!("({subject} >= 11 and {subject} <= 13)"),
                 _ => {
@@ -1399,8 +1403,7 @@ fn build_global_hook_stmts(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -
                         format!("({})", checks.join(" or "))
                     }
                 }
-            }
-        };
+            };
 
         if !face_hooks.is_empty() {
             let mut code = String::from(

@@ -12,7 +12,10 @@ pub fn rank_to_id(rank: &str) -> String {
         "Jack" | "J" => "11".to_string(),
         "10" | "9" | "8" | "7" | "6" | "5" | "4" | "3" | "2" => rank.to_string(),
         "" => "14".to_string(),
-        other => format!("((SMODS.Ranks['{}'] or {{}}).id or 0)", other.replace('\'', "\\'")),
+        other => format!(
+            "((SMODS.Ranks['{}'] or {{}}).id or 0)",
+            other.replace('\'', "\\'")
+        ),
     }
 }
 

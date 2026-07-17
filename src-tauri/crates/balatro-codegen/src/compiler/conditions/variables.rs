@@ -32,11 +32,11 @@ pub fn key_variable(condition: &ConditionDef, ctx: &CompileContext) -> Option<Ex
     let check_type = str_param(condition, &["check_type"]).unwrap_or("custom_text");
     if check_type == "key_var" {
         return match str_param(condition, &["key_variable"]) {
-            Some(other) => Some(lua_eq(
-                ctx.user_var_expr(name),
-                ctx.user_var_expr(other),
+            Some(other) => Some(lua_eq(ctx.user_var_expr(name), ctx.user_var_expr(other))),
+            None => Some(invalid_condition(
+                "key_variable",
+                "no key variable selected",
             )),
-            None => Some(invalid_condition("key_variable", "no key variable selected")),
         };
     }
     let specific_key = str_param(condition, &["specific_key", "key", "value"]).unwrap_or("none");
@@ -75,10 +75,7 @@ pub fn rank_variable(condition: &ConditionDef, _ctx: &CompileContext) -> Option<
     let rank = str_param(condition, &["rank", "value"]).unwrap_or("Ace");
 
     Some(lua_eq(
-        lua_raw_expr(format!(
-            "(G.GAME.current_round.{}_card or {{}}).rank",
-            name
-        )),
+        lua_raw_expr(format!("(G.GAME.current_round.{}_card or {{}}).rank", name)),
         lua_str(rank),
     ))
 }
@@ -91,10 +88,7 @@ pub fn suit_variable(condition: &ConditionDef, _ctx: &CompileContext) -> Option<
     let suit = str_param(condition, &["suit", "value"]).unwrap_or("Spades");
 
     Some(lua_eq(
-        lua_raw_expr(format!(
-            "(G.GAME.current_round.{}_card or {{}}).suit",
-            name
-        )),
+        lua_raw_expr(format!("(G.GAME.current_round.{}_card or {{}}).suit", name)),
         lua_str(suit),
     ))
 }

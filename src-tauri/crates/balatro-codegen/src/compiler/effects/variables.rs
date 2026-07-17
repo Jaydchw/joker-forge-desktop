@@ -185,8 +185,8 @@ pub fn modify_internal_variable(
             config_vars: vec![],
             message,
             colour: Some(lua_raw_expr(message_colour)),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     } else {
         let func_body = vec![lua_raw_stmt(format!("{}\nreturn true", operation_code))];
@@ -202,8 +202,8 @@ pub fn modify_internal_variable(
             config_vars: vec![],
             message,
             colour: Some(lua_raw_expr(message_colour)),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     }
 }
@@ -308,7 +308,7 @@ pub fn change_key_variable(effect: &EffectDef, ctx: &mut CompileContext) -> Effe
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.FILTER")),
-    
+
         segment_id: None,
     }
 }
@@ -359,7 +359,7 @@ pub fn change_text_variable(effect: &EffectDef, ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.FILTER")),
-    
+
         segment_id: None,
     }
 }
@@ -418,7 +418,7 @@ pub fn change_rank_variable(effect: &EffectDef, _ctx: &mut CompileContext) -> Ef
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.FILTER")),
-    
+
         segment_id: None,
     }
 }
@@ -470,7 +470,7 @@ pub fn change_suit_variable(effect: &EffectDef, _ctx: &mut CompileContext) -> Ef
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.FILTER")),
-    
+
         segment_id: None,
     }
 }
@@ -540,7 +540,7 @@ pub fn change_poker_hand_variable(effect: &EffectDef, _ctx: &mut CompileContext)
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.FILTER")),
-    
+
         segment_id: None,
     }
 }

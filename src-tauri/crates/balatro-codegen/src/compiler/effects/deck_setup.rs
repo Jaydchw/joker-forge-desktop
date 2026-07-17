@@ -195,10 +195,7 @@ pub fn add_starting_cards(effect: &EffectDef, ctx: &mut CompileContext) -> Effec
 
     body.push_str("        end\n        SMODS.calculate_context({ playing_card_added = true, cards = cards })");
 
-    deck_output(
-        vec![run_start_event(&body)],
-        "G.C.SECONDARY_SET.Spectral",
-    )
+    deck_output(vec![run_start_event(&body)], "G.C.SECONDARY_SET.Spectral")
 }
 
 /// Edit All Starting Cards: apply modifications to every starting card.
@@ -220,7 +217,11 @@ pub fn edit_starting_suits(effect: &EffectDef, ctx: &mut CompileContext) -> Effe
         )));
     } else {
         let filter = format!("v:is_suit('{}')", selected_suit);
-        let suit_override = if replace == "none" { None } else { Some(("suit", replace)) };
+        let suit_override = if replace == "none" {
+            None
+        } else {
+            Some(("suit", replace))
+        };
         let body = card_modification_loop(effect, ctx, Some(&filter), suit_override);
         stmts.push(run_start_event(&body));
     }
@@ -247,7 +248,11 @@ pub fn edit_starting_ranks(effect: &EffectDef, ctx: &mut CompileContext) -> Effe
         )));
     } else {
         let filter = format!("v.base.value == '{}'", selected_rank);
-        let rank_override = if replace == "none" { None } else { Some(("rank", replace)) };
+        let rank_override = if replace == "none" {
+            None
+        } else {
+            Some(("rank", replace))
+        };
         let body = card_modification_loop(effect, ctx, Some(&filter), rank_override);
         stmts.push(run_start_event(&body));
     }

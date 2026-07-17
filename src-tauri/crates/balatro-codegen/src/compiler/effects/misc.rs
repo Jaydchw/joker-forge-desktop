@@ -1,6 +1,6 @@
 use crate::compiler::context::CompileContext;
-use crate::compiler::effects::EffectOutput;
 use crate::compiler::effects::utils::{get_str_default, get_str_opt, is_literal_one_param};
+use crate::compiler::effects::EffectOutput;
 use crate::compiler::values::resolve_config_value;
 use crate::lua_ast::*;
 use crate::types::EffectDef;
@@ -44,7 +44,7 @@ pub fn show_message(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutpu
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr(colour)),
-    
+
         segment_id: None,
     }
 }
@@ -66,7 +66,7 @@ pub fn play_sound(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput
         config_vars: vec![],
         message: None,
         colour: None,
-    
+
         segment_id: None,
     }
 }
@@ -139,7 +139,7 @@ fn juice_up_target(
         config_vars: vec![],
         message: None,
         colour: None,
-    
+
         segment_id: None,
     }
 }
@@ -161,7 +161,7 @@ pub fn free_rerolls(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutpu
             .and_then(|v| v.as_str())
             .map(lua_str),
         colour: Some(lua_raw_expr("G.C.DARK_EDITION")),
-    
+
         segment_id: None,
     }
 }
@@ -176,7 +176,7 @@ pub fn set_dollars(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.MONEY")),
-    
+
         segment_id: None,
     }
 }
@@ -191,7 +191,7 @@ pub fn retrigger(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
         config_vars: vec![],
         message: Some(lua_call("localize", vec![lua_str("k_again_ex")])),
         colour: Some(lua_raw_expr("G.C.RED")),
-    
+
         segment_id: None,
     }
 }
@@ -220,7 +220,7 @@ pub fn level_up_hand(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutp
         config_vars: vec![],
         message: Some(lua_call("localize", vec![lua_str("k_level_up_ex")])),
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -265,7 +265,7 @@ pub fn edit_blind_size(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
         config_vars: vec![],
         message: None,
         colour: None,
-    
+
         segment_id: None,
     }
 }
@@ -301,7 +301,7 @@ pub fn set_sell_value(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOut
         config_vars: vec![],
         message: Some(lua_str("Sell Value Updated")),
         colour: Some(lua_raw_expr("G.C.MONEY")),
-    
+
         segment_id: None,
     }
 }
@@ -333,7 +333,7 @@ pub fn set_ante(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
         config_vars: vec![],
         message: Some(lua_str("Ante Updated")),
         colour: Some(lua_raw_expr("G.C.YELLOW")),
-    
+
         segment_id: None,
     }
 }
@@ -350,7 +350,7 @@ pub fn disable_boss_blind(_effect: &EffectDef, _ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message: Some(lua_call("localize", vec![lua_str("ph_boss_disabled")])),
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -367,7 +367,7 @@ pub fn force_game_over(_effect: &EffectDef, _ctx: &mut CompileContext) -> Effect
         config_vars: vec![],
         message: Some(lua_str("Game Over")),
         colour: Some(lua_raw_expr("G.C.RED")),
-    
+
         segment_id: None,
     }
 }
@@ -394,7 +394,7 @@ pub fn win_game(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput {
         config_vars: vec![],
         message: Some(lua_str("Win!")),
         colour: Some(lua_raw_expr("G.C.ORANGE")),
-    
+
         segment_id: None,
     }
 }
@@ -417,7 +417,7 @@ pub fn crash_game(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput
         config_vars: vec![],
         message: None,
         colour: None,
-    
+
         segment_id: None,
     }
 }
@@ -487,7 +487,7 @@ pub fn show_special_message(effect: &EffectDef, ctx: &mut CompileContext) -> Eff
         config_vars: vec![],
         message: None,
         colour: None,
-    
+
         segment_id: None,
     }
 }
@@ -544,7 +544,7 @@ pub fn shuffle_jokers(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOu
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.ORANGE")),
-    
+
         segment_id: None,
     }
 }
@@ -659,7 +659,7 @@ pub fn flip_joker(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.ORANGE")),
-    
+
         segment_id: None,
     }
 }
@@ -829,8 +829,8 @@ pub fn copy_joker(effect: &EffectDef, ctx: &mut CompileContext, trigger: &str) -
             config_vars: vec![],
             message: None,
             colour: Some(lua_raw_expr("G.C.GREEN")),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     } else {
         let func_body = vec![lua_raw_stmt(format!("{}\nreturn true", copy_code))];
@@ -846,8 +846,8 @@ pub fn copy_joker(effect: &EffectDef, ctx: &mut CompileContext, trigger: &str) -
             config_vars: vec![],
             message: None,
             colour: Some(lua_raw_expr("G.C.GREEN")),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     }
 }
@@ -973,8 +973,8 @@ pub fn copy_consumable(
             config_vars: vec![],
             message: None,
             colour: Some(lua_raw_expr("G.C.GREEN")),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     } else {
         let func_body = vec![lua_raw_stmt(format!("{}\nreturn true", copy_code))];
@@ -990,8 +990,8 @@ pub fn copy_consumable(
             config_vars: vec![],
             message: None,
             colour: Some(lua_raw_expr("G.C.GREEN")),
-        
-        segment_id: None,
+
+            segment_id: None,
         }
     }
 }
@@ -1021,7 +1021,7 @@ pub fn draw_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.BLUE")),
-    
+
         segment_id: None,
     }
 }
@@ -1090,7 +1090,7 @@ pub fn emit_flag(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.BLUE")),
-    
+
         segment_id: None,
     }
 }
@@ -1128,7 +1128,7 @@ pub fn add_booster_into_shop(effect: &EffectDef, ctx: &mut CompileContext) -> Ef
         config_vars: vec![],
         message: Some(lua_str("Added Booster!")),
         colour: Some(lua_raw_expr("G.C.BLUE")),
-    
+
         segment_id: None,
     }
 }
@@ -1175,7 +1175,7 @@ pub fn add_voucher_into_shop(effect: &EffectDef, ctx: &mut CompileContext) -> Ef
         config_vars: vec![],
         message: Some(lua_str("Added Voucher!")),
         colour: Some(lua_raw_expr("G.C.BLUE")),
-    
+
         segment_id: None,
     }
 }
@@ -1215,7 +1215,7 @@ pub fn edit_card_appearance(effect: &EffectDef, _ctx: &mut CompileContext) -> Ef
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.MONEY")),
-    
+
         segment_id: None,
     }
 }
@@ -1235,7 +1235,7 @@ pub fn edit_game_speed(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectO
         config_vars: vec![],
         message: custom_message.map(lua_str),
         colour: None,
-    
+
         segment_id: None,
     }
 }
@@ -1270,7 +1270,7 @@ pub fn fix_probability(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -1305,7 +1305,7 @@ pub fn mod_probability(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -1379,7 +1379,7 @@ pub fn modify_blind_requirement(effect: &EffectDef, ctx: &mut CompileContext) ->
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -1429,7 +1429,7 @@ pub fn modify_all_blinds_requirement(effect: &EffectDef, ctx: &mut CompileContex
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.GREEN")),
-    
+
         segment_id: None,
     }
 }
@@ -1474,7 +1474,7 @@ pub fn permanent_bonus(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOu
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr(colour)),
-    
+
         segment_id: None,
     }
 }
@@ -1529,7 +1529,7 @@ pub fn redeem_voucher(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOut
         config_vars: vec![],
         message: custom_message.map(lua_str),
         colour: Some(lua_raw_expr("G.C.RED")),
-    
+
         segment_id: None,
     }
 }
@@ -1593,7 +1593,7 @@ pub fn unlock_joker(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutpu
         config_vars: vec![],
         message: None,
         colour: Some(lua_raw_expr("G.C.BLUE")),
-    
+
         segment_id: None,
     }
 }
@@ -1616,7 +1616,7 @@ pub fn saved_effect(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutp
         config_vars: vec![],
         message: Some(message),
         colour: Some(lua_raw_expr("G.C.RED")),
-    
+
         segment_id: None,
     }
 }
@@ -1678,7 +1678,7 @@ pub fn edit_joker(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutput
         config_vars: vec![],
         message,
         colour: Some(lua_raw_expr("G.C.DARK_EDITION")),
-    
+
         segment_id: None,
     }
 }
@@ -1718,7 +1718,7 @@ pub fn edit_booster_packs(effect: &EffectDef, ctx: &mut CompileContext) -> Effec
         config_vars: vec![],
         message: Some(lua_str("Booster Updated!")),
         colour: Some(lua_raw_expr("G.C.BLUE")),
-    
+
         segment_id: None,
     }
 }
@@ -1751,7 +1751,7 @@ pub fn fool_effect(effect: &EffectDef, _ctx: &mut CompileContext) -> EffectOutpu
         config_vars: vec![],
         message: custom_message.map(lua_str),
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
-    
+
         segment_id: None,
     }
 }
@@ -2053,7 +2053,7 @@ pub fn edit_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput 
         config_vars: vec![],
         message: custom_message.map(lua_str),
         colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Tarot")),
-    
+
         segment_id: None,
     }
 }
