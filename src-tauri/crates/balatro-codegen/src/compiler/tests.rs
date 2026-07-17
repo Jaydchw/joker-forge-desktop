@@ -29,12 +29,21 @@ fn index_of(haystack: &str, needle: &str) -> usize {
 }
 
 fn effect_code(effect_type: &str, params: &[(&str, ParamValue)]) -> String {
+    effect_code_with_user_vars(effect_type, params, Vec::new())
+}
+
+fn effect_code_with_user_vars(
+    effect_type: &str,
+    params: &[(&str, ParamValue)],
+    user_vars: Vec<UserVariableDef>,
+) -> String {
     let mut ctx = CompileContext::new(
         ObjectType::Joker,
         "mod".to_string(),
         "test".to_string(),
         false,
     );
+    ctx.set_user_vars(user_vars);
     let effect = EffectDef {
         id: String::new(),
         effect_type: effect_type.to_string(),
@@ -46,6 +55,30 @@ fn effect_code(effect_type: &str, params: &[(&str, ParamValue)]) -> String {
     let output =
         effects::compile_effect(&effect, &mut ctx, "hand_played").expect("effect should compile");
     Emitter::new().emit_stmts(&effects::build_return_block(&[output]))
+}
+
+#[test]
+fn scoring_effect_uses_user_var_when_typed_as_text() {
+    let code = effect_code_with_user_vars(
+        "add_mult",
+        &[(
+            "value",
+            ParamValue::Typed(TypedValue {
+                value: serde_json::Value::String("diagrammult".to_string()),
+                value_type: "text".to_string(),
+            }),
+        )],
+        vec![UserVariableDef {
+            name: "diagrammult".to_string(),
+            var_type: UserVarType::Number,
+            initial_value: ParamValue::Int(2),
+            is_global: false,
+            is_persistent: false,
+        }],
+    );
+
+    assert!(code.contains("mult = card.ability.extra.diagrammult"));
+    assert!(!code.contains("mult = 'diagrammult'"));
 }
 
 #[test]

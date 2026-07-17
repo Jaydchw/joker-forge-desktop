@@ -151,6 +151,11 @@ fn resolve_scoring_value(
             }
             return (lua_int(0), None);
         }
+        if let Some(name) = t.value.as_str() {
+            if ctx.has_user_var(name) {
+                return (ctx.user_var_expr(name), None);
+            }
+        }
     }
 
     // Game variable, range, or user variable, resolve directly
