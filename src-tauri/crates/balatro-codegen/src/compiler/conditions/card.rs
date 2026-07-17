@@ -1,5 +1,5 @@
+use crate::compiler::conditions::utils::str_param;
 use crate::compiler::context::CompileContext;
-use crate::compiler::conditions::utils::{rank_to_id, typed_user_var_name};
 use crate::compiler::values::resolve_condition_value;
 use crate::lua_ast::*;
 use crate::types::ConditionDef;
@@ -48,11 +48,7 @@ pub fn card_seal(condition: &ConditionDef) -> Option<Expr> {
 
 /// Card Index condition: checks the card's position in the scoring hand.
 pub fn card_index(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<Expr> {
-    let index_type = condition
-        .params
-        .get("index_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("first");
+    let index_type = str_param(condition, &["index_type"]).unwrap_or("first");
 
     match index_type {
         "first" => Some(lua_eq(
@@ -80,99 +76,9 @@ pub fn card_index(condition: &ConditionDef, ctx: &mut CompileContext) -> Option<
 }
 
 fn rank_check_expr(condition: &ConditionDef) -> String {
-    let card_ref = "context.other_card";
-
-    if let Some(var_name) = rank_var_name(condition) {
-        return format!(
-            "{card}:get_id() == ((G.GAME.current_round.{name}_card or {{}}).id or 0)",
-            card = card_ref,
-            name = var_name
-        );
-    }
-
-    let rank_type = condition
-        .params
-        .get("rank_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("specific");
-
-    if rank_type == "group" {
-        let rank_group = condition
-            .params
-            .get("rank_group")
-            .and_then(|v| v.as_str())
-            .unwrap_or("odd");
-        return match rank_group {
-            "face" => format!("{card}:is_face()", card = card_ref),
-            "even" => format!(
-                "({card}:get_id() == 2 or {card}:get_id() == 4 or {card}:get_id() == 6 or {card}:get_id() == 8 or {card}:get_id() == 10)",
-                card = card_ref
-            ),
-            _ => format!(
-                "({card}:get_id() == 14 or {card}:get_id() == 3 or {card}:get_id() == 5 or {card}:get_id() == 7 or {card}:get_id() == 9)",
-                card = card_ref
-            ),
-        };
-    }
-
-    let rank = condition
-        .params
-        .get("specific_rank")
-        .and_then(|v| v.as_str())
-        .or_else(|| condition.params.get("rank").and_then(|v| v.as_str()))
-        .unwrap_or("Ace");
-    let rank_id = rank_to_id(rank);
-    format!("{card}:get_id() == {id}", card = card_ref, id = rank_id)
+    super::hand::rank_check_expr_for(condition, "context.other_card")
 }
 
 fn suit_check_expr(condition: &ConditionDef) -> String {
-    let card_ref = "context.other_card";
-
-    if let Some(var_name) = suit_var_name(condition) {
-        return format!(
-            "{card}:is_suit((G.GAME.current_round.{name}_card or {{}}).suit or 'Spades')",
-            card = card_ref,
-            name = var_name
-        );
-    }
-
-    let suit_type = condition
-        .params
-        .get("suit_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("specific");
-
-    if suit_type == "group" {
-        let suit_group = condition
-            .params
-            .get("suit_group")
-            .and_then(|v| v.as_str())
-            .unwrap_or("red");
-        return match suit_group {
-            "black" => format!(
-                "{card}:is_suit('Spades') or {card}:is_suit('Clubs')",
-                card = card_ref
-            ),
-            _ => format!(
-                "{card}:is_suit('Hearts') or {card}:is_suit('Diamonds')",
-                card = card_ref
-            ),
-        };
-    }
-
-    let suit = condition
-        .params
-        .get("specific_suit")
-        .and_then(|v| v.as_str())
-        .or_else(|| condition.params.get("suit").and_then(|v| v.as_str()))
-        .unwrap_or("Hearts");
-    format!("{card}:is_suit('{suit}')", card = card_ref, suit = suit)
-}
-
-fn suit_var_name(condition: &ConditionDef) -> Option<&str> {
-    typed_user_var_name(condition, "suit_type", "specific_suit")
-}
-
-fn rank_var_name(condition: &ConditionDef) -> Option<&str> {
-    typed_user_var_name(condition, "rank_type", "specific_rank")
+    super::hand::suit_check_expr_for(condition, "context.other_card")
 }

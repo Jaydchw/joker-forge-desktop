@@ -1,6 +1,7 @@
+use crate::compiler::conditions::utils::rank_to_id;
 use crate::compiler::context::CompileContext;
-use crate::compiler::effects::EffectOutput;
 use crate::compiler::effects::utils::{get_str, get_str_default};
+use crate::compiler::effects::EffectOutput;
 use crate::lua_ast::*;
 use crate::types::EffectDef;
 
@@ -393,7 +394,8 @@ pub fn change_rank_variable(effect: &EffectDef, _ctx: &mut CompileContext) -> Ef
         ),
         "scored_card" | "destroyed_card" | "added_card" | "card_held_in_hand"
         | "discarded_card" => format!(
-            "G.GAME.current_round.{v}_card.rank = context.other_card.base.id",
+            "G.GAME.current_round.{v}_card.rank = context.other_card.base.value\n\
+            G.GAME.current_round.{v}_card.id = context.other_card.base.id",
             v = variable_name
         ),
         _ => {
@@ -540,28 +542,5 @@ pub fn change_poker_hand_variable(effect: &EffectDef, _ctx: &mut CompileContext)
         colour: Some(lua_raw_expr("G.C.FILTER")),
     
         segment_id: None,
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-fn rank_to_id(rank: &str) -> &'static str {
-    match rank {
-        "A" | "Ace" => "14",
-        "K" | "King" => "13",
-        "Q" | "Queen" => "12",
-        "J" | "Jack" => "11",
-        "10" => "10",
-        "9" => "9",
-        "8" => "8",
-        "7" => "7",
-        "6" => "6",
-        "5" => "5",
-        "4" => "4",
-        "3" => "3",
-        "2" => "2",
-        _ => "14",
     }
 }

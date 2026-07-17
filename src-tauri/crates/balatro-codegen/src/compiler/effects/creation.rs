@@ -732,3 +732,94 @@ fn edition_payload_entry(edition: &str, seed: &str, mod_prefix: &str) -> Option<
         normalize_edition_key(edition, mod_prefix).replace('\'', "\\'")
     ))
 }
+
+/// Copy Selected Cards effect: duplicates the highlighted playing cards.
+pub fn copy_selected_cards(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
+    let enhancement = get_str_param(effect, "enhancement").unwrap_or("none");
+    let seal = get_str_param(effect, "seal").unwrap_or("none");
+    let edition = get_str_param(effect, "edition").unwrap_or("none");
+    let message = get_str_param(effect, "customMessage").map(|s| s.to_string());
+
+    let copies = crate::compiler::values::resolve_config_value(
+        &effect.params,
+        "copies",
+        ctx,
+        "copy_cards_amount",
+    );
+
+    let mut modifications = String::new();
+    match enhancement {
+        "none" => {}
+        "random" => modifications.push_str(
+            "\n                        local cen_pool = {}\
+             \n                        for _, enhancement_center in pairs(G.P_CENTER_POOLS['Enhanced']) do\
+             \n                            if enhancement_center.key ~= 'm_stone' then\
+             \n                                cen_pool[#cen_pool + 1] = enhancement_center\
+             \n                            end\
+             \n                        end\
+             \n                        copied_card:set_ability(pseudorandom_element(cen_pool, 'copy_cards_enhancement'))",
+        ),
+        specific => modifications.push_str(&format!(
+            "\n                        copied_card:set_ability(G.P_CENTERS['{}'])",
+            specific
+        )),
+    }
+    match seal {
+        "none" => {}
+        "random" => modifications.push_str(
+            "\n                        copied_card:set_seal(SMODS.poll_seal({ key = 'copy_cards_seal', guaranteed = true }), nil, true)",
+        ),
+        specific => modifications.push_str(&format!(
+            "\n                        copied_card:set_seal('{}', nil, true)",
+            specific
+        )),
+    }
+    match edition {
+        "none" => {}
+        "remove" => modifications
+            .push_str("\n                        copied_card:set_edition(nil, true)"),
+        "random" => modifications.push_str(
+            "\n                        copied_card:set_edition(SMODS.poll_edition({ key = 'copy_cards_edition', no_negative = true, guaranteed = true }), true)",
+        ),
+        specific => modifications.push_str(&format!(
+            "\n                        copied_card:set_edition('{}', true)",
+            normalize_edition_key(specific, &ctx.mod_prefix)
+        )),
+    }
+
+    let code = format!(
+        "G.E_MANAGER:add_event(Event({{\
+         \n    func = function()\
+         \n        local _first_materialize = nil\
+         \n        local new_cards = {{}}\
+         \n        for _, selected_card in pairs(G.hand.highlighted) do\
+         \n            for i = 1, {copies} do\
+         \n                G.playing_card = (G.playing_card and G.playing_card + 1) or 1\
+         \n                local copied_card = copy_card(selected_card, nil, nil, G.playing_card)\
+         \n                copied_card:add_to_deck()\
+         \n                G.deck.config.card_limit = G.deck.config.card_limit + 1\
+         \n                table.insert(G.playing_cards, copied_card)\
+         \n                G.hand:emplace(copied_card)\
+         \n                copied_card:start_materialize(nil, _first_materialize)\
+         \n                _first_materialize = true\
+         \n                new_cards[#new_cards + 1] = copied_card{mods}\
+         \n            end\
+         \n        end\
+         \n        SMODS.calculate_context({{ playing_card_added = true, cards = new_cards }})\
+         \n        return true\
+         \n    end\
+         \n}}))\
+         \ndelay(0.6)",
+        copies = copies.lua_str,
+        mods = modifications
+    );
+
+    EffectOutput {
+        return_fields: vec![],
+        pre_return: vec![lua_raw_stmt(code)],
+        config_vars: vec![],
+        message: message.map(lua_str),
+        colour: Some(lua_raw_expr("G.C.SECONDARY_SET.Spectral")),
+        segment_id: None,
+    }
+}

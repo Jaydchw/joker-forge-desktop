@@ -26,24 +26,60 @@ pub fn apply_x_chips(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutp
     scoring_effect(effect, ctx, "Xchips", "")
 }
 
-/// Apply Exp Chips → `chips = N` with exponential marker
+/// Apply Exp Chips → `e_chips = N` (Talisman)
 pub fn apply_exp_chips(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
-    scoring_effect(effect, ctx, "eChips", "G.C.CHIPS")
+    scoring_effect(effect, ctx, "e_chips", "G.C.DARK_EDITION")
 }
 
-/// Apply Exp Mult → `mult = N` with exponential marker
+/// Apply Exp Mult → `e_mult = N` (Talisman)
 pub fn apply_exp_mult(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
-    scoring_effect(effect, ctx, "eMult", "")
+    scoring_effect(effect, ctx, "e_mult", "G.C.DARK_EDITION")
 }
 
-/// Apply Hyper Chips → `hChips = N`
+/// Apply Hyper Chips → `hyperchips = {arrows, n}` (Talisman)
 pub fn apply_hyper_chips(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
-    scoring_effect(effect, ctx, "hChips", "G.C.CHIPS")
+    hyper_effect(effect, ctx, "hyperchips")
 }
 
-/// Apply Hyper Mult → `hMult = N`
+/// Apply Hyper Mult → `hypermult = {arrows, n}` (Talisman)
 pub fn apply_hyper_mult(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
-    scoring_effect(effect, ctx, "hMult", "")
+    hyper_effect(effect, ctx, "hypermult")
+}
+
+fn hyper_effect(effect: &EffectDef, ctx: &mut CompileContext, key: &str) -> EffectOutput {
+    let n = crate::compiler::values::resolve_config_value(
+        &effect.params,
+        "value",
+        ctx,
+        &format!("{}_n", key),
+    );
+    let arrows = crate::compiler::values::resolve_config_value(
+        &effect.params,
+        "arrows",
+        ctx,
+        &format!("{}_arrows", key),
+    );
+
+    let message = effect
+        .params
+        .get("customMessage")
+        .and_then(|v| v.as_str())
+        .map(lua_str);
+
+    EffectOutput {
+        return_fields: vec![(
+            key.to_string(),
+            lua_table_raw(vec![
+                TableEntry::Value(arrows.expr),
+                TableEntry::Value(n.expr),
+            ]),
+        )],
+        pre_return: vec![],
+        config_vars: vec![],
+        message,
+        colour: None,
+        segment_id: None,
+    }
 }
 
 /// Shared implementation for all scoring effects.

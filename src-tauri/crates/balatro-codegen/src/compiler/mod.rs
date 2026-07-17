@@ -254,6 +254,17 @@ pub(crate) enum PassiveHookSpec {
     Showman {
         joker_key: String,
     },
+    CombineSuits {
+        joker_key: String,
+        suit_1: String,
+        suit_2: String,
+    },
+    CombineRanks {
+        joker_key: String,
+        source_rank_type: String,
+        source_ranks: Vec<String>,
+        target_rank: String,
+    },
 }
 
 pub(crate) fn compile_rules(rules: &[RuleDef], ctx: &mut CompileContext) -> Vec<RuleOutput> {
@@ -649,14 +660,19 @@ fn build_joker_table(
     lua_table_raw(entries)
 }
 
-/// Build the `calculate` function from non-passive rules.
+/// Build the `calculate` function from non-passive rules and passive
+/// calculate statements.
 fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Option<Expr> {
     let non_passive: Vec<&RuleOutput> = rule_outputs
         .iter()
         .filter(|r| !r.is_passive && !r.effect_stmts.is_empty())
         .collect();
 
-    if non_passive.is_empty() {
+    let has_passive_calculate = rule_outputs
+        .iter()
+        .any(|r| r.is_passive && r.passive_outputs.iter().any(|po| !po.calculate_stmts.is_empty()));
+
+    if non_passive.is_empty() && !has_passive_calculate {
         return None;
     }
 
@@ -1171,6 +1187,54 @@ fn passive_hook_from_effect(
         }
         "shortcut" => Some(PassiveHookSpec::Shortcut { joker_key }),
         "showman" => Some(PassiveHookSpec::Showman { joker_key }),
+        "combine_suits" => {
+            let suit_1 = effect
+                .params
+                .get("suit_1")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Spades")
+                .to_string();
+            let suit_2 = effect
+                .params
+                .get("suit_2")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Hearts")
+                .to_string();
+            Some(PassiveHookSpec::CombineSuits {
+                joker_key,
+                suit_1,
+                suit_2,
+            })
+        }
+        "combine_ranks" => {
+            let source_rank_type = effect
+                .params
+                .get("source_rank_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("specific")
+                .to_string();
+            let source_ranks = effect
+                .params
+                .get("source_ranks")
+                .and_then(|v| v.as_str())
+                .unwrap_or("J,Q,K")
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let target_rank = effect
+                .params
+                .get("target_rank")
+                .and_then(|v| v.as_str())
+                .unwrap_or("J")
+                .to_string();
+            Some(PassiveHookSpec::CombineRanks {
+                joker_key,
+                source_rank_type,
+                source_ranks,
+                target_rank,
+            })
+        }
         _ => None,
     }
 }
@@ -1191,6 +1255,8 @@ fn build_global_hook_stmts(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -
     let mut reduction_hooks = Vec::new();
     let mut shortcut_keys = Vec::new();
     let mut showman_keys = Vec::new();
+    let mut combine_suit_hooks = Vec::new();
+    let mut combine_rank_hooks = Vec::new();
 
     for hook in hooks {
         match hook {
@@ -1198,6 +1264,8 @@ fn build_global_hook_stmts(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -
             PassiveHookSpec::ReduceFlushStraightRequirements { .. } => reduction_hooks.push(hook),
             PassiveHookSpec::Shortcut { joker_key } => shortcut_keys.push(joker_key.clone()),
             PassiveHookSpec::Showman { joker_key } => showman_keys.push(joker_key.clone()),
+            PassiveHookSpec::CombineSuits { .. } => combine_suit_hooks.push(hook),
+            PassiveHookSpec::CombineRanks { .. } => combine_rank_hooks.push(hook),
         }
     }
 
@@ -1278,6 +1346,108 @@ fn build_global_hook_stmts(rule_outputs: &[RuleOutput], _ctx: &CompileContext) -
         }
         code.push_str("\n    return smods_showman_ref(card_key)\nend");
         stmts.push(lua_raw_stmt(code));
+    }
+
+    if !combine_suit_hooks.is_empty() {
+        let mut code = String::from(
+            "local card_is_suit_ref = Card.is_suit\nfunction Card:is_suit(suit, bypass_debuff, flush_calc)\n    local ret = card_is_suit_ref(self, suit, bypass_debuff, flush_calc)\n    if not ret and not SMODS.has_no_suit(self) then",
+        );
+        for hook in combine_suit_hooks {
+            if let PassiveHookSpec::CombineSuits {
+                joker_key,
+                suit_1,
+                suit_2,
+            } = hook
+            {
+                code.push_str(&format!(
+                    "\n        if next(SMODS.find_card(\"{key}\")) then\n            if (suit == \"{s1}\" and self.base.suit == \"{s2}\") or (suit == \"{s2}\" and self.base.suit == \"{s1}\") then\n                ret = true\n            end\n        end",
+                    key = joker_key,
+                    s1 = suit_1,
+                    s2 = suit_2
+                ));
+            }
+        }
+        code.push_str("\n    end\n    return ret\nend");
+        stmts.push(lua_raw_stmt(code));
+    }
+
+    if !combine_rank_hooks.is_empty() {
+        let mut face_hooks = Vec::new();
+        let mut id_hooks = Vec::new();
+        for hook in combine_rank_hooks {
+            if let PassiveHookSpec::CombineRanks { target_rank, .. } = hook {
+                if target_rank == "face_cards" {
+                    face_hooks.push(hook);
+                } else {
+                    id_hooks.push(hook);
+                }
+            }
+        }
+
+        let source_check = |source_rank_type: &str, source_ranks: &[String], subject: &str| {
+            match source_rank_type {
+                "all" => "true".to_string(),
+                "face_cards" => format!("({subject} >= 11 and {subject} <= 13)"),
+                _ => {
+                    let checks: Vec<String> = source_ranks
+                        .iter()
+                        .map(|r| format!("{} == {}", subject, conditions::utils::rank_to_id(r)))
+                        .collect();
+                    if checks.is_empty() {
+                        "false".to_string()
+                    } else {
+                        format!("({})", checks.join(" or "))
+                    }
+                }
+            }
+        };
+
+        if !face_hooks.is_empty() {
+            let mut code = String::from(
+                "local card_is_face_ref = Card.is_face\nfunction Card:is_face(from_boss)\n    if card_is_face_ref(self, from_boss) then return true end\n    local card_id = self:get_id()\n    if not card_id then return false end",
+            );
+            for hook in face_hooks {
+                if let PassiveHookSpec::CombineRanks {
+                    joker_key,
+                    source_rank_type,
+                    source_ranks,
+                    ..
+                } = hook
+                {
+                    code.push_str(&format!(
+                        "\n    if next(SMODS.find_card(\"{key}\")) and {check} then\n        return true\n    end",
+                        key = joker_key,
+                        check = source_check(source_rank_type, source_ranks, "card_id")
+                    ));
+                }
+            }
+            code.push_str("\n    return false\nend");
+            stmts.push(lua_raw_stmt(code));
+        }
+
+        if !id_hooks.is_empty() {
+            let mut code = String::from(
+                "local card_get_id_ref = Card.get_id\nfunction Card:get_id()\n    local original_id = card_get_id_ref(self)\n    if not original_id then return original_id end",
+            );
+            for hook in id_hooks {
+                if let PassiveHookSpec::CombineRanks {
+                    joker_key,
+                    source_rank_type,
+                    source_ranks,
+                    target_rank,
+                } = hook
+                {
+                    code.push_str(&format!(
+                        "\n    if next(SMODS.find_card(\"{key}\")) and {check} then\n        return {target}\n    end",
+                        key = joker_key,
+                        check = source_check(source_rank_type, source_ranks, "original_id"),
+                        target = conditions::utils::rank_to_id(target_rank)
+                    ));
+                }
+            }
+            code.push_str("\n    return original_id\nend");
+            stmts.push(lua_raw_stmt(code));
+        }
     }
 
     stmts

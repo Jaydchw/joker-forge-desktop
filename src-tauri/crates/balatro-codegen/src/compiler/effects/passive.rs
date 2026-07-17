@@ -100,33 +100,120 @@ pub fn showman(_effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOu
 }
 
 // ---------------------------------------------------------------------------
-// Combine Ranks, treats certain ranks as the same rank
+// Combine Ranks / Combine Suits
+// Behaviour lives in global Card hooks (see PassiveHookSpec in compiler::mod);
+// the passive output itself carries no code.
 // ---------------------------------------------------------------------------
 
-pub fn combine_ranks(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
-    let _source_rank_type = effect
-        .params
-        .get("source_rank_type")
-        .and_then(|v| v.as_str())
-        .unwrap_or("specific");
-    let target_rank = effect
-        .params
-        .get("target_rank")
-        .and_then(|v| v.as_str())
-        .unwrap_or("J");
-
-    ctx.add_config_str("target_rank", target_rank);
-
+pub fn combine_ranks(_effect: &EffectDef, _ctx: &mut CompileContext) -> PassiveEffectOutput {
     PassiveEffectOutput::default()
 }
 
-// ---------------------------------------------------------------------------
-// Combine Suits, treats two suits as the same
-// ---------------------------------------------------------------------------
-
-pub fn combine_suits(_effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
-    let _ = ctx;
+pub fn combine_suits(_effect: &EffectDef, _ctx: &mut CompileContext) -> PassiveEffectOutput {
     PassiveEffectOutput::default()
+}
+
+/// Disable Boss Blind (passive): disables the boss blind while this joker is held.
+pub fn disable_boss_blind(effect: &EffectDef, _ctx: &mut CompileContext) -> PassiveEffectOutput {
+    let message = super::utils::get_str(effect, "customMessage")
+        .map(|m| format!("\"{}\"", m.replace('"', "\\\"")))
+        .unwrap_or_else(|| "localize('ph_boss_disabled')".to_string());
+
+    let disable = format!(
+        "if G.GAME.blind and G.GAME.blind.boss and not G.GAME.blind.disabled then\n\
+            G.GAME.blind:disable()\n\
+            play_sound('timpani')\n\
+            SMODS.calculate_effect({{ message = {} }}, card)\n\
+        end",
+        message
+    );
+
+    PassiveEffectOutput {
+        add_to_deck: vec![lua_raw_stmt(disable.clone())],
+        calculate_stmts: vec![lua_if(
+            lua_and(
+                lua_path(&["context", "setting_blind"]),
+                lua_not(lua_path(&["context", "blueprint"])),
+            ),
+            vec![lua_raw_stmt(disable)],
+        )],
+        ..Default::default()
+    }
+}
+
+/// Edit Booster Packs (passive): modifies booster size/choices while held.
+pub fn edit_booster_packs(effect: &EffectDef, ctx: &mut CompileContext) -> PassiveEffectOutput {
+    let selected_type = effect
+        .params
+        .get("selected_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("size");
+    let operation = effect
+        .params
+        .get("operation")
+        .and_then(|v| v.as_str())
+        .unwrap_or("add");
+
+    let resolved = crate::compiler::values::resolve_config_value(
+        &effect.params,
+        "value",
+        ctx,
+        "booster_packs",
+    );
+    let modifier = if selected_type == "choice" {
+        "booster_choice_mod"
+    } else {
+        "booster_size_mod"
+    };
+
+    let (add, remove) = match operation {
+        "subtract" => (
+            format!(
+                "G.GAME.modifiers.{m} = (G.GAME.modifiers.{m} or 0) - {v}",
+                m = modifier,
+                v = resolved.lua_str
+            ),
+            format!(
+                "G.GAME.modifiers.{m} = (G.GAME.modifiers.{m} or 0) + {v}",
+                m = modifier,
+                v = resolved.lua_str
+            ),
+        ),
+        "set" => (
+            format!(
+                "{path}_original = G.GAME.modifiers.{m} or 0\n\
+                G.GAME.modifiers.{m} = {v}",
+                path = format!("{}.{}", ctx.ability_path(), modifier),
+                m = modifier,
+                v = resolved.lua_str
+            ),
+            format!(
+                "if {path}_original then\n\
+                    G.GAME.modifiers.{m} = {path}_original\n\
+                end",
+                path = format!("{}.{}", ctx.ability_path(), modifier),
+                m = modifier
+            ),
+        ),
+        _ => (
+            format!(
+                "G.GAME.modifiers.{m} = (G.GAME.modifiers.{m} or 0) + {v}",
+                m = modifier,
+                v = resolved.lua_str
+            ),
+            format!(
+                "G.GAME.modifiers.{m} = (G.GAME.modifiers.{m} or 0) - {v}",
+                m = modifier,
+                v = resolved.lua_str
+            ),
+        ),
+    };
+
+    PassiveEffectOutput {
+        add_to_deck: vec![lua_raw_stmt(add)],
+        remove_from_deck: vec![lua_raw_stmt(remove)],
+        ..Default::default()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +340,8 @@ pub fn compile_passive(
         "showman" => Some(showman(effect, ctx)),
         "combine_ranks" => Some(combine_ranks(effect, ctx)),
         "combine_suits" => Some(combine_suits(effect, ctx)),
+        "disable_boss_blind" => Some(disable_boss_blind(effect, ctx)),
+        "edit_booster_packs" => Some(edit_booster_packs(effect, ctx)),
         "reduce_flush_straight_requirement" | "reduce_flush_straight_requirements" => {
             Some(reduce_flush_straight_requirement(effect, ctx))
         }

@@ -43,16 +43,25 @@ pub fn specific_joker_owned(condition: &ConditionDef) -> Option<Expr> {
         .unwrap_or("key");
 
     let matcher = if selection_method == "variable" {
-        let key_var = get_param(condition, &["key_variable", "keyVar"])
-            .and_then(|v| v.as_str())
-            .unwrap_or("none");
+        let key_var = match super::utils::str_param(condition, &["key_variable", "keyVar"]) {
+            Some(name) => name,
+            None => {
+                return Some(super::utils::invalid_condition(
+                    "specific_joker",
+                    "no key variable selected",
+                ))
+            }
+        };
         format!("v.config.center.key == card.ability.extra.{}", key_var)
     } else {
         let joker_key = get_param(condition, &["joker_key", "jokerKey", "value"])
             .map(|v| v.to_string_lossy())
             .unwrap_or_default();
-        if joker_key.is_empty() {
-            return None;
+        if joker_key.trim().is_empty() {
+            return Some(super::utils::invalid_condition(
+                "specific_joker",
+                "no joker key given",
+            ));
         }
         let normalized = normalized_joker_key(&joker_key);
         format!("v.config.center.key == '{}'", normalized)
@@ -164,11 +173,13 @@ pub fn joker_selected(condition: &ConditionDef) -> Option<Expr> {
         let joker_key = get_param(condition, &["joker_key", "jokerKey"])
             .map(|v| v.to_string_lossy())
             .unwrap_or_default();
-        let normalized = if joker_key.starts_with("j_") {
-            joker_key
-        } else {
-            format!("j_{}", joker_key)
-        };
+        if joker_key.trim().is_empty() {
+            return Some(super::utils::invalid_condition(
+                "joker_selected",
+                "no joker key given",
+            ));
+        }
+        let normalized = normalized_joker_key(&joker_key);
         return Some(lua_raw_expr(format!(
             "#G.jokers.highlighted > 0 and G.jokers.highlighted[1].config and G.jokers.highlighted[1].config.center and G.jokers.highlighted[1].config.center.key == '{}'",
             normalized
@@ -222,9 +233,15 @@ pub fn joker_key(condition: &ConditionDef) -> Option<Expr> {
         .unwrap_or("key");
 
     if mode == "variable" {
-        let key_var = get_param(condition, &["key_variable", "keyVar"])
-            .and_then(|v| v.as_str())
-            .unwrap_or("none");
+        let key_var = match super::utils::str_param(condition, &["key_variable", "keyVar"]) {
+            Some(name) => name,
+            None => {
+                return Some(super::utils::invalid_condition(
+                    "joker_key",
+                    "no key variable selected",
+                ))
+            }
+        };
         return Some(lua_raw_expr(format!(
             "(context.other_joker and context.other_joker.config and context.other_joker.config.center and context.other_joker.config.center.key == card.ability.extra.{})",
             key_var
@@ -235,7 +252,10 @@ pub fn joker_key(condition: &ConditionDef) -> Option<Expr> {
         .map(|v| v.to_string_lossy())
         .unwrap_or_default();
     if joker_key.is_empty() {
-        return None;
+        return Some(super::utils::invalid_condition(
+            "joker_key",
+            "no joker key given",
+        ));
     }
     let normalized = normalized_joker_key(&joker_key);
 

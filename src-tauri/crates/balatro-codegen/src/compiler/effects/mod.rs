@@ -1,5 +1,6 @@
 pub mod card_transform;
 pub mod creation;
+pub mod deck_setup;
 pub mod destruction;
 pub mod economy;
 pub mod misc;
@@ -72,6 +73,15 @@ pub fn compile_effect(
         "create_copy_triggered_card" => creation::create_copy_triggered_card(effect, ctx, trigger),
         "create_copy_played_card" => creation::create_copy_played_card(effect, ctx, trigger),
         "create_last_played_planet" => creation::create_last_played_planet(effect, ctx),
+        "copy_selected_cards" => creation::copy_selected_cards(effect, ctx),
+
+        // --------------- Deck run-start setup ---------------
+        "edit_starting_dollars" => deck_setup::edit_starting_dollars(effect, ctx),
+        "add_starting_cards" => deck_setup::add_starting_cards(effect, ctx),
+        "edit_all_starting_cards" => deck_setup::edit_all_starting_cards(effect, ctx),
+        "edit_starting_suits" => deck_setup::edit_starting_suits(effect, ctx),
+        "edit_starting_ranks" => deck_setup::edit_starting_ranks(effect, ctx),
+        "remove_starting_cards" => deck_setup::remove_starting_cards(effect, ctx),
 
         // --------------- Destruction ---------------
         "destroy_card" | "destroy_playing_card" => destruction::destroy_card(effect, ctx, trigger),
