@@ -60,6 +60,7 @@ const REGULAR_CARD_THIN_BREAKPOINT = 560;
 const COMPACT_CARD_ASPECT_RATIO = 95 / 71;
 const SKELETON_GRACE_PERIOD_MS = 200;
 const FAST_INITIAL_RENDER_ITEM_LIMIT = 12;
+const LOAD_MORE_SCROLL_THRESHOLD_PX = 900;
 
 type ColumnMode = "auto" | "1" | "2" | "3";
 
@@ -148,6 +149,25 @@ const CardRenderer = memo(
     prev.viewMode === next.viewMode &&
     prev.renderContext === next.renderContext,
 );
+
+const getScrollableAncestor = (
+  element: HTMLElement | null,
+): HTMLElement | null => {
+  let current = element?.parentElement ?? null;
+
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    const canScroll =
+      (overflowY === "auto" || overflowY === "scroll") &&
+      current.scrollHeight > current.clientHeight;
+
+    if (canScroll) return current;
+    current = current.parentElement;
+  }
+
+  return null;
+};
 
 function GenericItemPageInternal<T extends { id: string }>({
   title,
@@ -499,20 +519,58 @@ function GenericItemPageInternal<T extends { id: string }>({
   useEffect(() => {
     const target = loadMoreRef.current;
     if (!target || !hasMoreItems) return;
+    const scrollRoot = getScrollableAncestor(target);
+
+    const loadNextBatch = () => {
+      startTransition(() => {
+        setRenderedItemCount((previous) =>
+          Math.min(previous + renderedItemBatchSize, processedItems.length),
+        );
+      });
+    };
+
+    const maybeLoadFromScrollPosition = () => {
+      if (scrollRoot) {
+        const distanceFromBottom =
+          scrollRoot.scrollHeight -
+          scrollRoot.scrollTop -
+          scrollRoot.clientHeight;
+        if (distanceFromBottom <= LOAD_MORE_SCROLL_THRESHOLD_PX) {
+          loadNextBatch();
+        }
+        return;
+      }
+
+      const documentElement = document.documentElement;
+      const distanceFromBottom =
+        documentElement.scrollHeight - window.scrollY - window.innerHeight;
+      if (distanceFromBottom <= LOAD_MORE_SCROLL_THRESHOLD_PX) {
+        loadNextBatch();
+      }
+    };
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
-        startTransition(() => {
-          setRenderedItemCount((previous) =>
-            Math.min(previous + renderedItemBatchSize, processedItems.length),
-          );
-        });
+        loadNextBatch();
       },
-      { rootMargin: `${loadMoreRootMargin}px 0px` },
+      {
+        root: scrollRoot,
+        rootMargin: `${loadMoreRootMargin}px 0px`,
+      },
     );
     observer.observe(target);
-    return () => observer.disconnect();
+
+    const scrollTarget: HTMLElement | Window = scrollRoot ?? window;
+    scrollTarget.addEventListener("scroll", maybeLoadFromScrollPosition, {
+      passive: true,
+    });
+    maybeLoadFromScrollPosition();
+
+    return () => {
+      observer.disconnect();
+      scrollTarget.removeEventListener("scroll", maybeLoadFromScrollPosition);
+    };
   }, [
     hasMoreItems,
     processedItems.length,
