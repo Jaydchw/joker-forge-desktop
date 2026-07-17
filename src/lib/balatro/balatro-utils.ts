@@ -331,6 +331,7 @@ interface RegistryState {
   vouchers: VoucherData[];
   decks: DeckData[];
   modPrefix: string;
+  disableVanilla: boolean;
 }
 
 let registryState: RegistryState = {
@@ -346,6 +347,7 @@ let registryState: RegistryState = {
   vouchers: [],
   decks: [],
   modPrefix: "",
+  disableVanilla: false,
 };
 
 const VANILLA_RARITIES_DATA = [
@@ -454,6 +456,7 @@ export const DataRegistry = {
     vouchers: VoucherData[],
     decks: DeckData[],
     modPrefix: string,
+    disableVanilla = false,
   ) => {
     registryState = {
       jokers,
@@ -468,6 +471,7 @@ export const DataRegistry = {
       vouchers,
       decks,
       modPrefix,
+      disableVanilla,
     };
   },
 
@@ -511,7 +515,7 @@ export const DataRegistry = {
       label: joker.name || "Unnamed Joker",
     }));
 
-    return [...vanilla, ...custom];
+    return registryState.disableVanilla ? custom : [...vanilla, ...custom];
   },
 
   getConsumables: (): Array<{ value: string; label: string; set: string }> => {
@@ -646,6 +650,7 @@ export const updateDataRegistry = (
   vouchers: any[],
   decks: any[],
   modPrefix: string,
+  disableVanilla = false,
 ) => {
   DataRegistry.update(
     jokers as JokerData[],
@@ -660,6 +665,7 @@ export const updateDataRegistry = (
     vouchers as VoucherData[],
     decks as DeckData[],
     modPrefix,
+    disableVanilla,
   );
 };
 

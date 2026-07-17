@@ -1063,7 +1063,7 @@ const persistStoreToTauriFiles = async (store: ProjectStore): Promise<void> => {
     if (!isLegacyJsonFile && !existingEntry.isDirectory) continue;
     const obsoletePath = await join(paths.projectsDir, existingEntry.name);
     try {
-      await remove(obsoletePath);
+      await remove(obsoletePath, { recursive: existingEntry.isDirectory });
     } catch {
       // Ignore cleanup failures.
     }
@@ -1448,6 +1448,7 @@ export const useProjectData = () => {
       currentProject.vouchers,
       currentProject.decks,
       currentProject.metadata.prefix || "",
+      currentProject.metadata.disable_vanilla === true,
     );
   }, [currentProject]);
 

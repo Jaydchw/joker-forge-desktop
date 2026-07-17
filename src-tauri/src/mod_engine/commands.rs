@@ -890,6 +890,7 @@ pub fn export_mod_package(
         !consumable_sets.is_empty(),
         !sounds.is_empty(),
         has_persistent_global_vars,
+        metadata.disable_vanilla,
         &run_scoped_global_vars,
     ));
     fs::write(&main_path, main_lua.as_bytes())

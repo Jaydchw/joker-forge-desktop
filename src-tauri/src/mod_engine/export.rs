@@ -562,6 +562,8 @@ pub struct ModMetadataInput {
     pub conflicts: Vec<String>,
     #[serde(default)]
     pub provides: Vec<String>,
+    #[serde(default)]
+    pub disable_vanilla: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -1671,6 +1673,7 @@ pub fn build_main_lua(
     load_consumable_sets: bool,
     load_sounds: bool,
     load_globals: bool,
+    disable_vanilla: bool,
     run_scoped_globals: &[UserVariableDef],
 ) -> String {
     let sorted_jokers: Vec<&BatchJokerEntry> = jokers.iter().collect();
@@ -1803,12 +1806,27 @@ end\n"
         "JF_GLOBALS = JF_GLOBALS or {}\n"
     };
 
-    let run_scoped_global_reset = if run_scoped_globals.is_empty() {
+    let game_globals_reset = if run_scoped_globals.is_empty() && !disable_vanilla {
         String::new()
     } else {
-        let mut assignments = String::new();
+        let mut body = String::new();
+        if disable_vanilla {
+            body.push_str(
+                "    for k, v in pairs(G.P_CENTERS) do\n\
+        if v.set == 'Joker' and not v.mod then\n\
+            G.GAME.banned_keys[k] = true\n\
+        end\n\
+    end\n",
+            );
+        }
+        if !run_scoped_globals.is_empty() {
+            body.push_str(
+                "    G.GAME.jf_global_vars = G.GAME.jf_global_vars or {}\n\
+    local jf_run_globals = G.GAME.jf_global_vars\n",
+            );
+        }
         for variable in run_scoped_globals {
-            assignments.push_str(&format!(
+            body.push_str(&format!(
                 "    jf_run_globals['{}'] = {}\n",
                 escape_lua_string(&variable.name),
                 param_value_to_lua_literal(&variable.initial_value)
@@ -1818,16 +1836,14 @@ end\n"
             "SMODS.current_mod = SMODS.current_mod or {{}}\n\
 SMODS.current_mod.reset_game_globals = function(run_start)\n\
     if not G or not G.GAME then return end\n\
-    G.GAME.jf_global_vars = G.GAME.jf_global_vars or {{}}\n\
-    local jf_run_globals = G.GAME.jf_global_vars\n\
 {}end\n",
-            assignments
+            body
         )
     };
 
     format!(
         "{}local NFS = require(\"nativefs\")\nto_big = to_big or function(a) return a end\nlenient_bignum = lenient_bignum or function(a) return a end\n{}\n{}{}\n",
-        atlas_decls, globals_load, run_scoped_global_reset, requires
+        atlas_decls, globals_load, game_globals_reset, requires
     )
 }
 
@@ -2143,11 +2159,37 @@ mod tests {
             false,
             false,
             false,
+            false,
             &run_scoped,
         );
 
         assert!(lua.contains("SMODS.current_mod.reset_game_globals = function(run_start)"));
         assert!(lua.contains("G.GAME.jf_global_vars = G.GAME.jf_global_vars or {}"));
         assert!(lua.contains("jf_run_globals['global_non_persistent'] = 7"));
+    }
+
+    #[test]
+    fn build_main_lua_bans_vanilla_jokers_when_disabled() {
+        let lua = build_main_lua(
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            &[],
+        );
+
+        assert!(lua.contains("SMODS.current_mod.reset_game_globals = function(run_start)"));
+        assert!(lua.contains("if v.set == 'Joker' and not v.mod then"));
+        assert!(lua.contains("G.GAME.banned_keys[k] = true"));
     }
 }
