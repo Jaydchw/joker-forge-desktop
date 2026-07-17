@@ -4806,12 +4806,13 @@
     "description": "Modify the Rate Probability for Joker Rarities in the Shop",
     "objectUsers": ["voucher", "deck"],
     "params": [
-      {
-        "id": "key",
-        "type": "text",
-        "label": "Joker Rarity Key (key)",
-        "default": ""
-      },
+        {
+          "id": "key",
+          "type": "text",
+          "label": "Joker Rarity Key (key)",
+          "default": "",
+          "optionSource": "rarities"
+        },
       {
         "id": "operation",
         "type": "select",
