@@ -166,12 +166,37 @@ pub fn free_rerolls(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutpu
     }
 }
 
-/// Set Dollars: adds or removes money.
+/// Edit Dollars: return the change in dollars that SMODS should apply.
+///
+/// SMODS treats the `dollars` calculation field as a delta and forwards it to
+/// `ease_dollars`. Operations that describe a final balance therefore need to
+/// be converted back into a delta from the player's current balance.
 pub fn set_dollars(effect: &EffectDef, ctx: &mut CompileContext) -> EffectOutput {
     let resolved = resolve_config_value(&effect.params, "value", ctx, "dollars");
+    let operation = get_str_default(effect, "operation", "add");
+    let value = resolved.expr;
+
+    let dollars_delta = match operation.as_str() {
+        "subtract" | "decrement" => lua_raw_expr(format!(
+            "-math.min(G.GAME.dollars, {})",
+            value
+        )),
+        "multiply" => lua_raw_expr(format!(
+            "(G.GAME.dollars * ({})) - G.GAME.dollars",
+            value
+        )),
+        "divide" => lua_raw_expr(format!(
+            "(G.GAME.dollars / ({})) - G.GAME.dollars",
+            value
+        )),
+        "set" => lua_raw_expr(format!("({}) - G.GAME.dollars", value)),
+        // `add`, the legacy `increment` spelling, and unknown saved values all
+        // retain the historical additive behaviour.
+        _ => value,
+    };
 
     EffectOutput {
-        return_fields: vec![("dollars".to_string(), resolved.expr)],
+        return_fields: vec![("dollars".to_string(), dollars_delta)],
         pre_return: vec![],
         config_vars: vec![],
         message: None,
