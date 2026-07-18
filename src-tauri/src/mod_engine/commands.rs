@@ -295,6 +295,7 @@ pub fn compile_rulebuilder_node_snippet(
     item_type: String,
     node_type: String,
     params: HashMap<String, Value>,
+    mod_prefix: Option<String>,
 ) -> Result<String, String> {
     let object_type = match item_type.as_str() {
         "joker" => ObjectType::Joker,
@@ -316,7 +317,7 @@ pub fn compile_rulebuilder_node_snippet(
         &node_type,
         &params,
         object_type,
-        "mod",
+        mod_prefix.as_deref().unwrap_or("mod"),
     ))
 }
 
@@ -884,6 +885,7 @@ pub fn export_mod_package(
         &enhancements,
         &seals,
         &editions,
+        &metadata.prefix,
         mod_icon_1x_png.as_ref().is_some() || mod_icon_2x_png.as_ref().is_some(),
         game_logo_1x_png.as_ref().is_some() || game_logo_2x_png.as_ref().is_some(),
         !rarities.is_empty(),

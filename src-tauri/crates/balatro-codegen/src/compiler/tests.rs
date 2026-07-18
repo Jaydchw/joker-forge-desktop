@@ -32,14 +32,31 @@ fn effect_code(effect_type: &str, params: &[(&str, ParamValue)]) -> String {
     effect_code_with_user_vars(effect_type, params, Vec::new())
 }
 
+fn effect_code_with_prefix(
+    effect_type: &str,
+    params: &[(&str, ParamValue)],
+    mod_prefix: &str,
+) -> String {
+    effect_code_with_prefix_and_user_vars(effect_type, params, mod_prefix, Vec::new())
+}
+
 fn effect_code_with_user_vars(
     effect_type: &str,
     params: &[(&str, ParamValue)],
     user_vars: Vec<UserVariableDef>,
 ) -> String {
+    effect_code_with_prefix_and_user_vars(effect_type, params, "mod", user_vars)
+}
+
+fn effect_code_with_prefix_and_user_vars(
+    effect_type: &str,
+    params: &[(&str, ParamValue)],
+    mod_prefix: &str,
+    user_vars: Vec<UserVariableDef>,
+) -> String {
     let mut ctx = CompileContext::new(
         ObjectType::Joker,
-        "mod".to_string(),
+        mod_prefix.to_string(),
         "test".to_string(),
         false,
     );
@@ -55,6 +72,43 @@ fn effect_code_with_user_vars(
     let output =
         effects::compile_effect(&effect, &mut ctx, "hand_played").expect("effect should compile");
     Emitter::new().emit_stmts(&effects::build_return_block(&[output]))
+}
+
+#[test]
+fn edit_dollars_respects_each_operation() {
+    let cases = [
+        ("add", "dollars = card.ability.extra.dollars0"),
+        (
+            "subtract",
+            "dollars = -math.min(G.GAME.dollars, card.ability.extra.dollars0)",
+        ),
+        (
+            "multiply",
+            "dollars = (G.GAME.dollars * (card.ability.extra.dollars0)) - G.GAME.dollars",
+        ),
+        (
+            "divide",
+            "dollars = (G.GAME.dollars / (card.ability.extra.dollars0)) - G.GAME.dollars",
+        ),
+        (
+            "set",
+            "dollars = (card.ability.extra.dollars0) - G.GAME.dollars",
+        ),
+    ];
+
+    for (operation, expected) in cases {
+        let code = effect_code(
+            "set_dollars",
+            &[
+                ("operation", ParamValue::Str(operation.to_string())),
+                ("value", ParamValue::Int(5)),
+            ],
+        );
+        assert!(
+            code.contains(expected),
+            "operation '{operation}' generated:\n{code}"
+        );
+    }
 }
 
 #[test]
@@ -105,6 +159,60 @@ fn create_joker_normalizes_rarity_param_for_smods() {
     );
 
     assert!(code.contains("set = 'Joker', rarity = 'Rare'"));
+}
+
+#[test]
+fn create_joker_pool_uses_custom_object_type_set() {
+    let code = effect_code(
+        "create_joker",
+        &[
+            ("joker_type", ParamValue::Str("pool".to_string())),
+            ("pool", ParamValue::Str("overview_jokers".to_string())),
+            ("edition", ParamValue::Str("negative".to_string())),
+        ],
+    );
+
+    assert!(
+        code.contains("SMODS.add_card({ set = 'mod_overview_jokers', edition = 'e_negative' })")
+    );
+    assert!(!code.contains("key_append = 'mod_overview_jokers'"));
+}
+
+#[test]
+fn create_joker_pool_does_not_duplicate_current_mod_prefix() {
+    let code = effect_code_with_prefix(
+        "create_joker",
+        &[
+            ("joker_type", ParamValue::Str("pool".to_string())),
+            ("pool", ParamValue::Str("overview_jokers".to_string())),
+            ("edition", ParamValue::Str("negative".to_string())),
+        ],
+        "overview",
+    );
+
+    assert!(code.contains("SMODS.add_card({ set = 'overview_jokers', edition = 'e_negative' })"));
+    assert!(!code.contains("set = 'overview_overview_jokers'"));
+}
+
+#[test]
+fn in_pool_accepts_type_or_source_for_named_pools() {
+    let ctx = CompileContext::new(
+        ObjectType::Joker,
+        "mod".to_string(),
+        "test".to_string(),
+        false,
+    );
+    let appearance = AppearanceDef {
+        appears_in: vec!["mod_overview_jokers".to_string()],
+        not_appears_in: vec![],
+        appear_flags: vec![],
+    };
+
+    let expr = build_in_pool(&appearance, &ctx).expect("in_pool should be generated");
+    let code = Emitter::new().emit_expr_to_string(&expr);
+
+    assert!(code.contains("args.type == 'mod_overview_jokers'"));
+    assert!(code.contains("args.source == 'mod_overview_jokers'"));
 }
 
 #[test]

@@ -60,12 +60,14 @@ pub fn game_var_lua_code(var_id: &str) -> Option<&'static str> {
     Some(match var_id {
         "hand_size" => "#G.hand.cards",
         "joker_count" => "#G.jokers.cards",
-        "remaining_hands" => "G.GAME.current_round.hands_left",
-        "remaining_discards" => "G.GAME.current_round.discards_left",
+        // The editor catalog uses the `*_remaining` IDs. Keep the older
+        // `remaining_*` spellings as aliases for saved projects.
+        "hands_remaining" | "remaining_hands" => "G.GAME.current_round.hands_left",
+        "discards_remaining" | "remaining_discards" => "G.GAME.current_round.discards_left",
         "deck_size" => "#G.deck.cards",
         "full_deck_size" => "#G.playing_cards",
-        "player_money" => "G.GAME.dollars",
-        "ante_level" => "G.GAME.round_resets.ante",
+        "current_money" | "player_money" => "G.GAME.dollars",
+        "current_ante" | "ante_level" => "G.GAME.round_resets.ante",
         "blind_chips" => "G.GAME.blind.chips",
         "blind_mult" => "G.GAME.blind.mult",
         "consumable_count" => "#G.consumeables.cards",
@@ -286,9 +288,7 @@ pub fn resolve_config_value(
             // Game variable reference
             if let Some(gv) = parse_game_var(s) {
                 let expr = build_game_var_expr(&gv);
-                let code = game_var_lua_code(&gv.var_id)
-                    .unwrap_or(&gv.var_id)
-                    .to_string();
+                let code = expr.to_string();
                 return ResolvedValue {
                     expr,
                     lua_str: code,
@@ -305,9 +305,7 @@ pub fn resolve_config_value(
                 if let Some(s) = t.value.as_str() {
                     if let Some(gv) = parse_game_var(s) {
                         let expr = build_game_var_expr(&gv);
-                        let code = game_var_lua_code(&gv.var_id)
-                            .unwrap_or(&gv.var_id)
-                            .to_string();
+                        let code = expr.to_string();
                         return ResolvedValue {
                             expr,
                             lua_str: code,
@@ -513,5 +511,37 @@ pub fn comparison_op(operator: &str, lhs: Expr, rhs: Expr) -> Expr {
         "greater_than_or_equal" | "greater_equals" | ">=" => lua_ge(lhs, rhs),
         "less_than_or_equal" | "less_equals" | "<=" => lua_le(lhs, rhs),
         _ => lua_eq(lhs, rhs),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::TypedValue;
+    use serde_json::json;
+
+    #[test]
+    fn editor_game_var_ids_resolve_to_balatro_state() {
+        assert_eq!(
+            game_var_lua_code("hands_remaining"),
+            Some("G.GAME.current_round.hands_left")
+        );
+        assert_eq!(
+            game_var_lua_code("discards_remaining"),
+            Some("G.GAME.current_round.discards_left")
+        );
+    }
+
+    #[test]
+    fn typed_game_var_preserves_start_and_multiplier() {
+        let value = ParamValue::Typed(TypedValue {
+            value: json!("GAMEVAR:hands_remaining|2|3"),
+            value_type: "game_var".to_string(),
+        });
+
+        assert_eq!(
+            resolve_value(&value, ObjectType::Joker, None).to_string(),
+            "(3 + G.GAME.current_round.hands_left) * 2"
+        );
     }
 }

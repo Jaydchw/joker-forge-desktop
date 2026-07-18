@@ -395,6 +395,7 @@ fn validate_rulebuilder_item_data(item_type: &str, item_data: &Value) -> Result<
                 if p_schema.param_type == "number"
                     && vt != "number"
                     && vt != "user_var"
+                    && vt != "game_var"
                     && vt != "range_var"
                 {
                     return Err(format!(
@@ -451,6 +452,7 @@ fn validate_rulebuilder_item_data(item_type: &str, item_data: &Value) -> Result<
                 if p_schema.param_type == "number"
                     && vt != "number"
                     && vt != "user_var"
+                    && vt != "game_var"
                     && vt != "range_var"
                 {
                     return Err(format!(

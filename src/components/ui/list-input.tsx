@@ -1,17 +1,19 @@
 import { memo, useCallback, useState } from "react";
-import { Trash } from "@phosphor-icons/react";
+import { LockKey, Trash } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 
 interface ListInputProps {
   value: string[];
   onChange: (value: string[]) => void;
   placeholder?: string;
+  lockedValues?: string[];
 }
 
 export const ListInput = memo(function ListInput({
   value,
   onChange,
   placeholder,
+  lockedValues = [],
 }: ListInputProps) {
   const [draft, setDraft] = useState("");
 
@@ -20,12 +22,18 @@ export const ListInput = memo(function ListInput({
       const items = raw
         .split(",")
         .map((item) => item.trim())
-        .filter(Boolean);
+        .filter(
+          (item) =>
+            Boolean(item) &&
+            !lockedValues.some(
+              (lockedValue) => lockedValue.toLowerCase() === item.toLowerCase(),
+            ),
+        );
 
       if (items.length === 0) return;
       onChange([...(value || []), ...items]);
     },
-    [onChange, value],
+    [lockedValues, onChange, value],
   );
 
   const handleInputChange = useCallback(
@@ -37,7 +45,14 @@ export const ListInput = memo(function ListInput({
         const readyItems = parts
           .slice(0, -1)
           .map((item) => item.trim())
-          .filter(Boolean);
+          .filter(
+            (item) =>
+              Boolean(item) &&
+              !lockedValues.some(
+                (lockedValue) =>
+                  lockedValue.toLowerCase() === item.toLowerCase(),
+              ),
+          );
 
         if (readyItems.length > 0) {
           onChange([...(value || []), ...readyItems]);
@@ -49,7 +64,7 @@ export const ListInput = memo(function ListInput({
 
       setDraft(next);
     },
-    [onChange, value],
+    [lockedValues, onChange, value],
   );
 
   const handleKeyDown = useCallback(
@@ -87,8 +102,18 @@ export const ListInput = memo(function ListInput({
         placeholder={placeholder}
         className="cursor-text"
       />
-      {value.length > 0 && (
+      {lockedValues.length + value.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {lockedValues.map((item) => (
+            <div
+              key={`locked-${item}`}
+              className="flex items-center justify-between gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3 py-2 text-xs font-semibold text-foreground/80 shadow-sm"
+              title="This pool is managed automatically"
+            >
+              <span className="truncate">{item}</span>
+              <LockKey className="h-3.5 w-3.5 shrink-0 text-primary" />
+            </div>
+          ))}
           {value.map((item, index) => (
             <div
               key={`${item}-${index}`}

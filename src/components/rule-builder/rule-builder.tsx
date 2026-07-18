@@ -3950,6 +3950,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
               itemType: previewItemType,
               nodeType,
               params,
+              modPrefix: data.metadata.prefix,
             },
           );
 
@@ -3979,7 +3980,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         const freshCompiled = await compileSingleItemLuaWithSegments(
           { ...(itemWithoutCustomCode as any), rules },
           previewItemType,
-          "mod",
+          data.metadata.prefix,
           { includeLocTxt: true, globalUserVariables },
         );
 

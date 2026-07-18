@@ -1502,11 +1502,10 @@ fn build_in_pool(appearance: &AppearanceDef, _ctx: &CompileContext) -> Option<Ex
 
     // Not appears in checks
     for pool in &appearance.not_appears_in {
-        let field = if pool.len() <= 3 { "source" } else { "type" };
-        conditions.push(lua_not(lua_eq(
-            lua_field(lua_ident("args"), field),
-            lua_str(pool),
-        )));
+        conditions.push(lua_not(lua_or_chain(vec![
+            lua_eq(lua_field(lua_ident("args"), "type"), lua_str(pool)),
+            lua_eq(lua_field(lua_ident("args"), "source"), lua_str(pool)),
+        ])));
     }
 
     // Appears in checks
@@ -1515,8 +1514,10 @@ fn build_in_pool(appearance: &AppearanceDef, _ctx: &CompileContext) -> Option<Ex
             .appears_in
             .iter()
             .map(|pool| {
-                let field = if pool.len() <= 3 { "source" } else { "type" };
-                lua_eq(lua_field(lua_ident("args"), field), lua_str(pool))
+                lua_or_chain(vec![
+                    lua_eq(lua_field(lua_ident("args"), "type"), lua_str(pool)),
+                    lua_eq(lua_field(lua_ident("args"), "source"), lua_str(pool)),
+                ])
             })
             .collect();
         conditions.push(lua_or_chain(appear_checks));

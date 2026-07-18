@@ -1,5 +1,5 @@
 use crate::compiler::context::CompileContext;
-use crate::compiler::values::is_user_variable_type;
+use crate::compiler::values::{is_game_variable_type, is_user_variable_type, resolve_value};
 use crate::types::{EffectDef, ParamValue};
 
 pub fn get_str(effect: &EffectDef, key: &str) -> Option<String> {
@@ -80,7 +80,14 @@ pub fn value_to_lua_str(
             format!("{}.{}", ctx.ability_path(), var_name)
         }
         Some(ParamValue::Typed(t)) => {
-            if is_user_variable_type(&t.value_type) {
+            if is_game_variable_type(&t.value_type) {
+                resolve_value(
+                    effect.params.get(param_key).expect("matched parameter must exist"),
+                    ctx.object_type,
+                    None,
+                )
+                .to_string()
+            } else if is_user_variable_type(&t.value_type) {
                 if let Some(name) = t.value.as_str() {
                     ctx.user_var_path(name)
                 } else {

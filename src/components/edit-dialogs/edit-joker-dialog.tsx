@@ -29,14 +29,17 @@ interface EditJokerDialogProps {
   editingItem: JokerData | null;
   setEditingItem: (item: JokerData | null) => void;
   onSave: (id: string, updates: Partial<JokerData>) => void;
+  modPrefix?: string;
 }
 
 export function EditJokerDialog({
   editingItem,
   setEditingItem,
   onSave,
+  modPrefix = "",
 }: EditJokerDialogProps) {
   const processJokerImage = processBalatroCardImage;
+  const automaticPool = `${modPrefix.trim()}${modPrefix.trim() ? "_" : ""}jokers`;
   const rarityOptions = useMemo(() => getRarityDropdownOptions(), []);
   const unlockOperatorOptions = useMemo(
     () =>
@@ -488,7 +491,11 @@ export function EditJokerDialog({
               {
                 id: "pools",
                 type: "list",
+                label: "Pools",
                 placeholder: "pool_one, pool_two",
+                lockedValues: modPrefix.trim() ? [automaticPool] : [],
+                description:
+                  "The locked pool is included automatically. You can add optional extra pools; the mod prefix is added during export.",
               },
             ],
           },
@@ -517,7 +524,7 @@ export function EditJokerDialog({
         ],
       },
     ],
-    [processJokerImage, rarityOptions, unlockOperatorOptions],
+    [automaticPool, processJokerImage, rarityOptions, unlockOperatorOptions],
   );
 
   const renderPreview = useCallback((item: JokerData | null) => {

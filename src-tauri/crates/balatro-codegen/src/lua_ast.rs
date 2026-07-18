@@ -1108,6 +1108,8 @@ fn should_dedent_before(line: &str) -> bool {
         || line.starts_with("until ")
         || line == "}"
         || line.starts_with("},")
+        || line.starts_with("})")
+        || line.starts_with("}):")
 }
 
 fn should_indent_after(line: &str) -> bool {
@@ -1209,6 +1211,16 @@ mod tests {
         assert_eq!(
             out,
             "return {\n    dollars = card.ability.extra.dollars0,\n    colour = G.C.MONEY\n}\n"
+        );
+    }
+
+    #[test]
+    fn format_lua_source_closes_constructor_tables_without_indent_leaking() {
+        let src = "SMODS.Atlas({\nkey = 'one'\n})\n\nSMODS.Atlas({\nkey = 'two'\n}):register()\n\nlocal NFS = require('nativefs')\n";
+        let out = format_lua_source(src);
+        assert_eq!(
+            out,
+            "SMODS.Atlas({\n    key = 'one'\n})\n\nSMODS.Atlas({\n    key = 'two'\n}):register()\n\nlocal NFS = require('nativefs')\n"
         );
     }
 

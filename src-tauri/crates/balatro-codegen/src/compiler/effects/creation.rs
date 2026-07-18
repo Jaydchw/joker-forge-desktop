@@ -658,6 +658,8 @@ fn normalize_joker_key(key: &str) -> String {
 }
 
 fn normalize_pool_key(pool: &str, mod_prefix: &str) -> String {
+    let pool = pool.trim();
+    let mod_prefix = mod_prefix.trim();
     if mod_prefix.is_empty() || pool.starts_with(&format!("{}_", mod_prefix)) {
         pool.to_string()
     } else {

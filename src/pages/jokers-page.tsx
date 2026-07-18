@@ -690,6 +690,7 @@ export default function JokersPage() {
         editingItem={editingItem}
         setEditingItem={setEditingItem}
         onSave={handleInfoSave}
+        modPrefix={data.metadata.prefix}
       />
       {ruleEditingItem && (
         <RuleBuilder

@@ -1085,7 +1085,10 @@ fn update_rule_flags_from_effect(effect_type: &str, retrigger: &mut bool, destro
 }
 
 fn map_appearance(input: &JokerDataInput) -> Option<AppearanceDef> {
-    let mut appears_in = input.pools.clone();
+    // Custom pool membership is registered through SMODS.ObjectType in
+    // main.lua. Turning it into an `in_pool` predicate rejects those same
+    // cards because SMODS does not pass the ObjectType key to that callback.
+    let appears_in = Vec::new();
     let mut not_appears_in = Vec::new();
     let mut appear_flags = Vec::new();
 
@@ -1098,9 +1101,6 @@ fn map_appearance(input: &JokerDataInput) -> Option<AppearanceDef> {
             appear_flags.push(flag.to_string());
         }
     }
-
-    appears_in.sort();
-    appears_in.dedup();
 
     if appears_in.is_empty() && not_appears_in.is_empty() && appear_flags.is_empty() {
         None
@@ -1659,6 +1659,74 @@ pub fn build_globals_lua(global_vars: &[UserVariableDef]) -> String {
     format!("return {{\n{}\n}}\n", lines.join(",\n"))
 }
 
+fn normalize_joker_pool_key(pool: &str, mod_prefix: &str) -> Option<String> {
+    let normalized = pool.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let prefix = mod_prefix.trim();
+    if prefix.is_empty() || normalized.starts_with(&format!("{}_", prefix)) {
+        Some(normalized.to_string())
+    } else {
+        Some(format!("{}_{}", prefix, normalized))
+    }
+}
+
+fn full_joker_center_key(object_key: &str, mod_prefix: &str) -> String {
+    let key = object_key.trim();
+    let prefix = mod_prefix.trim();
+    if !prefix.is_empty() && key.starts_with(&format!("j_{}_", prefix)) {
+        key.to_string()
+    } else {
+        format!("j_{}_{}", prefix, key)
+    }
+}
+
+fn build_joker_object_types_lua(jokers: &[&BatchJokerEntry], mod_prefix: &str) -> String {
+    let mut pools: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let default_pool = normalize_joker_pool_key("jokers", mod_prefix);
+
+    for entry in jokers {
+        let joker_key = full_joker_center_key(&entry.joker_data.object_key, mod_prefix);
+        if let Some(pool_key) = &default_pool {
+            pools
+                .entry(pool_key.clone())
+                .or_default()
+                .push(joker_key.clone());
+        }
+        for pool in &entry.joker_data.pools {
+            if let Some(pool_key) = normalize_joker_pool_key(pool, mod_prefix) {
+                pools.entry(pool_key).or_default().push(joker_key.clone());
+            }
+        }
+    }
+
+    if pools.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::new();
+    for (pool_key, mut joker_keys) in pools {
+        joker_keys.sort();
+        joker_keys.dedup();
+
+        out.push_str("SMODS.ObjectType({\n");
+        out.push_str(&format!("    key = '{}',\n", escape_lua_string(&pool_key)));
+        out.push_str("    cards = {\n");
+        for joker_key in joker_keys {
+            out.push_str(&format!(
+                "        ['{}'] = true,\n",
+                escape_lua_string(&joker_key)
+            ));
+        }
+        out.push_str("    },\n");
+        out.push_str("})\n");
+    }
+
+    out
+}
+
 pub fn build_main_lua(
     jokers: &[BatchJokerEntry],
     consumables: &[BatchConsumableEntry],
@@ -1667,6 +1735,7 @@ pub fn build_main_lua(
     enhancements: &[BatchEnhancementEntry],
     seals: &[BatchSealEntry],
     editions: &[BatchEditionEntry],
+    mod_prefix: &str,
     has_mod_icon: bool,
     has_game_logo: bool,
     load_rarities: bool,
@@ -1732,6 +1801,7 @@ pub fn build_main_lua(
             j.file_name
         ));
     }
+    requires.push_str(&build_joker_object_types_lua(&sorted_jokers, mod_prefix));
     for c in &sorted_consumables {
         requires.push_str(&format!(
             "assert(SMODS.load_file(\"consumables/{}\"))()\n",
@@ -1949,9 +2019,16 @@ mod tests {
     }
 
     fn make_joker_entry(vars: Vec<UserVariableInput>) -> BatchJokerEntry {
+        make_joker_entry_with_pools(vars, vec![])
+    }
+
+    fn make_joker_entry_with_pools(
+        vars: Vec<UserVariableInput>,
+        pools: Vec<String>,
+    ) -> BatchJokerEntry {
         BatchJokerEntry {
             joker_data: JokerDataInput {
-                object_key: "j_test".to_string(),
+                object_key: "test".to_string(),
                 name: "Test Joker".to_string(),
                 description: "Test".to_string(),
                 localizations: vec![],
@@ -1975,7 +2052,7 @@ mod tests {
                 force_negative: false,
                 ignore_slot_limit: false,
                 info_queues: vec![],
-                pools: vec![],
+                pools,
                 appears_in_shop: Some(true),
                 appear_flags: None,
                 unlock_trigger: None,
@@ -2153,6 +2230,7 @@ mod tests {
             &[],
             &[],
             &[],
+            "mod",
             false,
             false,
             false,
@@ -2178,6 +2256,7 @@ mod tests {
             &[],
             &[],
             &[],
+            "mod",
             false,
             false,
             false,
@@ -2191,5 +2270,66 @@ mod tests {
         assert!(lua.contains("SMODS.current_mod.reset_game_globals = function(run_start)"));
         assert!(lua.contains("if v.set == 'Joker' and not v.mod then"));
         assert!(lua.contains("G.GAME.banned_keys[k] = true"));
+    }
+
+    #[test]
+    fn build_main_lua_registers_joker_object_types_for_custom_pools() {
+        let jokers = vec![make_joker_entry_with_pools(
+            vec![],
+            vec!["overview_jokers".to_string()],
+        )];
+
+        assert!(map_appearance(&jokers[0].joker_data).is_none());
+
+        let lua = build_main_lua(
+            &jokers,
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            "overview",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            &[],
+        );
+
+        assert!(lua.contains("assert(SMODS.load_file(\"jokers/j_test.lua\"))()"));
+        assert!(lua.contains("SMODS.ObjectType({"));
+        assert!(lua.contains("key = 'overview_jokers'"));
+        assert!(lua.contains("['j_overview_test'] = true"));
+    }
+
+    #[test]
+    fn build_main_lua_registers_every_joker_in_the_default_mod_pool() {
+        let jokers = vec![make_joker_entry_with_pools(vec![], vec![])];
+
+        let lua = build_main_lua(
+            &jokers,
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            &[],
+            "overview",
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            &[],
+        );
+
+        assert!(lua.contains("key = 'overview_jokers'"));
+        assert!(lua.contains("['j_overview_test'] = true"));
     }
 }

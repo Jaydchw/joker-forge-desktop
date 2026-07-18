@@ -107,6 +107,7 @@ export interface DialogField<T> {
   description?: string;
   options?: FieldOption[];
   placeholder?: string;
+  lockedValues?: string[];
   render?: (
     value: any,
     onChange: (val: any) => void,
@@ -427,6 +428,7 @@ const MemoizedField = memo(
               value={Array.isArray(safeValue) ? safeValue : []}
               onChange={(val) => onChange(field.id, val)}
               placeholder={field.placeholder}
+              lockedValues={field.lockedValues}
             />
           );
         case "image":
