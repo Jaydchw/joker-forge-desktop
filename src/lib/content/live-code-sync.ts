@@ -85,7 +85,7 @@ export function parseLuaScalar(source: string): Scalar | undefined {
       if (escaped === "\r" && text[i + 1] === "\n") i += 1;
       result += "\n";
     } else if (escaped === "z") {
-      while (/\s/.test(text[i + 1] ?? "") && i < text.length - 2) i += 1;
+      while (/[\t\v\f\r\n ]/.test(text[i + 1] ?? "") && i < text.length - 2) i += 1;
     } else if (escaped === "x") {
       const hex = text.slice(i + 1, i + 3);
       if (!/^[\da-fA-F]{2}$/.test(hex)) return undefined;

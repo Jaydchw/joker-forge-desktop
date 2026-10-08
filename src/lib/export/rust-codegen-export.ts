@@ -22,6 +22,7 @@ import {
   sanitizeLocalizationEntries,
 } from "@/lib/core/localization";
 import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
+import { rebaseCustomLuaAtlas, type AtlasItemType } from "./custom-lua-atlas";
 
 // The editor, card preview and exported loc_vars must use the same slot order.
 const withDescriptionVariables = (item: unknown) => {
@@ -116,6 +117,14 @@ interface AtlasBuildResult {
   positionsById: Record<string, AtlasPos>;
   soulPositionsById: Record<string, AtlasPos>;
 }
+
+const customLuaForAtlas = (item: BaseGameObject, itemType: AtlasItemType, atlas: AtlasBuildResult | null) =>
+  rebaseCustomLuaAtlas(item.customCode, {
+    itemType,
+    objectKey: item.objectKey,
+    pos: atlas?.positionsById[item.id] ?? { x: 0, y: 0 },
+    soulPos: atlas?.soulPositionsById[item.id] ?? null,
+  });
 
 const buildFixedSizeImage = async (
   src: string,
@@ -576,7 +585,7 @@ export const exportModRust = async (
       pos: jokerAtlas1x?.positionsById[joker.id] ?? { x: 0, y: 0 },
       soulPos: jokerAtlas1x?.soulPositionsById[joker.id] ?? null,
       fileName: `${joker.objectKey}.lua`,
-      customLua: joker.customCode?.fullCode ?? null,
+      customLua: customLuaForAtlas(joker, "joker", jokerAtlas1x),
     })),
     consumables: sortedConsumables.map((item) => ({
       ...(() => {
@@ -591,7 +600,7 @@ export const exportModRust = async (
       pos: consumablesAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       soulPos: consumablesAtlas1x?.soulPositionsById[item.id] ?? null,
       fileName: `${item.objectKey}.lua`,
-      customLua: item.customCode?.fullCode ?? null,
+      customLua: customLuaForAtlas(item, "consumable", consumablesAtlas1x),
     })),
     vouchers: sortedVouchers.map((item) => ({
       ...(() => {
@@ -606,7 +615,7 @@ export const exportModRust = async (
       pos: vouchersAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       soulPos: vouchersAtlas1x?.soulPositionsById[item.id] ?? null,
       fileName: `${item.objectKey}.lua`,
-      customLua: item.customCode?.fullCode ?? null,
+      customLua: customLuaForAtlas(item, "voucher", vouchersAtlas1x),
     })),
     decks: sortedDecks.map((item) => ({
       ...(() => {
@@ -620,7 +629,7 @@ export const exportModRust = async (
       })(),
       pos: decksAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
-      customLua: item.customCode?.fullCode ?? null,
+      customLua: customLuaForAtlas(item, "deck", decksAtlas1x),
     })),
     enhancements: sortedEnhancements.map((item) => ({
       ...(() => {
@@ -634,7 +643,7 @@ export const exportModRust = async (
       })(),
       pos: enhancementsAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
-      customLua: item.customCode?.fullCode ?? null,
+      customLua: customLuaForAtlas(item, "enhancement", enhancementsAtlas1x),
     })),
     seals: sortedSeals.map((item) => ({
       ...(() => {
@@ -648,7 +657,7 @@ export const exportModRust = async (
       })(),
       pos: sealsAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
-      customLua: item.customCode?.fullCode ?? null,
+      customLua: customLuaForAtlas(item, "seal", sealsAtlas1x),
     })),
     editions: sortedEditions.map((item) => ({
       ...(() => {
@@ -672,7 +681,7 @@ export const exportModRust = async (
         },
         pos: boostersAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
         fileName: `${item.objectKey}.lua`,
-        customLua: item.customCode?.fullCode ?? null,
+        customLua: customLuaForAtlas(item, "booster", boostersAtlas1x),
       };
     }),
     includeLocTxt: !useLocalizationFile,
