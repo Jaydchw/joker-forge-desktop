@@ -118,8 +118,11 @@ export interface CardAppearance {
   uta?: boolean;
 }
 
+export type RuleExecutionMode = "first_match" | "all_matching";
+
 export interface JokerData extends BaseGameObject {
   objectType: "joker";
+  ruleExecutionMode?: RuleExecutionMode;
   rarity: number | string;
   cost: number;
   blueprint_compat: boolean;

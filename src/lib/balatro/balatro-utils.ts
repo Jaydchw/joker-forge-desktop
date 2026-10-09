@@ -1,5 +1,6 @@
 import { jokerUnlockOptions, vouchersUnlockOptions } from "@/lib/items/unlock-utils";
 import type { Rule } from "@/components/rule-builder/types";
+import type { RuleExecutionMode } from "@/lib/core/types";
 
 export const slugify = (text: string): string => {
   return (
@@ -114,6 +115,7 @@ export interface GameObjectData {
 }
 
 export interface JokerData extends GameObjectData {
+  ruleExecutionMode?: RuleExecutionMode;
   imagePreview: string;
   overlayImagePreview?: string;
   rarity: number | string;

@@ -42,6 +42,7 @@ import { BalatroCard } from "@/components/balatro/balatro-card";
 import { getRandomPlaceholder } from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
+import type { RuleBuilderSaveOptions } from "@/components/rule-builder/rule-builder";
 import { exportSingleJokerRust } from "@/lib/export/rust-codegen-export";
 import { collectGlobalVariables, getProjectGlobalVariables } from "@/lib/app/global-user-variables";
 import { getAllVariables } from "@/lib/rules/user-variable-utils";
@@ -123,9 +124,15 @@ export default function JokersPage() {
   const bulkItems = bulkEditIds ? data.jokers.filter((item) => bulkEditIds.has(item.id)) : [];
 
   const handleRulesSave = useCallback(
-    (rules: Rule[]) => {
+    (rules: Rule[], options?: RuleBuilderSaveOptions) => {
       if (!ruleEditingItem) return;
       const updates: Partial<JokerData> = { rules };
+      if (options?.ruleExecutionMode) {
+        updates.ruleExecutionMode = options.ruleExecutionMode;
+      }
+      if (options && "customCode" in options) {
+        updates.customCode = options.customCode;
+      }
       if (
         shouldOverwriteDescriptionOnRuleSave(
           ruleEditingItem.description,

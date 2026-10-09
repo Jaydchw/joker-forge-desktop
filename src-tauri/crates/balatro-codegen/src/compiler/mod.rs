@@ -49,6 +49,7 @@ pub fn compile_joker_with_options(
         joker.key.clone(),
         joker.blueprint_compat,
     );
+    ctx.rule_execution_mode = joker.rule_execution_mode;
     ctx.set_user_vars(joker.user_variables.clone());
     ctx.set_description_variables(joker.description_variables.clone());
 
@@ -987,7 +988,7 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
             ));
         }
 
-        append_rule_chain_with_fallback(&mut trigger_body, &rules_for_trigger, |ro| {
+        let build_rule_stmts = |ro: &RuleOutput| {
             let mut rule_stmts = ro.effect_stmts.clone();
             if ro.has_destroy && trigger.as_str() != "card_discarded" {
                 rule_stmts.insert(
@@ -1000,7 +1001,12 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
             }
 
             wrap_rule_segment(&ro.rule_id, rule_stmts)
-        });
+        };
+        if ctx.rule_execution_mode == RuleExecutionMode::AllMatching {
+            append_independent_rules(&mut trigger_body, &rules_for_trigger, build_rule_stmts);
+        } else {
+            append_rule_chain_with_fallback(&mut trigger_body, &rules_for_trigger, build_rule_stmts);
+        }
 
         if !trigger_body.is_empty() {
             let trigger_if = Stmt::If {
@@ -2207,6 +2213,56 @@ pub(crate) fn append_rule_chain_with_fallback<F>(
     if let Some(stmts) = fallback_tail {
         out.extend(stmts);
     }
+}
+
+fn append_independent_rules<F>(
+    out: &mut Vec<Stmt>,
+    rules_for_trigger: &[&RuleOutput],
+    mut build_rule_stmts: F,
+) where
+    F: FnMut(&RuleOutput) -> Vec<Stmt>,
+{
+    out.push(lua_local("jf_rule_effects", lua_table_raw(vec![])));
+    for ro in rules_for_trigger {
+        let rule_stmts = vec![
+            lua_local("jf_run_rule", Expr::Function {
+                params: vec![],
+                body: build_rule_stmts(ro),
+            }),
+            lua_local("jf_rule_effect", lua_call("jf_run_rule", vec![])),
+            lua_if(
+                lua_raw_expr("jf_rule_effect == true or (type(jf_rule_effect) == 'table' and next(jf_rule_effect))"),
+                vec![lua_raw_stmt("jf_rule_effects[#jf_rule_effects + 1] = jf_rule_effect")],
+            ),
+        ];
+        if let Some(condition) = &ro.condition_expr {
+            out.push(lua_if(condition.clone(), rule_stmts));
+        } else {
+            out.push(Stmt::DoBlock(rule_stmts));
+        }
+    }
+
+    out.push(lua_raw_stmt(
+        "local jf_remove = false\n\
+        for _, jf_rule_effect in ipairs(jf_rule_effects) do\n\
+            local jf_effect = jf_rule_effect\n\
+            while jf_effect == true or type(jf_effect) == 'table' do\n\
+                if jf_effect == true then\n\
+                    jf_remove = true\n\
+                    break\n\
+                end\n\
+                jf_remove = jf_remove or not not jf_effect.remove\n\
+                jf_effect = jf_effect.extra\n\
+            end\n\
+        end",
+    ));
+    out.push(lua_local("jf_merged_effect", lua_call("SMODS.merge_effects", vec![lua_ident("jf_rule_effects")])));
+    out.push(lua_if(lua_ident("jf_merged_effect"), vec![
+        lua_if(lua_ident("jf_remove"), vec![lua_assign(
+            lua_field(lua_ident("jf_merged_effect"), "remove"), lua_bool(true),
+        )]),
+        lua_return(lua_ident("jf_merged_effect")),
+    ]));
 }
 
 fn wrap_trigger_stmt_for_rules(rules: &[&RuleOutput], trigger_stmt: Stmt) -> Vec<Stmt> {

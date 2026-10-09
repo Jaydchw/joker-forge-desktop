@@ -108,6 +108,7 @@ impl BalatroCompiler {
             soul_pos: None,
             display_size: None,
             rules,
+            rule_execution_mode: Default::default(),
             appearance: None,
             unlock: None,
             user_variables: map_user_variables(&state.metadata.user_variables),

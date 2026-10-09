@@ -123,6 +123,14 @@ impl ObjectType {
 // Joker definition
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleExecutionMode {
+    #[default]
+    FirstMatch,
+    AllMatching,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JokerDef {
     pub key: String,
@@ -142,6 +150,8 @@ pub struct JokerDef {
     #[serde(default)]
     pub display_size: Option<DisplaySize>,
     pub rules: Vec<RuleDef>,
+    #[serde(default)]
+    pub rule_execution_mode: RuleExecutionMode,
     #[serde(default)]
     pub appearance: Option<AppearanceDef>,
     #[serde(default)]

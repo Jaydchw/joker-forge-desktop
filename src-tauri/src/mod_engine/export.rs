@@ -9,7 +9,7 @@
 use balatro_codegen::types::{
     AppearanceDef, AtlasPos, BoosterCardRuleDef, BoosterDef, ConditionDef, ConditionGroupDef, ConsumableDef, ConsumableTypeDef, DescriptionVariableBinding,
     DeckDef, DisplaySize, EditionDef, EffectDef, EnhancementDef, JokerDef, LogicOp, LoopGroupDef,
-    ParamValue, RandomGroupDef, RarityDef, RuleDef, SealDef, TypedValue, UnlockDef, UserVarType,
+    ParamValue, RandomGroupDef, RarityDef, RuleDef, RuleExecutionMode, SealDef, TypedValue, UnlockDef, UserVarType,
     UserVariableDef, VoucherDef,
 };
 use serde::de::Deserializer;
@@ -71,6 +71,8 @@ pub struct JokerDataInput {
     pub scale_h: Option<f64>,
     #[serde(default)]
     pub rules: Vec<RuleInput>,
+    #[serde(default, rename = "ruleExecutionMode")]
+    pub rule_execution_mode: RuleExecutionMode,
     #[serde(rename = "userVariables", default)]
     pub user_variables: Vec<UserVariableInput>,
     #[serde(rename = "descriptionVariables", default)]
@@ -700,6 +702,7 @@ pub fn joker_data_to_def(
         soul_pos: soul_pos.map(|sp| AtlasPos { x: sp.x, y: sp.y }),
         display_size: compute_display_size(input.scale_w, input.scale_h),
         rules: input.rules.iter().map(map_rule).collect(),
+        rule_execution_mode: input.rule_execution_mode,
         appearance,
         unlock,
         user_variables: input.user_variables.iter().map(map_user_variable).collect(),

@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::lua_ast::{Expr, LuaFieldSource};
 use crate::types::{
-    ConfigValue, ConfigVar, DescriptionVariableBinding, ObjectType, ParamValue, UserVarType, UserVariableDef,
+    ConfigValue, ConfigVar, DescriptionVariableBinding, ObjectType, ParamValue, RuleExecutionMode,
+    UserVarType, UserVariableDef,
 };
 
 #[derive(Debug, Clone)]
@@ -23,6 +24,7 @@ pub struct CompileContext {
     pub mod_prefix: String,
     pub object_key: String,
     pub blueprint_compat: bool,
+    pub rule_execution_mode: RuleExecutionMode,
 
     /// Tracks how many effects of each type have been seen,
     /// used to generate unique config variable names (chips, chips2: chips3...).
@@ -72,6 +74,7 @@ impl CompileContext {
             mod_prefix,
             object_key,
             blueprint_compat,
+            rule_execution_mode: RuleExecutionMode::FirstMatch,
             effect_type_counts: HashMap::new(),
             config_vars: Vec::new(),
             user_vars: Vec::new(),

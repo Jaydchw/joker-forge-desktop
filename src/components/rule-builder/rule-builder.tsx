@@ -62,7 +62,7 @@ import {
   remapSegmentsToCode,
   type CodeSegment,
 } from "@/lib/content/code-sections";
-import type { CustomCodeState } from "@/lib/core/types";
+import type { CustomCodeState, RuleExecutionMode } from "@/lib/core/types";
 import {
   toRanges as toFieldRanges,
   updateBoundRanges,
@@ -83,11 +83,13 @@ import {
 import { mapCodeSegmentsThroughEdits } from "@/lib/content/live-code-navigation";
 import { buildLiveCodeExplanations } from "@/lib/content/live-code-explanations";
 import { formatLuaCode, isLuaIndentationEquivalent } from "@/lib/content/live-code-format";
+import { canRegenerateJokerCalculate, regenerateJokerCalculate } from "@/lib/content/live-code-rule-execution";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowClockwise,
   ArrowCounterClockwise,
+  ArrowsMerge,
   CheckCircle,
   Copy,
   CornersIn,
@@ -499,10 +501,15 @@ const normalizeRuleForBuilder = (
   };
 };
 
+export interface RuleBuilderSaveOptions {
+  ruleExecutionMode?: RuleExecutionMode;
+  customCode?: CustomCodeState;
+}
+
 interface RuleBuilderProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (rules: any[]) => void;
+  onSave: (rules: any[], options?: RuleBuilderSaveOptions) => void;
   existingRules: any[];
   item: ItemData;
   onUpdateItem: (updates: Partial<ItemData>) => void;
@@ -521,6 +528,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   reforged = false,
 }) => {
   const isReadOnly = reforged;
+  const [ruleExecutionMode, setRuleExecutionMode] = useState<RuleExecutionMode>(
+    () => item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match",
+  );
   const { userConfig } = useContext(UserConfigContext);
   const { data } = useProjectData();
   const { createRuleTemplate, getRuleTemplatesForType } = useTemplateStore();
@@ -665,6 +675,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     item.customCode,
   );
   const lastGeneratedCleanRef = useRef<string>("");
+  const lastGeneratedRuleExecutionModeRef = useRef<RuleExecutionMode>(ruleExecutionMode);
   const lastSegmentsRef = useRef<CodeSegment[]>(
     item.customCode?.segments ?? [],
   );
@@ -721,9 +732,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   }, [item]);
   const itemWithoutCustomCode = useMemo(() => {
     const { customCode: _, ...rest } = item;
-    return rest;
+    return itemType === "joker" ? { ...rest, ruleExecutionMode } : rest;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemCodegenKey]);
+  }, [itemCodegenKey, itemType, ruleExecutionMode]);
 
   const previewItemType = useMemo<PreviewCompileItemType>(() => {
     const objectType = String(itemWithoutCustomCode?.objectType || "")
@@ -885,8 +896,12 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     if (JSON.stringify(customCodeRef.current) === JSON.stringify(newCustomCode)) return;
     customCodeRef.current = newCustomCode;
     setCustomCode(newCustomCode);
-    onUpdateItemRef.current({ customCode: newCustomCode });
-  }, [isReadOnly]);
+    const savedMode = item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match";
+    if (itemType !== "joker" || (ruleExecutionMode === savedMode
+      && lastGeneratedRuleExecutionModeRef.current === ruleExecutionMode)) {
+      onUpdateItemRef.current({ customCode: newCustomCode });
+    }
+  }, [isReadOnly, itemType, item.ruleExecutionMode, ruleExecutionMode]);
 
   const flushPendingCodeEdit = useCallback((): Rule[] => {
     if (editorUiDebounceRef.current) {
@@ -908,6 +923,28 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     setEditorSyncRevision((revision) => revision + 1);
     return nextRules;
   }, [isReadOnly, persistEditorCode, applyLinkedCodeEdits]);
+
+  const customCalculateIsManaged = useMemo(() => {
+    if (itemType !== "joker") return true;
+    const code = customCode?.fullCode;
+    return !code || canRegenerateJokerCalculate(
+      code, lastGeneratedCleanRef.current || customCode?.lastGeneratedCode || "", item.objectKey,
+    );
+  }, [customCode, itemType, item.objectKey, generatedMetadataRevision]);
+
+  const handleRuleExecutionModeChange = useCallback((value: string) => {
+    if (isReadOnly || savingRef.current || itemType !== "joker") return;
+    const nextMode = value === "all_matching" ? "all_matching" : "first_match";
+    if (nextMode === ruleExecutionMode) return;
+    flushPendingCodeEdit();
+    const current = customCodeRef.current;
+    if (current && !canRegenerateJokerCalculate(
+      current.fullCode, lastGeneratedCleanRef.current || current.lastGeneratedCode, item.objectKey,
+    )) return;
+    editorRevisionRef.current += 1;
+    setLiveCodePreviewTarget(null);
+    setRuleExecutionMode(nextMode);
+  }, [isReadOnly, itemType, ruleExecutionMode, flushPendingCodeEdit, item.objectKey]);
 
   // Keep code edits immediately visible, then apply complete values together.
   const handleCodeChange = useCallback(
@@ -1066,7 +1103,18 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     const editableCurrentCode = pendingEditorCode ?? savedCustomCode;
 
     // If user has custom code (persisted or pending in-editor), merge with the new generation
-    if (editableCurrentCode) {
+    if (editableCurrentCode && previewItemType === "joker"
+      && lastGeneratedRuleExecutionModeRef.current !== ruleExecutionMode) {
+      const replaced = regenerateJokerCalculate(
+        editableCurrentCode,
+        previousGenerated || customCodeRef.current?.lastGeneratedCode || "",
+        freshClean,
+        item.objectKey,
+      );
+      if (replaced === null) throw new Error("Reset custom Lua before changing how rules run.");
+      displayCode = replaced;
+      displayFieldRanges = updateBoundRanges(freshClean, displayCode, toFieldRanges(freshClean, freshFieldBindings));
+    } else if (editableCurrentCode) {
       const oldSegments =
         customCodeRef.current?.segments ?? lastSegmentsRef.current;
 
@@ -1141,6 +1189,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       : remappedSegments;
 
     lastGeneratedCleanRef.current = freshClean;
+    lastGeneratedRuleExecutionModeRef.current = ruleExecutionMode;
     lastGeneratedSegmentsRef.current = freshSegments;
     lastSegmentsRef.current = displaySegments;
     hasTrackedSegmentsRef.current = true;
@@ -1160,7 +1209,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         : undefined,
     );
     setLiveCodeIsError(false);
-  }, [persistEditorCode]);
+  }, [persistEditorCode, previewItemType, ruleExecutionMode, item.objectKey]);
 
   const handleSaveAndClose = useCallback(async () => {
     if (isReadOnly) {
@@ -1187,7 +1236,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         reconcileGeneratedCode(freshCompiled, latestRules);
         break;
       }
-      onSave(latestRules);
+      onSave(latestRules, itemType === "joker" ? { ruleExecutionMode, customCode: customCodeRef.current } : undefined);
       onClose();
     } catch (error) {
       if (!builderMountedRef.current) return;
@@ -1199,7 +1248,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       savingRef.current = false;
       if (builderMountedRef.current) setIsSaving(false);
     }
-  }, [isReadOnly, onSave, onClose, flushPendingCodeEdit, itemWithoutCustomCode, previewItemType,
+  }, [isReadOnly, onSave, onClose, itemType, ruleExecutionMode, flushPendingCodeEdit, itemWithoutCustomCode, previewItemType,
     data.metadata.prefix, globalUserVariables, reconcileGeneratedCode, formatLiveCodeErrorDetails,
     panels.liveCode?.isVisible, togglePanel]);
 
@@ -1492,6 +1541,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setRuleExecutionMode(item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match");
       const normalizedRules = existingRules.map((rule) =>
         normalizeRuleForBuilder(rule, itemType, reforged),
       );
@@ -1510,6 +1560,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       customCodeRef.current = item.customCode;
       setCustomCode(item.customCode);
       lastGeneratedCleanRef.current = item.customCode?.lastGeneratedCode ?? "";
+      lastGeneratedRuleExecutionModeRef.current = item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match";
       lastGeneratedSegmentsRef.current = item.customCode?.segments ?? [];
       lastSegmentsRef.current = item.customCode?.segments ?? [];
       hasTrackedSegmentsRef.current = false;
@@ -4542,7 +4593,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         if (cancelled || (!liveCodePreviewTarget && editorRevision !== editorRevisionRef.current)) {
           return;
         }
-        setLiveCodeSnippet("-- failed to generate snippet");
+        setLiveCodeSnippet(editorCodeRef.current || "-- failed to generate snippet");
         setLiveCodeStatusMessage(
           error instanceof Error
             ? error.message
@@ -4801,6 +4852,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     ? buildLiveCodeFieldLinks(linkedFieldRangesRef.current, fieldSourceRulesRef.current, rules, liveCodeCatalog, itemType) : [],
   [liveCodeIsVisible, liveCodePreviewTarget, liveCodeSnippet, editorSyncRevision, generatedMetadataRevision, rules, itemType, data]);
 
+  const mergeEffectsEnabled = itemType === "joker" && ruleExecutionMode === "all_matching";
+
   if (!isOpen) return null;
   return (
     <>
@@ -4814,8 +4867,16 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       >
         <div
           ref={modalRef}
-          className="bg-background w-full h-full overflow-hidden flex flex-col"
+          className="relative bg-background w-full h-full overflow-hidden flex flex-col"
         >
+          <div
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-0 z-[80] border-2 transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none ${
+              mergeEffectsEnabled
+                ? "border-yellow-400/25 shadow-[inset_0_0_20px_rgba(250,204,21,0.05)]"
+                : "border-transparent shadow-none"
+            }`}
+          />
           <div className="bg-background/95 backdrop-blur-md border-b border-border shadow-sm z-50 px-4 py-3">
             <div className="flex flex-col gap-3 min-w-0 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
               <div className="flex items-center gap-2 min-w-0">
@@ -4945,7 +5006,39 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                 </Button>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0 lg:justify-self-end">
+              <div className="flex flex-wrap items-center gap-2 shrink-0 lg:justify-self-end">
+                {itemType === "joker" && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-pressed={mergeEffectsEnabled}
+                      onClick={() => handleRuleExecutionModeChange(mergeEffectsEnabled ? "first_match" : "all_matching")}
+                      disabled={isReadOnly || isSaving || !customCalculateIsManaged}
+                      icon={mergeEffectsEnabled
+                        ? <CheckCircle className="h-4 w-4" weight="fill" />
+                        : <ArrowsMerge className="h-4 w-4" />}
+                      className={`text-xs focus-visible:border-yellow-400 focus-visible:ring-yellow-400/30 ${
+                        mergeEffectsEnabled
+                          ? "border-yellow-400/60 bg-yellow-400/20 text-yellow-800 hover:bg-yellow-400/25 hover:text-yellow-900 dark:border-yellow-400/60 dark:bg-yellow-400/20 dark:text-yellow-200 dark:hover:bg-yellow-400/25 dark:hover:text-yellow-100"
+                          : "border-yellow-500/30 bg-yellow-400/5 text-yellow-700 hover:bg-yellow-400/15 hover:text-yellow-800 dark:border-yellow-400/30 dark:bg-yellow-400/5 dark:text-yellow-300 dark:hover:bg-yellow-400/15 dark:hover:text-yellow-200"
+                      }`}
+                    >
+                      Merge effects
+                    </Button>
+                    <HelpTooltipIcon
+                      content={!customCalculateIsManaged
+                        ? "The calculate callback has custom Lua edits. Reset custom Lua in Live Code before changing how rules run."
+                        : ruleExecutionMode === "all_matching"
+                        ? "Every matching rule sharing a calculation trigger runs in numbered rule order. Later conditions see immediate changes from earlier rules. Moving cards on the canvas does not change this order. Save Changes to keep this setting for this Joker."
+                        : "Turn on Merge effects to combine every matching rule sharing a calculation trigger. Click again to return to the existing priority behavior. Save Changes to keep this setting for this Joker."}
+                      side="bottom"
+                      iconClassName="h-3.5 w-3.5"
+                    />
+                    <div className="w-px h-5 bg-border" />
+                  </>
+                )}
                 <span className="text-xs font-medium text-foreground/70 uppercase tracking-wide">
                   Mode
                 </span>
