@@ -36,6 +36,7 @@ import { getChanceGroupOptions } from "./probability-sources";
 
 import { Input as InputField } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Select,
   SelectContent,
@@ -363,35 +364,15 @@ const ChanceInput: React.FC<ChanceInputProps> = React.memo(
         ) : isVariableMode ? (
           <div className="space-y-2 w-full">
             {availableVariables.length > 0 ? (
-              <Select
+              <SearchableSelect
+                options={availableVariables}
                 value={String(actualValue ?? "")}
-                onValueChange={(selectedValue) => {
-                  const selectedOption = availableVariables.find(
-                    (opt) => String(opt.value) === selectedValue,
-                  ) ?? {
-                    value: selectedValue,
-                    label: selectedValue,
-                    valueType: "user_var",
-                  };
-
-                  onChange(selectedOption);
-                }}
-              >
-                <SelectTrigger size="sm" className="w-full">
-                  <SelectValue placeholder="Select variable" />
-                </SelectTrigger>
-                <SelectContent className="z-120 bg-popover text-popover-foreground border-border shadow-2xl">
-                  {availableVariables.map((option) => (
-                    <SelectItem
-                      key={`chance-${option.value}-${option.label}`}
-                      value={String(option.value)}
-                      className="text-foreground"
-                    >
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(_, selectedOption) => onChange(selectedOption)}
+                aria-label={label}
+                placeholder="Select variable"
+                searchPlaceholder="Search variables…"
+                emptyMessage="No matching variables"
+              />
             ) : (
               <Button
                 variant="secondary"
@@ -875,35 +856,14 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
               Add Variable
             </Button>
           ) : (
-            <Select
+            <SearchableSelect
+              options={options}
               value={String(value ?? "")}
-              onValueChange={(selectedValue) => {
-                const selectedOption = options.find(
-                  (opt) => String(opt.value) === selectedValue,
-                ) ?? {
-                  value: selectedValue,
-                  label: selectedValue,
-                  valueType: "text",
-                };
-
-                onChange(selectedOption);
-              }}
-            >
-              <SelectTrigger size="sm" className="w-full">
-                <SelectValue placeholder="Select option" />
-              </SelectTrigger>
-              <SelectContent className="z-120 bg-popover text-popover-foreground border-border shadow-2xl">
-                {options.map((option) => (
-                  <SelectItem
-                    key={`param-${param.id}-${option.value}-${option.label}`}
-                    value={String(option.value)}
-                    className="text-foreground"
-                  >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onValueChange={(_, selectedOption) => onChange(selectedOption)}
+              aria-label={String(param.label)}
+              placeholder="Select option"
+              searchPlaceholder="Search options…"
+            />
           )}
         </div>
       );
@@ -1149,35 +1109,15 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
           ) : isVariableMode ? (
             <div className="space-y-2">
               {availableVariables && availableVariables.length > 0 ? (
-                <Select
+                <SearchableSelect
+                  options={availableVariables}
                   value={String(value ?? "")}
-                  onValueChange={(selectedValue) => {
-                    const selectedOption = availableVariables.find(
-                      (opt) => String(opt.value) === selectedValue,
-                    ) ?? {
-                      value: selectedValue,
-                      label: selectedValue,
-                      valueType: "user_var",
-                    };
-
-                    onChange(selectedOption);
-                  }}
-                >
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder="Select variable" />
-                  </SelectTrigger>
-                  <SelectContent className="z-120 bg-popover text-popover-foreground border-border shadow-2xl">
-                    {availableVariables.map((option) => (
-                      <SelectItem
-                        key={`num-${option.value}-${option.label}`}
-                        value={String(option.value)}
-                        className="text-foreground"
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onValueChange={(_, selectedOption) => onChange(selectedOption)}
+                  aria-label={String(param.label)}
+                  placeholder="Select variable"
+                  searchPlaceholder="Search variables…"
+                  emptyMessage="No matching variables"
+                />
               ) : (
                 <Button
                   variant="secondary"

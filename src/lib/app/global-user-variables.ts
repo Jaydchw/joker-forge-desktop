@@ -8,7 +8,12 @@ export interface GlobalVariableEntry {
   ownerItemName: string;
 }
 
-const getRuleBuilderItems = (data: ProjectData): BaseGameObject[] => [
+type RuleBuilderItems = Pick<
+  ProjectData,
+  "jokers" | "consumables" | "vouchers" | "decks" | "enhancements" | "seals" | "editions"
+>;
+
+const getRuleBuilderItems = (data: RuleBuilderItems): BaseGameObject[] => [
   ...data.jokers,
   ...data.consumables,
   ...data.vouchers,
@@ -19,7 +24,7 @@ const getRuleBuilderItems = (data: ProjectData): BaseGameObject[] => [
 ];
 
 export const collectGlobalVariables = (
-  data: ProjectData,
+  data: RuleBuilderItems,
   options?: { excludeItemId?: string },
 ): GlobalVariableEntry[] => {
   const out: GlobalVariableEntry[] = [];
@@ -53,6 +58,16 @@ export const collectGlobalVariables = (
   }
 
   return out;
+};
+
+const projectGlobalSnapshots = new WeakMap<RuleBuilderItems, UserVariable[]>();
+
+export const getProjectGlobalVariables = (data: RuleBuilderItems): UserVariable[] => {
+  const cached = projectGlobalSnapshots.get(data);
+  if (cached) return cached;
+  const variables = collectGlobalVariables(data).map((entry) => entry.variable);
+  projectGlobalSnapshots.set(data, variables);
+  return variables;
 };
 
 export const mergeItemVariablesWithGlobals = <

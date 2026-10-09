@@ -43,7 +43,7 @@ import { getRandomPlaceholder } from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
 import { exportSingleJokerRust } from "@/lib/export/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/app/global-user-variables";
+import { collectGlobalVariables, getProjectGlobalVariables } from "@/lib/app/global-user-variables";
 import { getAllVariables } from "@/lib/rules/user-variable-utils";
 import {
   generateDescriptionFromRules,
@@ -68,6 +68,10 @@ import {
 
 export default function JokersPage() {
   const { data, updateJokers, isHydrating } = useProjectData();
+  const descriptionGlobalVariables = useMemo(
+    () => getProjectGlobalVariables(data),
+    [data],
+  );
   const dataRef = useRef(data);
   dataRef.current = data;
   const modName = useModName();
@@ -320,7 +324,7 @@ export default function JokersPage() {
         key={joker.id}
         name={joker.name}
         description={joker.description}
-        locVars={getItemLocVarsFromUserVariables(joker)}
+        locVars={getItemLocVarsFromUserVariables(joker, descriptionGlobalVariables)}
         cost={joker.cost}
         idValue={joker.orderValue}
         rarity={joker.rarity}
@@ -551,6 +555,7 @@ export default function JokersPage() {
       handleUpdate,
       requestDelete,
       updateJokers,
+      descriptionGlobalVariables,
     ],
   );
 

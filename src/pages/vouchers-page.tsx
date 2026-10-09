@@ -33,7 +33,7 @@ import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-d
 import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/app/global-user-variables";
+import { collectGlobalVariables, getProjectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
@@ -51,6 +51,10 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function VouchersPage() {
   const { data, updateVouchers, isHydrating } = useProjectData();
+  const descriptionGlobalVariables = useMemo(
+    () => getProjectGlobalVariables(data),
+    [data],
+  );
   const dataRef = useRef(data);
   dataRef.current = data;
   const modName = useModName();
@@ -254,7 +258,7 @@ export default function VouchersPage() {
         key={item.id}
         name={item.name}
         description={item.description}
-        locVars={getItemLocVarsFromUserVariables(item)}
+        locVars={getItemLocVarsFromUserVariables(item, descriptionGlobalVariables)}
         cost={item.cost}
         idValue={item.orderValue}
         imageLayers={item.imageLayers}
@@ -401,7 +405,7 @@ export default function VouchersPage() {
         ]}
       />
     ),
-    [createItemTemplate, handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport, descriptionGlobalVariables],
   );
 
   const renderCompactCard = useCallback(

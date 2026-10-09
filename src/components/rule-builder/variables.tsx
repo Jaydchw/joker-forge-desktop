@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import type { UserVariable } from "@/lib/core/types";
 import { getVariableUsageDetails } from "@/lib/rules/user-variable-utils";
+import { fuzzyMatchAny } from "@/lib/core/search";
 import {
   SUITS,
   RANKS,
@@ -25,6 +26,7 @@ import {
   Database,
   ClockCounterClockwise,
   DotOutline,
+  MagnifyingGlass,
 } from "@phosphor-icons/react";
 import { Input as InputField } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -162,6 +164,8 @@ const Variables: React.FC<VariablesProps> = ({
   );
   const [editingIsGlobal, setEditingIsGlobal] = useState(false);
   const [editingIsPersistent, setEditingIsPersistent] = useState(false);
+  const [search, setSearch] = useState("");
+  const deferredSearch = React.useDeferredValue(search);
 
   React.useEffect(() => {
     if (!addVariableRequest) return;
@@ -224,6 +228,20 @@ const Variables: React.FC<VariablesProps> = ({
         ]),
       ),
     [data, item?.id],
+  );
+  const visibleVariables = useMemo(
+    () => userVariables.filter((variable) => {
+      if (variable.id === editingVariable) return true;
+      const owner = globalVariableOwnersByName.get(variable.name.trim().toLowerCase());
+      return fuzzyMatchAny([
+        variable.name,
+        variable.type || "number",
+        variable.isGlobal ? "global" : "local",
+        variable.isPersistent ? "persistent" : "",
+        localVariableIds.has(variable.id) ? item.name : owner?.ownerItemName,
+      ], deferredSearch);
+    }),
+    [userVariables, editingVariable, globalVariableOwnersByName, localVariableIds, item.name, deferredSearch],
   );
 
   const sanitizeVariableNameInput = (value: string) =>
@@ -580,6 +598,27 @@ const Variables: React.FC<VariablesProps> = ({
       }
     >
       <div>
+        {userVariables.length > 0 && (
+          <div className="space-y-1.5 mb-3">
+            <div className="relative">
+              <MagnifyingGlass className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+              <InputField
+                type="search"
+                size="sm"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search name, type or owner…"
+                aria-label="Search variables"
+                className="pl-8"
+              />
+            </div>
+            {search.trim() && (
+              <p className="text-xs text-muted-foreground" role="status">
+                {visibleVariables.length} of {userVariables.length} variables
+              </p>
+            )}
+          </div>
+        )}
         <div className="max-h-96 overflow-y-auto custom-scrollbar divide-y divide-border/40 mb-4">
           {userVariables.length === 0 && !showAddForm ? (
             <div className="text-center py-8">
@@ -591,8 +630,12 @@ const Variables: React.FC<VariablesProps> = ({
                 Create variables to store and modify values in this item
               </p>
             </div>
+          ) : visibleVariables.length === 0 && userVariables.length > 0 ? (
+            <div className="text-center py-6 text-sm text-muted-foreground">
+              No matching variables.
+            </div>
           ) : (
-            userVariables.map((variable) => {
+            visibleVariables.map((variable) => {
               const usageInfo = getUsageInfo(variable.name);
               const isEditing = editingVariable === variable.id;
               const isLocalVariable = localVariableIds.has(variable.id);

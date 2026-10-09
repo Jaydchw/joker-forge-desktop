@@ -191,10 +191,10 @@ const dynamicConfigBaseForEffect = (effect: Effect | undefined): string | null =
 
 const inferConfigVariables = (
   item: DescriptionVariableItem,
+  userVariables = item.userVariables ?? [],
 ): DescriptionVariableToken[] => {
   const counts = new Map<string, number>();
   const tokens: DescriptionVariableToken[] = [];
-  const userVariables = item.userVariables ?? [];
   const abilityPath = getAbilityPath(item.objectType);
   const probabilityGroupCount = (item.rules ?? []).reduce(
     (total, rule) => total + (rule.randomGroups?.length ?? 0),
@@ -330,6 +330,7 @@ const extractGameVariableReferences = (
 
 export const buildDescriptionVariableTokens = (
   item: DescriptionVariableItem | undefined,
+  globalVariables: UserVariable[] = [],
 ): DescriptionVariableToken[] => {
   if (!item) return [];
 
@@ -355,22 +356,19 @@ export const buildDescriptionVariableTokens = (
     tokens.push(token);
   };
 
-  if (Array.isArray(item.locVars?.vars) && item.locVars.vars.length > 0) {
-    // Explicit localization arrays are already ordered. Duplicate values still
-    // occupy separate placeholders, and inferred variables must not append.
-    return item.locVars.vars.map((value) => ({
-      label: String(value),
-      source: String(value),
-      category: "loc",
-      binding: { kind: "literal", value },
-      previewValue: String(value),
-    }));
+  const abilityPath = getAbilityPath(item.objectType);
+  const localVariables = Array.isArray(item.userVariables) ? item.userVariables : [];
+  const variableNames = new Set(localVariables.map((variable) => variable.name.trim().toLowerCase()));
+  const foreignGlobals: UserVariable[] = [];
+  for (const variable of globalVariables) {
+    if (!variable.isGlobal || !variable.name?.trim()) continue;
+    const name = variable.name.trim().toLowerCase();
+    if (variableNames.has(name)) continue;
+    variableNames.add(name);
+    foreignGlobals.push(variable);
   }
 
-  const abilityPath = getAbilityPath(item.objectType);
-  for (const userVar of Array.isArray(item.userVariables)
-    ? item.userVariables
-    : []) {
+  const pushUserVariable = (userVar: UserVariable, foreign = false) => {
     const source = userVar.isGlobal
       ? `${userVar.isPersistent ? "JF_GLOBALS" : "G.GAME.jf_global_vars"}.${userVar.name}`
       : `${abilityPath}.${userVar.name}`;
@@ -380,10 +378,30 @@ export const buildDescriptionVariableTokens = (
       category: "user",
       binding: { kind: "user", name: userVar.name },
       previewValue: getVariableDisplayValue(userVar),
-    }, `${abilityPath}.${userVar.name}`);
+    }, foreign ? source : `${abilityPath}.${userVar.name}`);
+  };
+
+  if (Array.isArray(item.locVars?.vars) && item.locVars.vars.length > 0) {
+    for (const value of item.locVars.vars) {
+      tokens.push({
+        label: String(value),
+        source: String(value),
+        category: "loc",
+        binding: { kind: "literal", value },
+        previewValue: String(value),
+      });
+    }
+    for (const variable of [...localVariables.filter((entry) => entry.isGlobal), ...foreignGlobals]) {
+      pushUserVariable(variable, true);
+    }
+    return tokens;
   }
 
-  for (const token of inferConfigVariables(item)) {
+  for (const userVar of localVariables) {
+    pushUserVariable(userVar);
+  }
+
+  for (const token of inferConfigVariables(item, [...localVariables, ...foreignGlobals])) {
     push(token);
   }
 
@@ -415,6 +433,10 @@ export const buildDescriptionVariableTokens = (
       binding: { kind: "game", id, multiplier, startsFrom },
       previewValue: label,
     });
+  }
+
+  for (const variable of foreignGlobals) {
+    pushUserVariable(variable, true);
   }
 
   return tokens;

@@ -34,7 +34,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/app/global-user-variables";
+import { collectGlobalVariables, getProjectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
@@ -51,6 +51,10 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function SealsPage() {
   const { data, updateSeals, isHydrating } = useProjectData();
+  const descriptionGlobalVariables = useMemo(
+    () => getProjectGlobalVariables(data),
+    [data],
+  );
   const dataRef = useRef(data);
   dataRef.current = data;
   const modName = useModName();
@@ -231,7 +235,7 @@ export default function SealsPage() {
         key={item.id}
         name={item.name}
         description={item.description}
-        locVars={getItemLocVarsFromUserVariables(item)}
+        locVars={getItemLocVarsFromUserVariables(item, descriptionGlobalVariables)}
         idValue={item.orderValue}
         imageLayers={item.imageLayers}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
@@ -368,7 +372,7 @@ export default function SealsPage() {
         ]}
       />
     ),
-    [createItemTemplate, handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport, descriptionGlobalVariables],
   );
 
   const renderCompactCard = useCallback(

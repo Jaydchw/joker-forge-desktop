@@ -15,6 +15,8 @@ import { insertDescriptionTag } from "@/lib/description/description-formatting";
 import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import { generateDescriptionFromRules } from "@/lib/rules/auto-description";
 import { fuzzyMatchAny } from "@/lib/core/search";
+import { getProjectGlobalVariables } from "@/lib/app/global-user-variables";
+import { useProjectData } from "@/lib/services/storage";
 import type { Rule, UserVariable } from "@/lib/core/types";
 import {
   ArrowCounterClockwise,
@@ -127,6 +129,11 @@ export const DescriptionEditor = memo(
     error,
     item,
   }: DescriptionEditorProps) => {
+    const { data } = useProjectData();
+    const globalVariables = useMemo(
+      () => getProjectGlobalVariables(data),
+      [data],
+    );
     const [autoFormat, setAutoFormat] = useState(true);
     const [variableSearch, setVariableSearch] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -135,8 +142,8 @@ export const DescriptionEditor = memo(
     const applyingHistoryRef = useRef(false);
 
     const variableTokens = useMemo(
-      () => buildDescriptionVariableTokens(item),
-      [item],
+      () => buildDescriptionVariableTokens(item, globalVariables),
+      [item, globalVariables],
     );
 
     const generatedDescription = useMemo(() => {
@@ -175,12 +182,13 @@ export const DescriptionEditor = memo(
 
     const userVariablesByName = useMemo(() => {
       const map = new Map<string, UserVariable>();
-      for (const variable of item?.userVariables || []) {
+      for (const variable of [...(item?.userVariables || []), ...globalVariables]) {
         if (!variable?.name) continue;
-        map.set(variable.name.trim().toLowerCase(), variable);
+        const name = variable.name.trim().toLowerCase();
+        if (!map.has(name)) map.set(name, variable);
       }
       return map;
-    }, [item?.userVariables]);
+    }, [item?.userVariables, globalVariables]);
 
     const groupedVariableEntries = useMemo(() => {
       const groups: Array<{

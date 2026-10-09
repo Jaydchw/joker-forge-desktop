@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Club,
   Diamond,
@@ -9,7 +9,8 @@ import {
 import IconButton from "@/components/ui/icon-button";
 import { EditionShaderPreview } from "@/components/balatro/edition-shader-preview";
 import { BalatroText } from "@/lib/balatro/balatro-text-formatter";
-import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/services/storage";
+import { getDescriptionVariablePlaceholdersEnabled, useProjectData } from "@/lib/services/storage";
+import { getProjectGlobalVariables } from "@/lib/app/global-user-variables";
 import { getItemLocVarsFromUserVariables } from "@/lib/description/description-loc-vars";
 import {
   JokerData,
@@ -131,6 +132,11 @@ export function BalatroCard({
   selectedAce,
   showAceControls = true,
 }: BalatroCardProps) {
+    const { data: projectData } = useProjectData();
+    const globalVariables = useMemo(
+      () => getProjectGlobalVariables(projectData),
+      [projectData],
+    );
     const [imageError, setImageError] = useState(false);
     const [internalSelectedAce, setInternalSelectedAce] = useState("HC_A_hearts");
     const showPlaceholders = getDescriptionVariablePlaceholdersEnabled();
@@ -208,6 +214,7 @@ export function BalatroCard({
     const getLocVars = () => {
       const itemLocVars = getItemLocVarsFromUserVariables(
         data as Partial<CardData>,
+        globalVariables,
       );
       const vars = itemLocVars?.vars ?? [];
       const colours = vars.filter(

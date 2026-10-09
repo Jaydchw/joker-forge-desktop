@@ -38,7 +38,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/app/global-user-variables";
+import { collectGlobalVariables, getProjectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
@@ -57,6 +57,10 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function ConsumablesPage() {
   const { data, updateConsumables, isHydrating } = useProjectData();
+  const descriptionGlobalVariables = useMemo(
+    () => getProjectGlobalVariables(data),
+    [data],
+  );
   const dataRef = useRef(data);
   dataRef.current = data;
   const modName = useModName();
@@ -309,7 +313,7 @@ export default function ConsumablesPage() {
         key={item.id}
         name={item.name}
         description={item.description}
-        locVars={getItemLocVarsFromUserVariables(item)}
+        locVars={getItemLocVarsFromUserVariables(item, descriptionGlobalVariables)}
         cost={item.cost}
         idValue={item.orderValue}
         consumableSet={item.set}
@@ -433,7 +437,7 @@ export default function ConsumablesPage() {
         ]}
       />
     ),
-    [createItemTemplate, handleUpdate, handleDuplicate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, handleDuplicate, requestDelete, handleExport, descriptionGlobalVariables],
   );
 
   const renderCompactCard = useCallback(

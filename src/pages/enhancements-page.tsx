@@ -39,7 +39,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/app/global-user-variables";
+import { collectGlobalVariables, getProjectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
@@ -56,6 +56,10 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function EnhancementsPage() {
   const { data, updateEnhancements, isHydrating } = useProjectData();
+  const descriptionGlobalVariables = useMemo(
+    () => getProjectGlobalVariables(data),
+    [data],
+  );
   const dataRef = useRef(data);
   dataRef.current = data;
   const modName = useModName();
@@ -251,7 +255,7 @@ export default function EnhancementsPage() {
         key={item.id}
         name={item.name}
         description={item.description}
-        locVars={getItemLocVarsFromUserVariables(item)}
+        locVars={getItemLocVarsFromUserVariables(item, descriptionGlobalVariables)}
         idValue={item.orderValue}
         imageLayers={item.imageLayers}
         onUpdate={(updates) => handleUpdate(item.id, updates)}
@@ -433,7 +437,7 @@ export default function EnhancementsPage() {
         ]}
       />
     ),
-    [createItemTemplate, handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport, descriptionGlobalVariables],
   );
 
   const renderCompactCard = useCallback(

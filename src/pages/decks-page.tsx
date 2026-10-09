@@ -37,7 +37,7 @@ import { RuleBuilder } from "@/components/rule-builder";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import { exportSingleItemRust } from "@/lib/export/rust-codegen-export";
-import { collectGlobalVariables } from "@/lib/app/global-user-variables";
+import { collectGlobalVariables, getProjectGlobalVariables } from "@/lib/app/global-user-variables";
 import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
@@ -54,6 +54,10 @@ import { getItemLocVarsFromUserVariables } from "@/lib/description/description-l
 
 export default function DecksPage() {
   const { data, updateDecks, isHydrating } = useProjectData();
+  const descriptionGlobalVariables = useMemo(
+    () => getProjectGlobalVariables(data),
+    [data],
+  );
   const dataRef = useRef(data);
   dataRef.current = data;
   const modName = useModName();
@@ -230,7 +234,7 @@ export default function DecksPage() {
         key={deck.id}
         name={deck.name}
         description={deck.description}
-        locVars={getItemLocVarsFromUserVariables(deck)}
+        locVars={getItemLocVarsFromUserVariables(deck, descriptionGlobalVariables)}
         idValue={deck.orderValue}
         imageLayers={deck.imageLayers}
         onUpdate={(updates) => handleUpdate(deck.id, updates)}
@@ -392,7 +396,7 @@ export default function DecksPage() {
         ]}
       />
     ),
-    [createItemTemplate, handleUpdate, requestDelete, handleExport],
+    [createItemTemplate, handleUpdate, requestDelete, handleExport, descriptionGlobalVariables],
   );
 
   const renderCompactCard = useCallback(

@@ -22,16 +22,17 @@ import {
   sanitizeLocalizationEntries,
 } from "@/lib/core/localization";
 import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
+import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import { rebaseCustomLuaAtlas, type AtlasItemType } from "./custom-lua-atlas";
 
 // The editor, card preview and exported loc_vars must use the same slot order.
-const withDescriptionVariables = (item: unknown) => {
+const withDescriptionVariables = (item: unknown, globalVariables: UserVariable[] = []) => {
   const context = (
     item && typeof item === "object" ? item : {}
   ) as Parameters<typeof buildDescriptionVariableTokens>[0];
   return {
     ...context,
-    descriptionVariables: buildDescriptionVariableTokens(context).map(
+    descriptionVariables: buildDescriptionVariableTokens(context, globalVariables).map(
       (token) => token.binding,
     ),
   };
@@ -413,7 +414,7 @@ export const compileSingleItemLua = async (
 ): Promise<string> => {
   return invoke<string>("compile_item_from_data", {
     itemType,
-    itemData: withDescriptionVariables(item),
+    itemData: withDescriptionVariables(item, options.globalUserVariables),
     pos: null,
     soulPos: null,
     modPrefix,
@@ -430,7 +431,7 @@ export const compileSingleItemLuaWithSegments = async (
 ): Promise<CompiledLuaWithSegments> => {
   return invoke<CompiledLuaWithSegments>("compile_item_from_data_with_segments", {
     itemType,
-    itemData: withDescriptionVariables(item),
+    itemData: withDescriptionVariables(item, options.globalUserVariables),
     pos: null,
     soulPos: null,
     modPrefix,
@@ -514,6 +515,9 @@ export const exportModRust = async (
   );
   const useLocalizationFile = options.useLocalizationFile ?? false;
   const locale = options.localizationLocale ?? "en-us";
+  const globalVariables = collectGlobalVariables({
+    jokers, consumables, vouchers, decks, enhancements, seals, editions,
+  }).map((entry) => entry.variable);
 
   const sortedJokers = [...jokers].sort((a, b) => a.orderValue - b.orderValue);
   const sortedConsumables = [...consumables].sort((a, b) => a.orderValue - b.orderValue);
@@ -577,7 +581,7 @@ export const exportModRust = async (
         const normalized = ensureLocalizableWithLanguage(joker, locale);
         return {
           jokerData: {
-            ...withDescriptionVariables(normalized),
+            ...withDescriptionVariables(normalized, globalVariables),
             localizations: sanitizeLocalizationEntries(normalized.localizations),
           },
         };
@@ -592,7 +596,7 @@ export const exportModRust = async (
         const normalized = ensureLocalizableWithLanguage(item, locale);
         return {
           consumableData: {
-            ...withDescriptionVariables(normalized),
+            ...withDescriptionVariables(normalized, globalVariables),
             localizations: sanitizeLocalizationEntries(normalized.localizations),
           },
         };
@@ -607,7 +611,7 @@ export const exportModRust = async (
         const normalized = ensureLocalizableWithLanguage(item, locale);
         return {
           voucherData: {
-            ...withDescriptionVariables(normalized),
+            ...withDescriptionVariables(normalized, globalVariables),
             localizations: sanitizeLocalizationEntries(normalized.localizations),
           },
         };
@@ -622,7 +626,7 @@ export const exportModRust = async (
         const normalized = ensureLocalizableWithLanguage(item, locale);
         return {
           deckData: {
-            ...withDescriptionVariables(normalized),
+            ...withDescriptionVariables(normalized, globalVariables),
             localizations: sanitizeLocalizationEntries(normalized.localizations),
           },
         };
@@ -636,7 +640,7 @@ export const exportModRust = async (
         const normalized = ensureLocalizableWithLanguage(item, locale);
         return {
           enhancementData: {
-            ...withDescriptionVariables(normalized),
+            ...withDescriptionVariables(normalized, globalVariables),
             localizations: sanitizeLocalizationEntries(normalized.localizations),
           },
         };
@@ -650,7 +654,7 @@ export const exportModRust = async (
         const normalized = ensureLocalizableWithLanguage(item, locale);
         return {
           sealData: {
-            ...withDescriptionVariables(normalized),
+            ...withDescriptionVariables(normalized, globalVariables),
             localizations: sanitizeLocalizationEntries(normalized.localizations),
           },
         };
@@ -664,7 +668,7 @@ export const exportModRust = async (
         const normalized = ensureLocalizableWithLanguage(item, locale);
         return {
           editionData: {
-            ...withDescriptionVariables(normalized),
+            ...withDescriptionVariables(normalized, globalVariables),
             localizations: sanitizeLocalizationEntries(normalized.localizations),
           },
         };
