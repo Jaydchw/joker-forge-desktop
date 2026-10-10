@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
 import {
   GenericItemDialog,
@@ -13,6 +13,45 @@ interface EditDeckDialogProps {
   editingItem: DeckData | null;
   setEditingItem: (item: DeckData | null) => void;
   onSave: (id: string, updates: Partial<DeckData>) => void;
+}
+
+const parseStartingItemKeys = (text: string): string[] =>
+  text.split(",").map((key) => key.trim()).filter(Boolean);
+
+function StartingItemsInput({
+  id,
+  value,
+  onChange,
+  placeholder,
+}: {
+  id: string;
+  value: string[];
+  onChange: (value: string[]) => void;
+  placeholder: string;
+}) {
+  const [draft, setDraft] = useState(() => value.join(", "));
+
+  useEffect(() => {
+    setDraft((current) => {
+      const keys = parseStartingItemKeys(current);
+      return keys.length === value.length && keys.every((key, index) => key === value[index])
+        ? current
+        : value.join(", ");
+    });
+  }, [value]);
+
+  return (
+    <Input
+      id={id}
+      value={draft}
+      onChange={(event) => {
+        const next = event.target.value;
+        setDraft(next);
+        onChange(parseStartingItemKeys(next));
+      }}
+      placeholder={placeholder}
+    />
+  );
 }
 
 export function EditDeckDialog({
@@ -134,21 +173,14 @@ export function EditDeckDialog({
                 type: "custom",
                 label: "Starting Vouchers",
                 description: "Add vouchers to redeem when the run starts. Enter voucher keys separated by commas.",
-                render: (value, onChange) => (
-                  <div className="space-y-2">
-                    <Input
-                      value={Array.isArray(value) ? value.join(", ") : ""}
-                      onChange={(e) =>
-                        onChange(
-                          e.target.value
-                            .split(",")
-                            .map((s: string) => s.trim())
-                            .filter(Boolean),
-                        )
-                      }
-                      placeholder="v_overstock_norm, v_paint_brush..."
-                    />
-                  </div>
+                render: (value, onChange, item) => (
+                  <StartingItemsInput
+                    key={`${item.id}:Config_vouchers`}
+                    id="Config_vouchers"
+                    value={Array.isArray(value) ? value : []}
+                    onChange={onChange}
+                    placeholder="v_overstock_norm, v_paint_brush..."
+                  />
                 ),
               },
               {
@@ -156,21 +188,14 @@ export function EditDeckDialog({
                 type: "custom",
                 label: "Starting Consumables",
                 description: "Add consumables to give when the run starts. Enter consumable keys separated by commas.",
-                render: (value, onChange) => (
-                  <div className="space-y-2">
-                    <Input
-                      value={Array.isArray(value) ? value.join(", ") : ""}
-                      onChange={(e) =>
-                        onChange(
-                          e.target.value
-                            .split(",")
-                            .map((s: string) => s.trim())
-                            .filter(Boolean),
-                        )
-                      }
-                      placeholder="c_fool, c_death..."
-                    />
-                  </div>
+                render: (value, onChange, item) => (
+                  <StartingItemsInput
+                    key={`${item.id}:Config_consumables`}
+                    id="Config_consumables"
+                    value={Array.isArray(value) ? value : []}
+                    onChange={onChange}
+                    placeholder="c_fool, c_death..."
+                  />
                 ),
               },
             ],
