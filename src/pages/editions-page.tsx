@@ -37,6 +37,7 @@ import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
+import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import {
   instantiateItemFromTemplate,
@@ -91,19 +92,31 @@ export default function EditionsPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
+      const previousVariableTokens = buildDescriptionVariableTokens(
+        { ...ruleEditingItem, objectType: "edition" },
+        descriptionGlobalVariables,
+      );
       const updates: Partial<EditionData> = { rules };
       if (
         shouldOverwriteDescriptionOnRuleSave(
           ruleEditingItem.description,
           ruleEditingItem.rules,
           "edition",
+          previousVariableTokens,
         )
       ) {
-        updates.description = generateDescriptionFromRules(rules, "edition");
+        updates.description = generateDescriptionFromRules(
+          rules,
+          "edition",
+          buildDescriptionVariableTokens(
+            { ...ruleEditingItem, objectType: "edition", rules },
+            descriptionGlobalVariables,
+          ),
+        );
       }
       handleUpdate(ruleEditingItem.id, updates);
     },
-    [handleUpdate, ruleEditingItem],
+    [handleUpdate, ruleEditingItem, descriptionGlobalVariables],
   );
 
   useEffect(() => {

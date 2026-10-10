@@ -43,6 +43,7 @@ import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
+import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import {
   instantiateItemFromTemplate,
   useTemplateStore,
@@ -113,19 +114,31 @@ export default function ConsumablesPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
+      const previousVariableTokens = buildDescriptionVariableTokens(
+        { ...ruleEditingItem, objectType: "consumable" },
+        descriptionGlobalVariables,
+      );
       const updates: Partial<ConsumableData> = { rules };
       if (
         shouldOverwriteDescriptionOnRuleSave(
           ruleEditingItem.description,
           ruleEditingItem.rules,
           "consumable",
+          previousVariableTokens,
         )
       ) {
-        updates.description = generateDescriptionFromRules(rules, "consumable");
+        updates.description = generateDescriptionFromRules(
+          rules,
+          "consumable",
+          buildDescriptionVariableTokens(
+            { ...ruleEditingItem, objectType: "consumable", rules },
+            descriptionGlobalVariables,
+          ),
+        );
       }
       handleUpdate(ruleEditingItem.id, updates);
     },
-    [handleUpdate, ruleEditingItem],
+    [handleUpdate, ruleEditingItem, descriptionGlobalVariables],
   );
 
   useEffect(() => {

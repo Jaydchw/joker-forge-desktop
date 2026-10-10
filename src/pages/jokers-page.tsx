@@ -50,6 +50,7 @@ import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
+import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import {
@@ -126,6 +127,10 @@ export default function JokersPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[], options?: RuleBuilderSaveOptions) => {
       if (!ruleEditingItem) return;
+      const previousVariableTokens = buildDescriptionVariableTokens(
+        { ...ruleEditingItem, objectType: "joker" },
+        descriptionGlobalVariables,
+      );
       const updates: Partial<JokerData> = { rules };
       if (options?.ruleExecutionMode) {
         updates.ruleExecutionMode = options.ruleExecutionMode;
@@ -138,13 +143,21 @@ export default function JokersPage() {
           ruleEditingItem.description,
           ruleEditingItem.rules,
           "joker",
+          previousVariableTokens,
         )
       ) {
-        updates.description = generateDescriptionFromRules(rules, "joker");
+        updates.description = generateDescriptionFromRules(
+          rules,
+          "joker",
+          buildDescriptionVariableTokens(
+            { ...ruleEditingItem, objectType: "joker", rules },
+            descriptionGlobalVariables,
+          ),
+        );
       }
       handleUpdate(ruleEditingItem.id, updates);
     },
-    [handleUpdate, ruleEditingItem],
+    [handleUpdate, ruleEditingItem, descriptionGlobalVariables],
   );
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import type { Rule, Effect, Condition } from "@/components/rule-builder/types";
 import { applyAutoFormatting } from "@/lib/balatro/balatro-text-formatter";
+import type { DescriptionVariableToken } from "./description-variable-registry";
 import {
   getConditionTypeById,
   getEffectTypeById,
@@ -26,6 +27,11 @@ const DEFAULT_DESCRIPTION_PLACEHOLDERS = new Set([
 const DEFAULT_TRIGGER_IDS = new Set(["hand_played", "card_used"]);
 const MAX_VISIBLE_CHARS_PER_LINE = 52;
 type StatKind = "mult" | "chips" | "money" | "generic";
+type DescriptionTokenMap = {
+  indices: Map<string, number>;
+  parameterIndices?: WeakMap<object, number>;
+  probabilityIndices?: WeakMap<object, number>;
+};
 
 const normalizeItemType = (itemType: ItemType): "joker" | "consumable" | "voucher" | "deck" | "card" => {
   if (itemType === "enhancement" || itemType === "edition" || itemType === "seal") {
@@ -50,14 +56,16 @@ const asScalar = (input: unknown): unknown => {
   return input;
 };
 
-const getParamValue = (effect: Effect, ...keys: string[]): unknown => {
+const getParamPayload = (effect: Effect, ...keys: string[]): unknown => {
   for (const key of keys) {
     const raw = effect.params?.[key];
     if (!raw) continue;
-    return asScalar(raw);
+    return raw;
   }
   return undefined;
 };
+const getParamValue = (effect: Effect, ...keys: string[]): unknown =>
+  asScalar(getParamPayload(effect, ...keys));
 const getConditionValue = (condition: Condition, ...keys: string[]): unknown => {
   for (const key of keys) {
     if (!condition.params?.[key]) continue;
@@ -71,7 +79,7 @@ const stripFormatting = (value: string): string =>
 
 const renderToken = (
   value: unknown,
-  tokenMap: Map<string, number>,
+  tokenMap: DescriptionTokenMap,
   wrapped = true,
   fallbackToRaw = true,
 ): string => {
@@ -80,11 +88,22 @@ const renderToken = (
     return fallbackToRaw ? "{C:attention}?{}" : "";
   }
 
-  const key = JSON.stringify(scalar);
-  let idx = tokenMap.get(key);
+  const valueType = value && typeof value === "object" && "valueType" in value
+    ? value.valueType : undefined;
+  const key = JSON.stringify(
+    tokenMap.parameterIndices && typeof scalar === "string" && !scalar.startsWith("GAMEVAR:")
+      && (valueType === "gameVariable" || valueType === "game_var")
+      ? `GAMEVAR:${scalar}` : scalar,
+  );
+  let idx = (value && typeof value === "object" ? tokenMap.probabilityIndices?.get(value) : undefined)
+    ?? tokenMap.indices.get(key)
+    ?? (value && typeof value === "object" ? tokenMap.parameterIndices?.get(value) : undefined);
   if (!idx) {
-    idx = tokenMap.size + 1;
-    tokenMap.set(key, idx);
+    if (tokenMap.parameterIndices) {
+      return wrapped ? `{C:attention}${String(scalar)}{}` : String(scalar);
+    }
+    idx = tokenMap.indices.size + 1;
+    tokenMap.indices.set(key, idx);
   }
   return wrapped ? `{C:attention}#${idx}#{}` : `#${idx}#`;
 };
@@ -117,8 +136,8 @@ const ruleNeedsRoomSuffix = (rule: Rule): boolean => {
   );
 };
 
-const effectPhrase = (effect: Effect, tokenMap: Map<string, number>): string => {
-  const value = getParamValue(effect, "value", "amount");
+const effectPhrase = (effect: Effect, tokenMap: DescriptionTokenMap): string => {
+  const value = getParamPayload(effect, "value", "amount");
   const selectionMethod = String(getParamValue(effect, "selection_method") ?? "");
   const toText = (sel: string): string => {
     if (sel === "right") return "to the right";
@@ -179,15 +198,16 @@ const effectPhrase = (effect: Effect, tokenMap: Map<string, number>): string => 
 
 const conditionPhrase = (
   condition: Condition,
-  tokenMap: Map<string, number>,
+  tokenMap: DescriptionTokenMap,
 ): string => {
   const p = (key: string) => asScalar(condition.params?.[key]);
   const value = p("value");
+  const valuePayload = condition.params?.value;
   const operator = String(p("operator") ?? "");
   const cardScope = String(p("card_scope") ?? "");
 
   if (condition.type === "hand_type") {
-    const hand = typeof value === "string" ? value : renderToken(value, tokenMap);
+    const hand = typeof value === "string" ? value : renderToken(valuePayload, tokenMap);
     const scope = cardScope === "all_played" ? "played hand" : "scoring hand";
     const op = operator === "equals" ? "is" : "contains";
     return `${scope} ${op} a {C:attention}${hand}{}`;
@@ -207,7 +227,7 @@ const conditionPhrase = (
     return "played/scored card matches the chosen rank";
   }
   if (condition.type === "hand_count") {
-    const amount = renderToken(value, tokenMap);
+    const amount = renderToken(valuePayload, tokenMap);
     if (operator === "equals") {
       return `${cardScope === "all_played" ? "played hand" : "scoring hand"} contains exactly ${amount} card(s)`;
     }
@@ -215,14 +235,14 @@ const conditionPhrase = (
   }
   if (condition.type === "suit_count") {
     const suit = String(p("suit") ?? p("suit_value") ?? p("suit_type") ?? "");
-    const amount = renderToken(value, tokenMap);
+    const amount = renderToken(valuePayload, tokenMap);
     return `${cardScope === "all_played" ? "played hand" : "scoring hand"} has ${operator.replace(/_/g, " ")} ${amount} {C:attention}${suit}{} card(s)`;
   }
   if (condition.type === "rank_count") {
     const rank = String(
       p("specific_rank") ?? p("rank") ?? p("rank_group") ?? p("rank_type") ?? "",
     );
-    const amount = renderToken(p("count") ?? value, tokenMap);
+    const amount = renderToken(condition.params?.count ?? valuePayload, tokenMap);
     return `${cardScope === "all_played" ? "played hand" : "scoring hand"} has ${operator.replace(/_/g, " ")} ${amount} {C:attention}${rank}{} card(s)`;
   }
 
@@ -232,12 +252,14 @@ const conditionPhrase = (
   for (const payload of Object.values(condition.params || {})) {
     const raw = asScalar(payload);
     if (typeof raw === "number") {
-      paramTokens.push(renderToken(raw, tokenMap));
+      paramTokens.push(renderToken(payload, tokenMap));
       continue;
     }
     if (typeof raw === "string" && raw.trim().length > 0) {
-      if (raw.startsWith("GAMEVAR:") || raw.startsWith("RANGE:")) {
-        paramTokens.push(renderToken(raw, tokenMap, true));
+      if (raw.startsWith("GAMEVAR:") || raw.startsWith("RANGE:")
+        || (tokenMap.parameterIndices && (tokenMap.indices.has(JSON.stringify(raw))
+          || payload.valueType === "gameVariable" || payload.valueType === "game_var"))) {
+        paramTokens.push(renderToken(payload, tokenMap, true));
       } else if (!["true", "false", "all", "any", "none"].includes(raw.toLowerCase())) {
         paramTokens.push(`{C:attention}${raw}{}`);
       }
@@ -282,7 +304,7 @@ const triggerPhrase = (triggerId: string, itemType: ItemType): string => {
 
 const composeTemplateSentence = (
   rule: Rule,
-  tokenMap: Map<string, number>,
+  tokenMap: DescriptionTokenMap,
 ): string | null => {
   const effects = ruleEffects(rule);
   const effectsSet = new Set(effects.map((e) => e.type));
@@ -344,57 +366,57 @@ const composeTemplateSentence = (
     effectsSet.has("add_mult")
   ) {
     const hand = String(getConditionValue(cond("hand_type") as Condition, "value") || "");
-    return `If played hand contains a {C:attention}${hand}{}, gain ${renderStatGain("chips", getParamValue(effect("add_chips") as Effect, "value", "amount"))} and ${renderStatGain("mult", getParamValue(effect("add_mult") as Effect, "value", "amount"))}`;
+    return `If played hand contains a {C:attention}${hand}{}, gain ${renderStatGain("chips", getParamPayload(effect("add_chips") as Effect, "value", "amount"))} and ${renderStatGain("mult", getParamPayload(effect("add_mult") as Effect, "value", "amount"))}`;
   }
   if (
     rule.trigger === "card_discarded" &&
     condSet.has("first_played_hand") &&
     effectsSet.has("draw_cards")
   ) {
-    return `If {C:attention}first hand{} of round, draw ${renderToken(getParamValue(effect("draw_cards") as Effect, "value", "amount"), tokenMap)} card(s) when a card is discarded`;
+    return `If {C:attention}first hand{} of round, draw ${renderToken(getParamPayload(effect("draw_cards") as Effect, "value", "amount"), tokenMap)} card(s) when a card is discarded`;
   }
 
   // trigger + effect pairs
   if (rule.trigger === "blind_selected" && effectsSet.has("destroy_joker") && effectsSet.has("add_mult")) {
     const destroySel = String(getParamValue(effect("destroy_joker") as Effect, "selection_method") || "right");
     const pos = destroySel === "left" ? "to the left" : "to the right";
-    return `When {C:attention}Blind{} is selected, destroy Joker ${pos} and gain {C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{}`;
+    return `When {C:attention}Blind{} is selected, destroy Joker ${pos} and gain {C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{}`;
   }
   if (rule.trigger === "card_scored" && effectsSet.has("add_mult")) {
-    return `When a card is scored, gain {C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{}`;
+    return `When a card is scored, gain {C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{}`;
   }
   if (rule.trigger === "card_scored" && effectsSet.has("add_chips")) {
-    return `When a card is scored, gain {C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{}`;
+    return `When a card is scored, gain {C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{}`;
   }
   if (rule.trigger === "card_discarded" && effectsSet.has("draw_cards")) {
-    return `When a card is discarded, draw ${renderToken(getParamValue(effect("draw_cards") as Effect, "value", "amount"), tokenMap)} card(s)`;
+    return `When a card is discarded, draw ${renderToken(getParamPayload(effect("draw_cards") as Effect, "value", "amount"), tokenMap)} card(s)`;
   }
   if (rule.trigger === "round_end" && effectsSet.has("add_dollars")) {
-    return `At end of round, gain {C:money}$${renderToken(getParamValue(effect("add_dollars") as Effect, "value", "amount"), tokenMap, false)}{}`;
+    return `At end of round, gain {C:money}$${renderToken(getParamPayload(effect("add_dollars") as Effect, "value", "amount"), tokenMap, false)}{}`;
   }
   if (rule.trigger === "consumable_used" && effectsSet.has("create_consumable")) {
     return `When a consumable is used, ${effectPhrase(effect("create_consumable") as Effect, tokenMap)}`;
   }
   if (rule.trigger === "hand_played" && effectsSet.has("add_mult")) {
-    return `${renderStatGain("mult", getParamValue(effect("add_mult") as Effect, "value", "amount"))} when hand is played`;
+    return `${renderStatGain("mult", getParamPayload(effect("add_mult") as Effect, "value", "amount"))} when hand is played`;
   }
   if (rule.trigger === "hand_played" && effectsSet.has("add_chips")) {
-    return `${renderStatGain("chips", getParamValue(effect("add_chips") as Effect, "value", "amount"))} when hand is played`;
+    return `${renderStatGain("chips", getParamPayload(effect("add_chips") as Effect, "value", "amount"))} when hand is played`;
   }
   if (rule.trigger === "card_scored" && effectsSet.has("set_dollars")) {
-    return `When a card is scored, gain ${renderStatGain("money", getParamValue(effect("set_dollars") as Effect, "value", "amount"))}`;
+    return `When a card is scored, gain ${renderStatGain("money", getParamPayload(effect("set_dollars") as Effect, "value", "amount"))}`;
   }
   if (rule.trigger === "before_hand_played" && effectsSet.has("retrigger")) {
-    return `Before a hand is played, retrigger ${renderToken(getParamValue(effect("retrigger") as Effect, "value", "amount"), tokenMap)} time(s)`;
+    return `Before a hand is played, retrigger ${renderToken(getParamPayload(effect("retrigger") as Effect, "value", "amount"), tokenMap)} time(s)`;
   }
   if (rule.trigger === "after_hand_played" && effectsSet.has("draw_cards")) {
-    return `After a hand is played, draw ${renderToken(getParamValue(effect("draw_cards") as Effect, "value", "amount"), tokenMap)} card(s)`;
+    return `After a hand is played, draw ${renderToken(getParamPayload(effect("draw_cards") as Effect, "value", "amount"), tokenMap)} card(s)`;
   }
   if (rule.trigger === "first_hand_drawn" && effectsSet.has("add_mult")) {
-    return `When first hand of round is drawn, gain ${renderStatGain("mult", getParamValue(effect("add_mult") as Effect, "value", "amount"))}`;
+    return `When first hand of round is drawn, gain ${renderStatGain("mult", getParamPayload(effect("add_mult") as Effect, "value", "amount"))}`;
   }
   if (rule.trigger === "round_end" && effectsSet.has("set_dollars")) {
-    return `At end of round, gain ${renderStatGain("money", getParamValue(effect("set_dollars") as Effect, "value", "amount"))}`;
+    return `At end of round, gain ${renderStatGain("money", getParamPayload(effect("set_dollars") as Effect, "value", "amount"))}`;
   }
   if (rule.trigger === "joker_evaluated" && effectsSet.has("apply_x_mult")) {
     return `When this Joker triggers, ${effectPhrase(effect("apply_x_mult") as Effect, tokenMap)}`;
@@ -403,7 +425,7 @@ const composeTemplateSentence = (
     return `When a card is used, ${createConsumablePhrase()}`;
   }
   if (rule.trigger === "hand_discarded" && effectsSet.has("add_chips")) {
-    return `When a hand is discarded, gain ${renderStatGain("chips", getParamValue(effect("add_chips") as Effect, "value", "amount"))}`;
+    return `When a hand is discarded, gain ${renderStatGain("chips", getParamPayload(effect("add_chips") as Effect, "value", "amount"))}`;
   }
 
   // trigger + condition pairs
@@ -456,63 +478,63 @@ const composeTemplateSentence = (
   if (condSet.has("hand_type") && effectsSet.has("add_mult")) {
     const c = cond("hand_type") as Condition;
     const hand = String(getConditionValue(c, "value") || "");
-    return `{C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if played hand contains a {C:attention}${hand}{}`;
+    return `{C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if played hand contains a {C:attention}${hand}{}`;
   }
   if (condSet.has("hand_type") && effectsSet.has("add_chips")) {
     const c = cond("hand_type") as Condition;
     const hand = String(getConditionValue(c, "value") || "");
-    return `{C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if played hand contains a {C:attention}${hand}{}`;
+    return `{C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if played hand contains a {C:attention}${hand}{}`;
   }
   if (condSet.has("first_played_hand") && effectsSet.has("create_consumable")) {
     return `If {C:attention}first hand{} of round, ${effectPhrase(effect("create_consumable") as Effect, tokenMap)}`;
   }
   if (condSet.has("player_money") && effectsSet.has("add_mult")) {
-    return `If ${conditionPhrase(cond("player_money") as Condition, tokenMap)}, gain {C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{}`;
+    return `If ${conditionPhrase(cond("player_money") as Condition, tokenMap)}, gain {C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{}`;
   }
   if (condSet.has("player_money") && effectsSet.has("add_chips")) {
-    return `If ${conditionPhrase(cond("player_money") as Condition, tokenMap)}, gain {C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{}`;
+    return `If ${conditionPhrase(cond("player_money") as Condition, tokenMap)}, gain {C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{}`;
   }
   if (condSet.has("first_played_hand") && effectsSet.has("add_mult")) {
-    return `{C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if {C:attention}first hand{} of round`;
+    return `{C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if {C:attention}first hand{} of round`;
   }
   if (condSet.has("first_played_hand") && effectsSet.has("add_chips")) {
-    return `{C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if {C:attention}first hand{} of round`;
+    return `{C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if {C:attention}first hand{} of round`;
   }
   if (condSet.has("card_rank") && effectsSet.has("add_mult")) {
-    return `{C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("card_rank") as Condition, tokenMap)}`;
+    return `{C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("card_rank") as Condition, tokenMap)}`;
   }
   if (condSet.has("card_rank") && effectsSet.has("add_chips")) {
-    return `{C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("card_rank") as Condition, tokenMap)}`;
+    return `{C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("card_rank") as Condition, tokenMap)}`;
   }
   if (condSet.has("hand_count") && effectsSet.has("add_mult")) {
-    return `{C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("hand_count") as Condition, tokenMap)}`;
+    return `{C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("hand_count") as Condition, tokenMap)}`;
   }
   if (condSet.has("hand_count") && effectsSet.has("add_chips")) {
-    return `{C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("hand_count") as Condition, tokenMap)}`;
+    return `{C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("hand_count") as Condition, tokenMap)}`;
   }
   if (condSet.has("suit_count") && effectsSet.has("add_mult")) {
-    return `{C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("suit_count") as Condition, tokenMap)}`;
+    return `{C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("suit_count") as Condition, tokenMap)}`;
   }
   if (condSet.has("suit_count") && effectsSet.has("add_chips")) {
-    return `{C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("suit_count") as Condition, tokenMap)}`;
+    return `{C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("suit_count") as Condition, tokenMap)}`;
   }
   if (condSet.has("rank_count") && effectsSet.has("add_mult")) {
-    return `{C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("rank_count") as Condition, tokenMap)}`;
+    return `{C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("rank_count") as Condition, tokenMap)}`;
   }
   if (condSet.has("rank_count") && effectsSet.has("add_chips")) {
-    return `{C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("rank_count") as Condition, tokenMap)}`;
+    return `{C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("rank_count") as Condition, tokenMap)}`;
   }
   if (condSet.has("card_suit") && effectsSet.has("add_mult")) {
-    return `{C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("card_suit") as Condition, tokenMap)}`;
+    return `{C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("card_suit") as Condition, tokenMap)}`;
   }
   if (condSet.has("card_suit") && effectsSet.has("add_chips")) {
-    return `{C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("card_suit") as Condition, tokenMap)}`;
+    return `{C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("card_suit") as Condition, tokenMap)}`;
   }
   if (condSet.has("card_enhancement") && effectsSet.has("add_mult")) {
-    return `{C:mult}+${renderToken(getParamValue(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("card_enhancement") as Condition, tokenMap)}`;
+    return `{C:mult}+${renderToken(getParamPayload(effect("add_mult") as Effect, "value", "amount"), tokenMap, false)} Mult{} if ${conditionPhrase(cond("card_enhancement") as Condition, tokenMap)}`;
   }
   if (condSet.has("card_enhancement") && effectsSet.has("add_chips")) {
-    return `{C:chips}+${renderToken(getParamValue(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("card_enhancement") as Condition, tokenMap)}`;
+    return `{C:chips}+${renderToken(getParamPayload(effect("add_chips") as Effect, "value", "amount"), tokenMap, false)} Chips{} if ${conditionPhrase(cond("card_enhancement") as Condition, tokenMap)}`;
   }
 
   return null;
@@ -552,7 +574,7 @@ const statLabel = (kind: StatKind): string => {
 
 const collectVariableStatusRows = (
   rules: Rule[],
-  tokenMap: Map<string, number>,
+  tokenMap: DescriptionTokenMap,
 ): string[] => {
   const vars = new Map<string, { mutated: boolean; kinds: Set<StatKind> }>();
   for (const rule of rules) {
@@ -587,7 +609,7 @@ const collectVariableStatusRows = (
     for (const kind of info.kinds) {
       const color = statColor(kind);
       const label = statLabel(kind);
-      const token = renderToken(`VAR:${varName}:${kind}`, tokenMap, false);
+      const token = renderToken(tokenMap.parameterIndices ? varName : `VAR:${varName}:${kind}`, tokenMap, false);
       rows.push(`{C:inactive}(Currently{} {C:${color}}+${token}{} {C:inactive}${label}){}`);
     }
   }
@@ -618,15 +640,63 @@ const wrapLines = (text: string, maxVisibleChars = MAX_VISIBLE_CHARS_PER_LINE): 
   return out.join("");
 };
 
+const createDescriptionTokenMap = (
+  rules: Rule[],
+  tokens: DescriptionVariableToken[] | undefined,
+): DescriptionTokenMap => {
+  const indices = new Map<string, number>();
+  if (!tokens) return { indices };
+
+  const parameterIndices = new WeakMap<object, number>();
+  const probabilityIndices = new WeakMap<object, number>();
+  const effectsById = new Map(rules.flatMap(ruleEffects).map((effect) => [effect.id, effect]));
+  const groupsById = new Map(rules.flatMap((rule) => rule.randomGroups ?? []).map((group) => [group.id, group]));
+  const bindValue = (value: unknown, index: number) => {
+    const key = JSON.stringify(value);
+    if (!indices.has(key)) indices.set(key, index);
+  };
+  const bindParameter = (parameter: unknown, index: number, target = parameterIndices) => {
+    if (parameter && typeof parameter === "object") target.set(parameter, index);
+  };
+
+  tokens.forEach((token, offset) => {
+    const index = offset + 1;
+    const binding = token.binding;
+    switch (binding.kind) {
+      case "user": indices.set(JSON.stringify(binding.name), index); break;
+      case "literal": bindValue(binding.value, index); break;
+      case "config": {
+        const effect = binding.effect_id ? effectsById.get(binding.effect_id) : undefined;
+        if (effect) bindParameter(getParamPayload(effect, "value", "amount"), index);
+        break;
+      }
+      case "probability": {
+        const group = groupsById.get(binding.group_id);
+        if (group) bindParameter(group[`chance_${binding.part}`], index, probabilityIndices);
+        break;
+      }
+      case "game": {
+        const multiplier = binding.multiplier ?? 1;
+        const startsFrom = binding.startsFrom ?? 0;
+        bindValue(`GAMEVAR:${binding.id}|${multiplier}|${startsFrom}`, index);
+        if (multiplier === 1 && startsFrom === 0) bindValue(`GAMEVAR:${binding.id}`, index);
+        break;
+      }
+    }
+  });
+  return { indices, parameterIndices, probabilityIndices };
+};
+
 export const generateDescriptionFromRules = (
   rules: Rule[] | undefined,
   itemType: ItemType,
+  variableTokens?: DescriptionVariableToken[],
 ): string => {
   if (!Array.isArray(rules) || rules.length === 0) {
     return "Effect description";
   }
 
-  const tokenMap = new Map<string, number>();
+  const tokenMap = createDescriptionTokenMap(rules, variableTokens);
   const lines = rules.map((rule) => {
     const templateLine = composeTemplateSentence(rule, tokenMap);
     const mustHaveRoom = ruleNeedsRoomSuffix(rule);
@@ -697,13 +767,17 @@ export const shouldOverwriteDescriptionOnRuleSave = (
   currentDescription: string | undefined,
   previousRules: Rule[] | undefined,
   itemType: ItemType,
+  variableTokens?: DescriptionVariableToken[],
 ): boolean => {
   const normalizedCurrent = normalizeDescription(currentDescription || "");
   if (!normalizedCurrent) return true;
   if (DEFAULT_DESCRIPTION_PLACEHOLDERS.has(normalizedCurrent)) return true;
 
   const previousAuto = normalizeDescription(
-    generateDescriptionFromRules(previousRules, itemType),
+    generateDescriptionFromRules(previousRules, itemType, variableTokens),
   );
-  return !!previousAuto && normalizedCurrent === previousAuto;
+  if (previousAuto && normalizedCurrent === previousAuto) return true;
+  const previousLegacyAuto = variableTokens
+    ? normalizeDescription(generateDescriptionFromRules(previousRules, itemType)) : "";
+  return !!previousLegacyAuto && normalizedCurrent === previousLegacyAuto;
 };

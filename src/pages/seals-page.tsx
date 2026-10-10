@@ -39,6 +39,7 @@ import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
+import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import {
   instantiateItemFromTemplate,
   useTemplateStore,
@@ -91,19 +92,31 @@ export default function SealsPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
+      const previousVariableTokens = buildDescriptionVariableTokens(
+        { ...ruleEditingItem, objectType: "seal" },
+        descriptionGlobalVariables,
+      );
       const updates: Partial<SealData> = { rules };
       if (
         shouldOverwriteDescriptionOnRuleSave(
           ruleEditingItem.description,
           ruleEditingItem.rules,
           "seal",
+          previousVariableTokens,
         )
       ) {
-        updates.description = generateDescriptionFromRules(rules, "seal");
+        updates.description = generateDescriptionFromRules(
+          rules,
+          "seal",
+          buildDescriptionVariableTokens(
+            { ...ruleEditingItem, objectType: "seal", rules },
+            descriptionGlobalVariables,
+          ),
+        );
       }
       handleUpdate(ruleEditingItem.id, updates);
     },
-    [handleUpdate, ruleEditingItem],
+    [handleUpdate, ruleEditingItem, descriptionGlobalVariables],
   );
 
   useEffect(() => {

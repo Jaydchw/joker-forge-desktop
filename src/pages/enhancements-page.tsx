@@ -44,6 +44,7 @@ import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
+import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import {
   instantiateItemFromTemplate,
   useTemplateStore,
@@ -99,19 +100,31 @@ export default function EnhancementsPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
+      const previousVariableTokens = buildDescriptionVariableTokens(
+        { ...ruleEditingItem, objectType: "enhancement" },
+        descriptionGlobalVariables,
+      );
       const updates: Partial<EnhancementData> = { rules };
       if (
         shouldOverwriteDescriptionOnRuleSave(
           ruleEditingItem.description,
           ruleEditingItem.rules,
           "enhancement",
+          previousVariableTokens,
         )
       ) {
-        updates.description = generateDescriptionFromRules(rules, "enhancement");
+        updates.description = generateDescriptionFromRules(
+          rules,
+          "enhancement",
+          buildDescriptionVariableTokens(
+            { ...ruleEditingItem, objectType: "enhancement", rules },
+            descriptionGlobalVariables,
+          ),
+        );
       }
       handleUpdate(ruleEditingItem.id, updates);
     },
-    [handleUpdate, ruleEditingItem],
+    [handleUpdate, ruleEditingItem, descriptionGlobalVariables],
   );
 
   useEffect(() => {

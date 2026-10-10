@@ -42,6 +42,7 @@ import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
+import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import {
   instantiateItemFromTemplate,
   useTemplateStore,
@@ -94,19 +95,31 @@ export default function DecksPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
+      const previousVariableTokens = buildDescriptionVariableTokens(
+        { ...ruleEditingItem, objectType: "deck" },
+        descriptionGlobalVariables,
+      );
       const updates: Partial<DeckData> = { rules };
       if (
         shouldOverwriteDescriptionOnRuleSave(
           ruleEditingItem.description,
           ruleEditingItem.rules,
           "deck",
+          previousVariableTokens,
         )
       ) {
-        updates.description = generateDescriptionFromRules(rules, "deck");
+        updates.description = generateDescriptionFromRules(
+          rules,
+          "deck",
+          buildDescriptionVariableTokens(
+            { ...ruleEditingItem, objectType: "deck", rules },
+            descriptionGlobalVariables,
+          ),
+        );
       }
       handleUpdate(ruleEditingItem.id, updates);
     },
-    [handleUpdate, ruleEditingItem],
+    [handleUpdate, ruleEditingItem, descriptionGlobalVariables],
   );
 
   useEffect(() => {

@@ -38,6 +38,7 @@ import {
   generateDescriptionFromRules,
   shouldOverwriteDescriptionOnRuleSave,
 } from "@/lib/rules/auto-description";
+import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import { applyItemUpdatesWithOrderSwap } from "@/lib/items/item-order";
 import {
   instantiateItemFromTemplate,
@@ -101,19 +102,31 @@ export default function VouchersPage() {
   const handleRulesSave = useCallback(
     (rules: Rule[]) => {
       if (!ruleEditingItem) return;
+      const previousVariableTokens = buildDescriptionVariableTokens(
+        { ...ruleEditingItem, objectType: "voucher" },
+        descriptionGlobalVariables,
+      );
       const updates: Partial<VoucherData> = { rules };
       if (
         shouldOverwriteDescriptionOnRuleSave(
           ruleEditingItem.description,
           ruleEditingItem.rules,
           "voucher",
+          previousVariableTokens,
         )
       ) {
-        updates.description = generateDescriptionFromRules(rules, "voucher");
+        updates.description = generateDescriptionFromRules(
+          rules,
+          "voucher",
+          buildDescriptionVariableTokens(
+            { ...ruleEditingItem, objectType: "voucher", rules },
+            descriptionGlobalVariables,
+          ),
+        );
       }
       handleUpdate(ruleEditingItem.id, updates);
     },
-    [handleUpdate, ruleEditingItem],
+    [handleUpdate, ruleEditingItem, descriptionGlobalVariables],
   );
 
   useEffect(() => {

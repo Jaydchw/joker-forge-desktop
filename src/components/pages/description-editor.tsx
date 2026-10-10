@@ -156,8 +156,8 @@ export const DescriptionEditor = memo(
         | "edition"
         | "seal"
         | "card";
-      return generateDescriptionFromRules(item?.rules, objectType);
-    }, [item?.objectType, item?.rules]);
+      return generateDescriptionFromRules(item?.rules, objectType, variableTokens);
+    }, [item?.objectType, item?.rules, variableTokens]);
 
     useEffect(() => {
       if (applyingHistoryRef.current) {
