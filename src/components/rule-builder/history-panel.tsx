@@ -7,11 +7,14 @@ import {
   Shuffle,
 } from "@phosphor-icons/react";
 import type { Rule } from "./types";
+import type { UserVariable } from "@/lib/core/types";
+import type { VariableOwnerMap } from "./use-rule-history";
 import Panel from "./panel";
 
 interface HistoryPanelProps {
   position: { x: number; y: number };
   entries: Rule[][];
+  variableEntries?: VariableOwnerMap[];
   currentIndex: number;
   onRestoreAt: (index: number) => void;
   onClose: () => void;
@@ -43,7 +46,65 @@ type HistoryActionType =
   | "added"
   | "deleted"
   | "reordered"
-  | "edited";
+  | "edited"
+  | "variable_added"
+  | "variable_deleted"
+  | "variable_edited";
+
+const variablesByOwnerAndId = (owners: VariableOwnerMap) => {
+  const variables = new Map<string, UserVariable>();
+  for (const owner of Object.values(owners)) {
+    for (const variable of owner.variables) {
+      variables.set(
+        JSON.stringify([owner.ownerItemType, owner.ownerItemId, variable.id]),
+        variable,
+      );
+    }
+  }
+  return variables;
+};
+
+const detectVariableAction = (
+  previous: VariableOwnerMap | undefined,
+  current: VariableOwnerMap | undefined,
+): { action: HistoryActionType; names: string[] } | undefined => {
+  if (!previous || !current) return undefined;
+  const before = variablesByOwnerAndId(previous);
+  const after = variablesByOwnerAndId(current);
+  const names: string[] = [];
+  let added = 0;
+  let deleted = 0;
+  let edited = 0;
+
+  for (const [id, variable] of before) {
+    const nextVariable = after.get(id);
+    if (!nextVariable) {
+      deleted += 1;
+      names.push(variable.name);
+    } else if (JSON.stringify(variable) !== JSON.stringify(nextVariable)) {
+      edited += 1;
+      names.push(variable.name === nextVariable.name
+        ? nextVariable.name
+        : `${variable.name} → ${nextVariable.name}`);
+    }
+  }
+  for (const [id, variable] of after) {
+    if (!before.has(id)) {
+      added += 1;
+      names.push(variable.name);
+    }
+  }
+
+  if (!added && !deleted && !edited) return undefined;
+  return {
+    action: added && !deleted && !edited
+      ? "variable_added"
+      : deleted && !added && !edited
+        ? "variable_deleted"
+        : "variable_edited",
+    names: [...new Set(names)],
+  };
+};
 
 const ruleOrderFingerprint = (rules: Rule[]): string => {
   return rules.map((rule) => rule.id).join("|");
@@ -95,10 +156,22 @@ const actionPresentation = (action: HistoryActionType) => {
         label: "Added",
         iconClass: "text-jungle-green-300",
       };
+    case "variable_added":
+      return {
+        icon: PlusCircle,
+        label: "Added variable",
+        iconClass: "text-jungle-green-300",
+      };
     case "deleted":
       return {
         icon: MinusCircle,
         label: "Deleted",
+        iconClass: "text-destructive",
+      };
+    case "variable_deleted":
+      return {
+        icon: MinusCircle,
+        label: "Deleted variable",
         iconClass: "text-destructive",
       };
     case "reordered":
@@ -106,6 +179,12 @@ const actionPresentation = (action: HistoryActionType) => {
         icon: Shuffle,
         label: "Reordered",
         iconClass: "text-balatro-blue",
+      };
+    case "variable_edited":
+      return {
+        icon: PencilSimple,
+        label: "Edited variable",
+        iconClass: "text-amber-300",
       };
     default:
       return {
@@ -119,6 +198,7 @@ const actionPresentation = (action: HistoryActionType) => {
 const HistoryPanel: React.FC<HistoryPanelProps> = ({
   position,
   entries,
+  variableEntries,
   currentIndex,
   onRestoreAt,
   onClose,
@@ -144,7 +224,12 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
             {entries.map((snapshot, index) => {
               const isCurrent = index === currentIndex;
               const summary = summarizeSnapshot(snapshot);
-              const action = detectActionType(entries[index - 1], snapshot);
+              const variableChange = entries[index - 1]
+                && JSON.stringify(entries[index - 1]) === JSON.stringify(snapshot)
+                ? detectVariableAction(variableEntries?.[index - 1], variableEntries?.[index])
+                : undefined;
+              const action = variableChange?.action
+                || detectActionType(entries[index - 1], snapshot);
               const presentation = actionPresentation(action);
               const ActionIcon = presentation.icon;
 
@@ -171,9 +256,13 @@ const HistoryPanel: React.FC<HistoryPanelProps> = ({
                       <span className="text-[10px] text-primary">Now</span>
                     ) : null}
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-1">
-                    {summary.ruleCount}R / {summary.conditionCount}C /{" "}
-                    {summary.effectCount}E
+                  <div
+                    className="text-[11px] text-muted-foreground mt-1 truncate"
+                    title={variableChange?.names.join(", ")}
+                  >
+                    {variableChange
+                      ? `${variableChange.names.slice(0, 2).join(", ")}${variableChange.names.length > 2 ? ` and ${variableChange.names.length - 2} more` : ""}`
+                      : <>{summary.ruleCount}R / {summary.conditionCount}C /{" "}{summary.effectCount}E</>}
                   </div>
                 </button>
               );

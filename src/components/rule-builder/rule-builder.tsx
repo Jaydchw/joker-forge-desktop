@@ -62,7 +62,7 @@ import {
   remapSegmentsToCode,
   type CodeSegment,
 } from "@/lib/content/code-sections";
-import type { CustomCodeState, RuleExecutionMode } from "@/lib/core/types";
+import type { CustomCodeState, RuleExecutionMode, UserVariable } from "@/lib/core/types";
 import {
   toRanges as toFieldRanges,
   updateBoundRanges,
@@ -115,7 +115,7 @@ import { motion } from "framer-motion";
 import { UserConfigContext } from "@/components/Contexts";
 import { detectValueType } from "@/lib/rules/value-type-utils";
 import { usePanelState } from "./panel-state";
-import { useRuleHistory } from "./use-rule-history";
+import { useRuleHistory, type VariableOwnerSnapshot } from "./use-rule-history";
 import { getChanceGroupOptions } from "./probability-sources";
 import {
   generateBoosterTypeConditionTitle,
@@ -155,6 +155,16 @@ import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 
 export type ItemData = any;
 type ItemType = "joker" | "consumable" | "card" | "voucher" | "deck";
+
+const VARIABLE_COLLECTIONS = {
+  joker: "jokers",
+  consumable: "consumables",
+  voucher: "vouchers",
+  deck: "decks",
+  enhancement: "enhancements",
+  seal: "seals",
+  edition: "editions",
+} as const;
 
 type SnippetNodeParams = Record<string, unknown>;
 
@@ -543,7 +553,48 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     () => item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match",
   );
   const { userConfig } = useContext(UserConfigContext);
-  const { data } = useProjectData();
+  const {
+    data, currentProjectId, updateJokers, updateConsumables, updateVouchers,
+    updateDecks, updateEnhancements, updateSeals, updateEditions,
+  } = useProjectData();
+  const variableContextRef = useRef({
+    item, data, onUpdateItem, updateJokers, updateConsumables, updateVouchers,
+    updateDecks, updateEnhancements, updateSeals, updateEditions,
+  });
+  variableContextRef.current = {
+    item, data, onUpdateItem, updateJokers, updateConsumables, updateVouchers,
+    updateDecks, updateEnhancements, updateSeals, updateEditions,
+  };
+  const restoreVariableOwners = useCallback((owners: VariableOwnerSnapshot[]) => {
+    const context = variableContextRef.current;
+    for (const owner of owners) {
+      if (owner.ownerItemId === context.item.id) {
+        context.item = { ...context.item, userVariables: owner.variables };
+        context.onUpdateItem({ userVariables: owner.variables });
+        continue;
+      }
+      const collection = VARIABLE_COLLECTIONS[owner.ownerItemType as keyof typeof VARIABLE_COLLECTIONS];
+      if (!collection) continue;
+      const apply = <T extends { id: string; userVariables?: UserVariable[] }>(
+        updateItems: (update: T[] | ((previous: T[]) => T[])) => void,
+      ) => updateItems((items) => items.map((entry) => entry.id === owner.ownerItemId
+        ? { ...entry, userVariables: owner.variables } : entry));
+      switch (owner.ownerItemType) {
+        case "joker": apply(context.updateJokers); break;
+        case "consumable": apply(context.updateConsumables); break;
+        case "voucher": apply(context.updateVouchers); break;
+        case "deck": apply(context.updateDecks); break;
+        case "enhancement": apply(context.updateEnhancements); break;
+        case "seal": apply(context.updateSeals); break;
+        case "edition": apply(context.updateEditions); break;
+      }
+      context.data = {
+        ...context.data,
+        [collection]: context.data[collection].map((entry) => entry.id === owner.ownerItemId
+          ? { ...entry, userVariables: owner.variables } : entry),
+      };
+    }
+  }, []);
   const { createRuleTemplate, getRuleTemplatesForType } = useTemplateStore();
   const [ruleBuilderSettings, setRuleBuilderSettingsState] =
     useState<RuleBuilderSettings>(() => getRuleBuilderSettings());
@@ -589,14 +640,49 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     rules,
     setRules,
     resetHistory,
+    recordVariableChange,
     handleUndo,
     handleRedo,
     restoreHistoryAt,
     historyTimeline,
+    historyVariableTimeline,
     historyCurrentIndex,
     canUndo,
     canRedo,
-  } = useRuleHistory();
+  } = useRuleHistory(restoreVariableOwners);
+  const handleVariableItemUpdate = useCallback((updates: Partial<ItemData>) => {
+    if (isReadOnly) return;
+    const context = variableContextRef.current;
+    if (Array.isArray(updates.userVariables)) {
+      const previousVariables = Array.isArray(context.item.userVariables) ? context.item.userVariables : [];
+      recordVariableChange({
+        ownerItemId: context.item.id,
+        ownerItemType: context.item.objectType ?? (itemType === "card" ? "enhancement" : itemType),
+        variables: updates.userVariables,
+      }, previousVariables);
+    }
+    context.item = { ...context.item, ...updates };
+    context.onUpdateItem(updates);
+  }, [isReadOnly, itemType, recordVariableChange]);
+  const handleUpdateOwnerVariables = useCallback((
+    ownerItemId: string,
+    ownerItemType: string,
+    updater: (variables: UserVariable[]) => UserVariable[],
+  ) => {
+    if (isReadOnly) return;
+    const context = variableContextRef.current;
+    if (ownerItemId === context.item.id) {
+      handleVariableItemUpdate({ userVariables: updater(context.item.userVariables ?? []) });
+      return;
+    }
+    const collection = VARIABLE_COLLECTIONS[ownerItemType as keyof typeof VARIABLE_COLLECTIONS];
+    const ownerItem = collection && context.data[collection].find((entry) => entry.id === ownerItemId);
+    if (!ownerItem) return;
+    const previousVariables = Array.isArray(ownerItem.userVariables) ? ownerItem.userVariables : [];
+    const owner = { ownerItemId, ownerItemType, variables: updater(previousVariables) };
+    recordVariableChange(owner, previousVariables);
+    restoreVariableOwners([owner]);
+  }, [isReadOnly, handleVariableItemUpdate, recordVariableChange, restoreVariableOwners]);
   const rulesRef = useRef<Rule[]>(rules);
   rulesRef.current = rules;
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
@@ -1233,19 +1319,30 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     try {
       let latestRules = flushPendingCodeEdit();
       if (itemType === "deck" && rejectRestrictedEffects(latestRules)) return;
+      const readSource = (sourceRules: Rule[]) => {
+        const context = variableContextRef.current;
+        const { customCode: _, ...latestItem } = context.item;
+        return {
+          item: { ...latestItem, ...(itemType === "joker" ? { ruleExecutionMode } : {}), rules: sourceRules },
+          prefix: context.data.metadata.prefix,
+          globalUserVariables: collectGlobalVariables(context.data, { excludeItemId: context.item.id })
+            .map((entry) => entry.variable),
+        };
+      };
       while (customCodeRef.current || pendingEditorCodeRef.current !== null) {
         latestRules = flushPendingCodeEdit();
         if (itemType === "deck" && rejectRestrictedEffects(latestRules)) return;
         const revision = editorRevisionRef.current;
-        const snapshot = JSON.stringify(latestRules);
+        const source = readSource(latestRules);
+        const snapshot = JSON.stringify(source);
         const freshCompiled = await compileSingleItemLuaWithSegments(
-          { ...itemWithoutCustomCode, rules: latestRules },
+          source.item,
           previewItemType,
-          data.metadata.prefix,
-          { includeLocTxt: true, globalUserVariables },
+          source.prefix,
+          { includeLocTxt: true, globalUserVariables: source.globalUserVariables },
         );
         if (!builderMountedRef.current) return;
-        if (revision !== editorRevisionRef.current || snapshot !== JSON.stringify(rulesRef.current)) continue;
+        if (revision !== editorRevisionRef.current || snapshot !== JSON.stringify(readSource(rulesRef.current))) continue;
         reconcileGeneratedCode(freshCompiled, latestRules);
         break;
       }
@@ -1261,8 +1358,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       savingRef.current = false;
       if (builderMountedRef.current) setIsSaving(false);
     }
-  }, [isReadOnly, onSave, onClose, itemType, ruleExecutionMode, rejectRestrictedEffects, flushPendingCodeEdit, itemWithoutCustomCode, previewItemType,
-    data.metadata.prefix, globalUserVariables, reconcileGeneratedCode, formatLiveCodeErrorDetails,
+  }, [isReadOnly, onSave, onClose, itemType, ruleExecutionMode, rejectRestrictedEffects, flushPendingCodeEdit, previewItemType,
+    reconcileGeneratedCode, formatLiveCodeErrorDetails,
     panels.liveCode?.isVisible, togglePanel]);
 
   useEffect(() => {
@@ -1614,7 +1711,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       setSelectionRect(null);
       setIsDragSelecting(false);
     }
-  }, [isOpen, item.id]);
+  }, [isOpen, item.id, currentProjectId]);
 
   useEffect(() => {
     setSelectedGameVariable(null);
@@ -1809,7 +1906,22 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const handleHistoryKeyPress = (event: KeyboardEvent) => {
+        if (isReadOnly || event.defaultPrevented) return;
+        const undo = shortcutMatches(event, ruleBuilderSettings.shortcuts.undo);
+        const redo = shortcutMatches(event, ruleBuilderSettings.shortcuts.redo);
+        if (!undo && !redo) return;
+        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement
+          || (event.target instanceof HTMLElement
+            && (event.target.isContentEditable || event.target.closest(".cm-editor")))) return;
+        if (document.querySelector('[role="alertdialog"]')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (undo) handleUndo();
+        else handleRedo();
+      };
       const handleKeyPress = (event: KeyboardEvent) => {
+        if (event.defaultPrevented) return;
         const isCodeMirrorTarget =
           event.target instanceof HTMLElement &&
           !!event.target.closest(".cm-editor");
@@ -1827,6 +1939,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         if (isEditableTarget) {
           return;
         }
+        if (document.querySelector('[role="alertdialog"]')) return;
 
         if (
           shortcutMatches(event, ruleBuilderSettings.shortcuts.copySelection) &&
@@ -1839,16 +1952,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         if (shortcutMatches(event, ruleBuilderSettings.shortcuts.autoLayout)) {
           event.preventDefault();
           handleAutoLayoutRules();
-          return;
-        }
-        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.undo)) {
-          event.preventDefault();
-          handleUndo();
-          return;
-        }
-        if (shortcutMatches(event, ruleBuilderSettings.shortcuts.redo)) {
-          event.preventDefault();
-          handleRedo();
           return;
         }
         if (shortcutMatches(event, ruleBuilderSettings.shortcuts.selectAll)) {
@@ -1969,8 +2072,10 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         }
       };
 
+      document.addEventListener("keydown", handleHistoryKeyPress, true);
       document.addEventListener("keydown", handleKeyPress);
       return () => {
+        document.removeEventListener("keydown", handleHistoryKeyPress, true);
         document.removeEventListener("keydown", handleKeyPress);
       };
     }
@@ -1982,6 +2087,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     handleUndo,
     clearRuleSelection,
     isOpen,
+    isReadOnly,
     itemType,
     ruleBuilderSettings,
     shortcutMatches,
@@ -5373,7 +5479,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                     <Variables
                       position={panels.variables.position}
                       item={item as any}
-                      onUpdateItem={onUpdateItem}
+                      onUpdateItem={handleVariableItemUpdate}
+                      onUpdateOwnerVariables={handleUpdateOwnerVariables}
                       onClose={() => togglePanel("variables")}
                       addVariableRequest={addVariableRequest}
                       onPositionChange={(position) =>
@@ -5396,7 +5503,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                       onUpdateRandomGroup={updateRandomGroup}
                       onUpdateLoopGroup={updateLoopGroup}
                       onUpdateJoker={
-                        onUpdateItem as (updates: Partial<any>) => void
+                        handleVariableItemUpdate as (updates: Partial<any>) => void
                       }
                       onClose={handleCloseInspector}
                       onPositionChange={(position) =>
@@ -5435,6 +5542,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                     <HistoryPanel
                       position={panels.history.position}
                       entries={historyTimeline}
+                      variableEntries={historyVariableTimeline}
                       currentIndex={historyCurrentIndex}
                       onRestoreAt={restoreHistoryAt}
                       onClose={() => togglePanel("history")}

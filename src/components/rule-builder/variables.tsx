@@ -30,6 +30,7 @@ import {
 } from "@phosphor-icons/react";
 import { Input as InputField } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { validateVariableName } from "@/lib/core/validation-utils";
 import { useProjectData } from "@/lib/services/storage";
 import { collectGlobalVariables } from "@/lib/app/global-user-variables";
@@ -54,6 +55,11 @@ interface VariablesProps {
   position: { x: number; y: number };
   item: ItemData;
   onUpdateItem: (updates: Partial<ItemData>) => void;
+  onUpdateOwnerVariables?: (
+    ownerItemId: string,
+    ownerItemType: string,
+    updater: (variables: UserVariable[]) => UserVariable[],
+  ) => void;
   onClose: () => void;
   onPositionChange: (position: { x: number; y: number }) => void;
   addVariableRequest?: {
@@ -116,6 +122,7 @@ const Variables: React.FC<VariablesProps> = ({
   position,
   item,
   onUpdateItem,
+  onUpdateOwnerVariables,
   onClose,
   addVariableRequest,
 }) => {
@@ -165,6 +172,10 @@ const Variables: React.FC<VariablesProps> = ({
   const [editingIsGlobal, setEditingIsGlobal] = useState(false);
   const [editingIsPersistent, setEditingIsPersistent] = useState(false);
   const [search, setSearch] = useState("");
+  const [pendingDeleteVariable, setPendingDeleteVariable] = useState<{
+    variableId: string;
+    itemId: string;
+  } | null>(null);
   const deferredSearch = React.useDeferredValue(search);
 
   React.useEffect(() => {
@@ -207,6 +218,18 @@ const Variables: React.FC<VariablesProps> = ({
 
     return merged;
   }, [localUserVariables, sharedGlobalVariables]);
+  const variableToDelete =
+    pendingDeleteVariable && pendingDeleteVariable.itemId === item.id
+      ? userVariables.find(
+          (variable) => variable.id === pendingDeleteVariable.variableId,
+        )
+      : undefined;
+
+  React.useEffect(() => {
+    if (pendingDeleteVariable && (!variableToDelete || !variableToDelete.isGlobal)) {
+      setPendingDeleteVariable(null);
+    }
+  }, [pendingDeleteVariable, variableToDelete]);
   const localVariableIds = useMemo(
     () => new Set(localUserVariables.map((variable) => variable.id)),
     [localUserVariables],
@@ -229,6 +252,12 @@ const Variables: React.FC<VariablesProps> = ({
       ),
     [data, item?.id],
   );
+  const deleteVariableOwnerName =
+    variableToDelete && !localVariableIds.has(variableToDelete.id)
+      ? globalVariableOwnersByName.get(
+          variableToDelete.name.trim().toLowerCase(),
+        )?.ownerItemName
+      : undefined;
   const visibleVariables = useMemo(
     () => userVariables.filter((variable) => {
       if (variable.id === editingVariable) return true;
@@ -253,6 +282,10 @@ const Variables: React.FC<VariablesProps> = ({
     ownerItemType: string,
     updater: (variables: UserVariable[]) => UserVariable[],
   ) => {
+    if (onUpdateOwnerVariables) {
+      onUpdateOwnerVariables(ownerItemId, ownerItemType, updater);
+      return;
+    }
     const apply = <
       T extends {
         id: string;
@@ -418,6 +451,21 @@ const Variables: React.FC<VariablesProps> = ({
       (v: UserVariable) => v.id !== variableId,
     );
     onUpdateItem({ userVariables: updatedVariables });
+  };
+
+  const requestDeleteVariable = (variable: UserVariable) => {
+    if (variable.isGlobal) {
+      setPendingDeleteVariable({ variableId: variable.id, itemId: item.id });
+      return;
+    }
+    handleDeleteVariable(variable.id);
+  };
+
+  const confirmDeleteVariable = () => {
+    if (variableToDelete?.isGlobal) {
+      handleDeleteVariable(variableToDelete.id);
+    }
+    setPendingDeleteVariable(null);
   };
 
   const handleStartEdit = (variable: UserVariable) => {
@@ -892,7 +940,8 @@ const Variables: React.FC<VariablesProps> = ({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleDeleteVariable(variable.id)}
+                                onClick={() => requestDeleteVariable(variable)}
+                                aria-label={`Delete variable ${variable.name}`}
                                 className="cursor-pointer h-6 w-6 p-0 text-destructive hover:text-destructive"
                               >
                                 <Trash className="h-3.5 w-3.5" />
@@ -1101,6 +1150,18 @@ const Variables: React.FC<VariablesProps> = ({
           </Button>
         )}
       </div>
+      <ConfirmDialog
+        open={!!variableToDelete?.isGlobal}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteVariable(null);
+        }}
+        title={`Delete global variable “${variableToDelete?.name || ""}”?`}
+        description={variableToDelete
+          ? `This ${variableToDelete.isPersistent ? "persistent global" : "global"} variable is shared across the project.${deleteVariableOwnerName ? ` Its definition belongs to “${deleteVariableOwnerName}”.` : ""} Deleting its definition may break rules and descriptions that reference it.`
+          : undefined}
+        confirmLabel="Delete Variable"
+        onConfirm={confirmDeleteVariable}
+      />
     </Panel>
   );
 };
