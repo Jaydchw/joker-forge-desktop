@@ -206,6 +206,20 @@ const conditionPhrase = (
   const operator = String(p("operator") ?? "");
   const cardScope = String(p("card_scope") ?? "");
 
+  if (condition.type === "obtained_joker") {
+    const payload = condition.params?.joker_key;
+    const key = String(asScalar(payload) ?? "");
+    const isVariable = payload?.valueType === "user_var" || payload?.valueType === "userVariable";
+    const parameter = getConditionTypeById(condition.type)?.params.find((param) => param.id === "joker_key");
+    const options = typeof parameter?.options === "function"
+      ? parameter.options(condition.params)
+      : parameter?.options;
+    const registeredKey = key.startsWith("j_") ? key : `j_${key}`;
+    const label = options?.find((option) => option.value === key || option.value === registeredKey)?.label ?? key;
+    const joker = isVariable ? renderToken(payload, tokenMap) : `{C:attention}${label || "?"}{}`;
+    return `the obtained Joker is${condition.negate ? " not" : ""} ${joker}`;
+  }
+
   if (condition.type === "hand_type") {
     const hand = typeof value === "string" ? value : renderToken(valuePayload, tokenMap);
     const scope = cardScope === "all_played" ? "played hand" : "scoring hand";
@@ -276,6 +290,10 @@ const triggerPhrase = (triggerId: string, itemType: ItemType): string => {
   const raw = label || triggerId.replace(/_/g, " ").toLowerCase();
   const cleaned = cleanWhenPrefix(raw);
   switch (triggerId) {
+    case "joker_obtained":
+      return "this Joker is obtained";
+    case "any_joker_obtained":
+      return "any Joker is obtained";
     case "joker_evaluated":
     case "joker_triggered":
       return "this Joker triggers";
@@ -745,7 +763,7 @@ export const generateDescriptionFromRules = (
       conditions.length <= 1 &&
       (rule.randomGroups?.length || 0) === 0 &&
       (rule.loops?.length || 0) === 0;
-    if (simpleRule && conditionSuffix) {
+    if (simpleRule && conditionSuffix && rule.trigger !== "joker_obtained" && rule.trigger !== "any_joker_obtained") {
       return `${clause}${conditionSuffix}${mustHaveRoom ? "[s]{C:inactive}(Must have room){}" : ""}`;
     }
     return `when ${trigger}, ${clause}${conditionSuffix}${mustHaveRoom ? "[s]{C:inactive}(Must have room){}" : ""}`;

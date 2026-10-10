@@ -1586,6 +1586,25 @@
     "category": "Card"
   },
   {
+    "id": "obtained_joker",
+    "label": "Obtained Joker",
+    "description": "Check which Joker was just obtained. Select a Joker or a key variable to match it.",
+    "objectUsers": ["joker"],
+    "applicableTriggers": ["any_joker_obtained"],
+    "params": [
+      {
+        "id": "joker_key",
+        "type": "select",
+        "label": "Joker",
+        "options": [],
+        "default": "j_joker",
+        "optionSource": "jokers",
+        "variableTypes": ["key"]
+      }
+    ],
+    "category": "Jokers"
+  },
+  {
     "id": "specific_joker",
     "label": "Owned Joker",
     "description": "Check if a specific joker is in your collection",

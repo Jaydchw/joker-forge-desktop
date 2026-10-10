@@ -1,7 +1,7 @@
 use crate::compiler::context::CompileContext;
 use crate::compiler::values::{comparison_op, resolve_condition_value};
 use crate::lua_ast::*;
-use crate::types::ConditionDef;
+use crate::types::{ConditionDef, UserVarType};
 
 enum JokerTarget {
     SelfJoker,
@@ -35,6 +35,34 @@ fn normalized_joker_key(joker_key: &str) -> String {
     } else {
         format!("j_{}", joker_key)
     }
+}
+
+pub(crate) fn obtained_joker_card_guard() -> Expr {
+    lua_raw_expr(
+        "(type(context) == 'table' and type(context.card) == 'table' and type(context.card.config) == 'table' and type(context.card.config.center) == 'table' and context.card.config.center.set == 'Joker')",
+    )
+}
+
+pub fn obtained_joker(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {
+    let expected = if let Some(name) = super::utils::typed_user_var_name(condition, "joker_key", "joker_key") {
+        if !ctx.user_vars().iter().any(|variable| variable.name == name && variable.var_type == UserVarType::Key) {
+            return Some(super::utils::invalid_condition("obtained_joker", "unknown key variable"));
+        }
+        lua_raw_expr(joker_key_variable_expr(ctx, name)?)
+    } else if let Some(key) = super::utils::str_param(condition, &["joker_key"]) {
+        lua_str(key)
+    } else {
+        return Some(super::utils::invalid_condition("obtained_joker", "no joker key selected"));
+    };
+
+    let matches = lua_and(obtained_joker_card_guard(), lua_eq(
+        lua_path(&["context", "card", "config", "center", "key"]),
+        lua_ident("obtained_key"),
+    ));
+    let matcher = lua_raw_expr(format!(
+        "(function(obtained_key) if type(obtained_key) ~= 'string' or obtained_key == '' then return false end; if obtained_key:sub(1, 2) ~= 'j_' then obtained_key = 'j_' .. obtained_key end; return not not ({matches}) end)"
+    ));
+    Some(Expr::Call(Box::new(matcher), vec![expected]))
 }
 
 pub fn specific_joker_owned(condition: &ConditionDef, ctx: &CompileContext) -> Option<Expr> {

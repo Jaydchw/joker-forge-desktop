@@ -436,6 +436,32 @@
     ]
   },
   {
+    "id": "joker_obtained",
+    "label": {
+      "joker": "When This Joker Is Obtained"
+    },
+    "description": {
+      "joker": "Triggers when this Joker is added to your collection. Includes purchases, pack selections, generated Jokers and new copies."
+    },
+    "category": "Economy",
+    "objectUsers": [
+      "joker"
+    ]
+  },
+  {
+    "id": "any_joker_obtained",
+    "label": {
+      "joker": "When Any Joker Is Obtained"
+    },
+    "description": {
+      "joker": "Triggers while this Joker is in your collection whenever a Joker is obtained. Includes purchases, pack selections, generated Jokers and new copies."
+    },
+    "category": "Economy",
+    "objectUsers": [
+      "joker"
+    ]
+  },
+  {
     "id": "buying_self",
     "label": {
       "joker": "When This Card is Bought"

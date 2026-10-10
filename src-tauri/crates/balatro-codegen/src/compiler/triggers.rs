@@ -121,6 +121,14 @@ fn joker_trigger_context(trigger: &str, bp: bool) -> Option<Expr> {
             ),
             bp,
         ),
+        "any_joker_obtained" => bp_check(
+            lua_and_chain(vec![
+                super::conditions::joker::obtained_joker_card_guard(),
+                ctx("card_added"),
+                ctx("main_eval"),
+            ]),
+            bp,
+        ),
 
         // In blind events
         "hand_drawn" => bp_check(ctx("hand_drawn"), bp),
@@ -176,6 +184,7 @@ fn joker_trigger_context(trigger: &str, bp: bool) -> Option<Expr> {
         "card_sold" => bp_check(lua_and(ctx("selling_card"), ctx("main_eval")), bp),
         "selling_self" => bp_check(ctx("selling_self"), bp),
         "buying_self" => bp_check(ctx("buying_self"), bp),
+        "joker_obtained" => bp_check(ctx("joker_obtained"), bp),
         "shop_entered" => bp_check(ctx("starting_shop"), bp),
         "shop_exited" => bp_check(ctx("ending_shop"), bp),
         "shop_reroll" => bp_check(lua_and(ctx("reroll_shop"), ctx("main_eval")), bp),

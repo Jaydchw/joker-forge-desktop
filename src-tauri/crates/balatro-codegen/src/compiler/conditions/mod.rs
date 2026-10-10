@@ -54,6 +54,7 @@ pub fn compile_condition(
         "specific_joker" | "specific_joker_owned" | "owned_joker" => {
             joker::specific_joker_owned(condition, ctx)?
         }
+        "obtained_joker" => joker::obtained_joker(condition, ctx)?,
         "joker_rarity_count" => joker::joker_rarity_count(condition, ctx)?,
         "joker_position" => joker::joker_position(condition, ctx)?,
         "joker_index" => joker::joker_index(condition, ctx)?,

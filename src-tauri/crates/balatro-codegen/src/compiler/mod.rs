@@ -902,7 +902,7 @@ fn build_joker_table(
 fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -> Option<Expr> {
     let non_passive: Vec<&RuleOutput> = rule_outputs
         .iter()
-        .filter(|r| !r.is_passive && !r.effect_stmts.is_empty())
+        .filter(|r| !r.is_passive && r.trigger != "joker_obtained" && !r.effect_stmts.is_empty())
         .collect();
 
     let has_passive_calculate = rule_outputs.iter().any(|r| {
@@ -1030,7 +1030,7 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
 /// Build `add_to_deck` and `remove_from_deck` from passive effects.
 fn build_passive_functions(
     rule_outputs: &[RuleOutput],
-    _ctx: &CompileContext,
+    ctx: &CompileContext,
 ) -> (Option<Expr>, Option<Expr>) {
     let mut add_stmts: Vec<Stmt> = Vec::new();
     let mut remove_stmts: Vec<Stmt> = Vec::new();
@@ -1042,6 +1042,37 @@ fn build_passive_functions(
                 remove_stmts.extend(po.remove_from_deck.clone());
             }
         }
+    }
+
+    let obtained_rules: Vec<&RuleOutput> = rule_outputs.iter()
+        .filter(|rule| rule.trigger == "joker_obtained" && !rule.effect_stmts.is_empty())
+        .collect();
+    if !obtained_rules.is_empty() {
+        let mut rule_body = Vec::new();
+        let build_rule = |rule: &RuleOutput| {
+            wrap_rule_segment(&rule.rule_id, rule.effect_stmts.clone())
+        };
+        if ctx.rule_execution_mode == RuleExecutionMode::AllMatching {
+            append_independent_rules(&mut rule_body, &obtained_rules, build_rule);
+        } else {
+            append_rule_chain_with_fallback(&mut rule_body, &obtained_rules, build_rule);
+        }
+        let obtained_body = vec![
+            lua_local("context", lua_table(vec![
+                ("joker_obtained", lua_bool(true)),
+                ("card", lua_ident("card")),
+                ("other_card", lua_ident("card")),
+                ("other_joker", lua_ident("card")),
+                ("main_eval", lua_bool(true)),
+            ])),
+            lua_local("jf_run_obtained_rules", Expr::Function { params: vec![], body: rule_body }),
+            lua_local("jf_obtained_effect", lua_call("jf_run_obtained_rules", vec![])),
+            lua_if(lua_eq(lua_call("type", vec![lua_ident("jf_obtained_effect")]), lua_str("table")),
+                vec![lua_expr_stmt(lua_call("SMODS.calculate_effect",
+                    vec![lua_ident("jf_obtained_effect"), lua_ident("card")]))]),
+        ];
+        add_stmts.extend(wrap_trigger_stmt_for_rules(&obtained_rules,
+            lua_if(lua_not(lua_ident("from_debuff")), obtained_body)));
     }
 
     let add_fn = if add_stmts.is_empty() {
