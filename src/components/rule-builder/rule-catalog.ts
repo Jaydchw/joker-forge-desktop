@@ -27,6 +27,7 @@ import type {
   GlobalTriggerDefinition,
 } from "./types";
 import { entityBridge } from "@/lib/services/entity-bridge";
+import { getEffectRestrictionForTrigger } from "@/lib/rules/effect-restrictions";
 import {
   ALL_JOKERS,
   ALL_CONSUMABLES,
@@ -524,6 +525,8 @@ export function getEffectsForTrigger(
   return EFFECTS.filter(
     (effect) =>
       effect.applicableTriggers?.includes(triggerId) &&
-      effect.objectUsers.includes(normalizedType),
+      effect.objectUsers.includes(normalizedType) &&
+      !effect.excludedObjectTriggers?.[normalizedType]?.includes(triggerId) &&
+      !getEffectRestrictionForTrigger(effect.id, triggerId, normalizedType),
   );
 }

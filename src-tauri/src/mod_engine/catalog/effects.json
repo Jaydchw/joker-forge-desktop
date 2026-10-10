@@ -256,6 +256,7 @@
   {
     "id": "redeem_voucher",
     "label": "Redeem Voucher",
+    "excludedObjectTriggers": { "deck": ["card_used", "deck_selected"] },
     "description": "Redeem a specific or random voucher",
     "applicableTriggers": [
       "booster_exited",
@@ -2519,6 +2520,7 @@
   {
     "id": "create_consumable",
     "label": "Create Consumable",
+    "excludedObjectTriggers": { "deck": ["card_used", "deck_selected"] },
     "description": "Create consumable cards and add them to your consumables area",
     "applicableTriggers": [
       "booster_exited",

@@ -143,6 +143,7 @@ import {
   useProjectData,
 } from "@/lib/services/storage";
 import { collectGlobalVariables } from "@/lib/app/global-user-variables";
+import { getEffectRestrictionForTrigger, getRuleEffectRestriction } from "@/lib/rules/effect-restrictions";
 import {
   instantiateRuleFromTemplate,
   useTemplateStore,
@@ -528,6 +529,16 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   reforged = false,
 }) => {
   const isReadOnly = reforged;
+  const rejectRestrictedEffects = useCallback((candidateRules: unknown): boolean => {
+    const restriction = getRuleEffectRestriction(candidateRules, itemType);
+    if (!restriction) return false;
+    pushGlobalAlert({
+      type: "danger",
+      title: "Unsupported Deck Effect",
+      message: restriction.message,
+    });
+    return true;
+  }, [itemType]);
   const [ruleExecutionMode, setRuleExecutionMode] = useState<RuleExecutionMode>(
     () => item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match",
   );
@@ -1221,8 +1232,10 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     setIsSaving(true);
     try {
       let latestRules = flushPendingCodeEdit();
+      if (itemType === "deck" && rejectRestrictedEffects(latestRules)) return;
       while (customCodeRef.current || pendingEditorCodeRef.current !== null) {
         latestRules = flushPendingCodeEdit();
+        if (itemType === "deck" && rejectRestrictedEffects(latestRules)) return;
         const revision = editorRevisionRef.current;
         const snapshot = JSON.stringify(latestRules);
         const freshCompiled = await compileSingleItemLuaWithSegments(
@@ -1248,7 +1261,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       savingRef.current = false;
       if (builderMountedRef.current) setIsSaving(false);
     }
-  }, [isReadOnly, onSave, onClose, itemType, ruleExecutionMode, flushPendingCodeEdit, itemWithoutCustomCode, previewItemType,
+  }, [isReadOnly, onSave, onClose, itemType, ruleExecutionMode, rejectRestrictedEffects, flushPendingCodeEdit, itemWithoutCustomCode, previewItemType,
     data.metadata.prefix, globalUserVariables, reconcileGeneratedCode, formatLiveCodeErrorDetails,
     panels.liveCode?.isVisible, togglePanel]);
 
@@ -2298,6 +2311,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
     const ruleToDuplicate = rulesRef.current.find((rule) => rule.id === ruleId);
     if (!ruleToDuplicate) return;
+    if (itemType === "deck" && rejectRestrictedEffects([ruleToDuplicate])) return;
 
     const newRuleId = crypto.randomUUID();
     const newRule = {
@@ -2357,6 +2371,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   ) => {
     const centerPos = getCenterPosition();
     const newRule = instantiateRuleFromTemplate(template, centerPos);
+    if (itemType === "deck" && rejectRestrictedEffects([newRule])) return;
     setRules((prev) => [...prev, newRule]);
     selectBuilderItem({ type: "trigger", ruleId: newRule.id });
     pushGlobalAlert({
@@ -2421,6 +2436,17 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     randomGroupId?: string,
     loopGroupId?: string,
   ) => {
+    const targetRule = rulesRef.current.find((rule) => rule.id === ruleId);
+    const original = targetRule && [
+      ...targetRule.effects,
+      ...targetRule.randomGroups.flatMap((group) => group.effects),
+      ...targetRule.loops.flatMap((group) => group.effects),
+    ].find((effect) => effect.id === effectId);
+    const restriction = original && targetRule && getEffectRestrictionForTrigger(original.type, targetRule.trigger, itemType);
+    if (restriction) {
+      pushGlobalAlert({ type: "danger", title: "Unsupported Deck Effect", message: restriction });
+      return;
+    }
     const duplicatedEffectId = crypto.randomUUID();
 
     setRules((prev) =>
@@ -2932,6 +2958,13 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   const addEffect = (effectType: string) => {
     if (!selectedItem) return;
+    const targetRule = rulesRef.current.find((rule) => rule.id === selectedItem.ruleId);
+    if (!targetRule) return;
+    const restriction = getEffectRestrictionForTrigger(effectType, targetRule.trigger, itemType);
+    if (restriction) {
+      pushGlobalAlert({ type: "danger", title: "Unsupported Deck Effect", message: restriction });
+      return;
+    }
 
     const newEffect: Effect = createEffectFromType(effectType);
 
@@ -3004,6 +3037,16 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     effectId: string,
     updates: Partial<Effect>,
   ) => {
+    if (updates.type) {
+      const targetRule = rulesRef.current.find((rule) => rule.id === ruleId);
+      if (targetRule) {
+        const restriction = getEffectRestrictionForTrigger(updates.type, targetRule.trigger, itemType);
+        if (restriction) {
+          pushGlobalAlert({ type: "danger", title: "Unsupported Deck Effect", message: restriction });
+          return;
+        }
+      }
+    }
     setRules((prev) =>
       prev.map((rule) => {
         if (rule.id === ruleId) {
@@ -3236,6 +3279,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
       if (ruleId) {
         if (blockType === "trigger") {
+          const targetRule = rulesRef.current.find((rule) => rule.id === ruleId);
+          if (targetRule && itemType === "deck" && rejectRestrictedEffects([{ ...targetRule, trigger: blockId }])) {
+            setActiveId(null);
+            return;
+          }
           setRules((prev) =>
             prev.map((rule) =>
               rule.id === ruleId ? { ...rule, trigger: blockId } : rule,
@@ -3314,6 +3362,13 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
             groupId: targetGroupId,
           });
         } else if (blockType === "effect") {
+          const targetRule = rulesRef.current.find((rule) => rule.id === ruleId);
+          const restriction = targetRule && getEffectRestrictionForTrigger(blockId, targetRule.trigger, itemType);
+          if (restriction) {
+            pushGlobalAlert({ type: "danger", title: "Unsupported Deck Effect", message: restriction });
+            setActiveId(null);
+            return;
+          }
           const newEffect = createEffectFromType(blockId);
           setRules((prev) =>
             prev.map((rule) => {
@@ -3614,8 +3669,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     if (selectedRuleIds.length === 0) return;
 
     const selectedSet = new Set(selectedRuleIds);
-    const duplicated = rulesRef.current
-      .filter((rule) => selectedSet.has(rule.id))
+    const selectedRules = rulesRef.current.filter((rule) => selectedSet.has(rule.id));
+    if (itemType === "deck" && rejectRestrictedEffects(selectedRules)) return;
+    const duplicated = selectedRules
       .map((rule) => {
         const newRuleId = crypto.randomUUID();
         return {
@@ -3658,7 +3714,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           : null,
       );
     }
-  }, [selectedRuleIds]);
+  }, [selectedRuleIds, itemType, rejectRestrictedEffects]);
 
   const copySelectedRules = useCallback(() => {
     if (selectedRuleIds.length === 0) return;
@@ -3674,6 +3730,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   const pasteCopiedRules = useCallback(() => {
     if (copiedRulesRef.current.length === 0) return;
+    if (itemType === "deck" && rejectRestrictedEffects(copiedRulesRef.current)) return;
 
     const offset = 30 * pasteOffsetStepRef.current;
     const newRuleIds: string[] = [];
@@ -3729,7 +3786,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     );
 
     pasteOffsetStepRef.current += 1;
-  }, []);
+  }, [itemType, rejectRestrictedEffects]);
 
   const performDeleteSelectedRules = useCallback(() => {
     if (selectedRuleIds.length === 0) return;
@@ -4853,6 +4910,10 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   [liveCodeIsVisible, liveCodePreviewTarget, liveCodeSnippet, editorSyncRevision, generatedMetadataRevision, rules, itemType, data]);
 
   const mergeEffectsEnabled = itemType === "joker" && ruleExecutionMode === "all_matching";
+  const ruleEffectRestriction = useMemo(
+    () => getRuleEffectRestriction(rules, itemType),
+    [rules, itemType],
+  );
 
   if (!isOpen) return null;
   return (
@@ -5054,6 +5115,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
               </div>
             </div>
           </div>
+          {ruleEffectRestriction && (
+            <div role="alert" className="shrink-0 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2 text-xs text-amber-800 dark:text-amber-200">
+              {ruleEffectRestriction.message} Remove or move this block before saving.
+            </div>
+          )}
           <div className="grow relative overflow-hidden">
             <div
               className={`h-full w-full ${liveCodeIsVisible ? "flex" : "block"}`}

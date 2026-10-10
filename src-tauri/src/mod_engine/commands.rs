@@ -375,11 +375,14 @@ fn compile_deck_lua_from_input(
     pos: AtlasPosInput,
     mod_prefix: &str,
     global_user_variables: &[UserVariableDef],
-) -> String {
+) -> Result<String, String> {
+    super::export::validate_deck_data(item)?;
     let mut def = super::export::deck_data_to_def(item, mod_prefix, pos);
     merge_global_user_vars(&mut def.user_variables, global_user_variables);
     let chunk = compile_deck(&def, mod_prefix);
-    strip_export_comments(&format_lua_source(&LuaEmitter::new().emit_chunk(&chunk)))
+    Ok(strip_export_comments(&format_lua_source(
+        &LuaEmitter::new().emit_chunk(&chunk),
+    )))
 }
 
 fn compile_enhancement_lua_from_input(
@@ -511,12 +514,12 @@ pub fn compile_item_from_data(
         "deck" => {
             let parsed: DeckDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid deck data: {}", e))?;
-            Ok(compile_deck_lua_from_input(
+            compile_deck_lua_from_input(
                 &parsed,
                 base_pos,
                 &mod_prefix,
                 &mapped_globals,
-            ))
+            )
         }
         "enhancement" => {
             let parsed: EnhancementDataInput = serde_json::from_value(item_data)
@@ -621,6 +624,7 @@ pub fn compile_item_from_data_with_segments(
         "deck" => {
             let parsed: DeckDataInput = serde_json::from_value(item_data)
                 .map_err(|e| format!("Invalid deck data: {}", e))?;
+            super::export::validate_deck_data(&parsed)?;
             let mut def = super::export::deck_data_to_def(&parsed, &mod_prefix, base_pos);
             merge_global_user_vars(&mut def.user_variables, &mapped_globals);
             let chunk = compile_deck(&def, &mod_prefix);
@@ -890,6 +894,9 @@ pub fn export_mod_package(
     remove_other_managed_mods: bool,
     managed_mod_folder_names: Option<Vec<String>>,
 ) -> Result<usize, String> {
+    for entry in &decks {
+        super::export::validate_deck_data(&entry.deck_data)?;
+    }
     let root = Path::new(&mod_folder_path);
     if remove_other_managed_mods {
         if let Some(managed_mod_folder_names) = managed_mod_folder_names {
@@ -1197,7 +1204,7 @@ pub fn export_mod_package(
                     entry.pos.clone(),
                     &metadata.prefix,
                     &all_global_vars,
-                )
+                )?
             };
             fs::write(dir.join(&entry.file_name), lua.as_bytes())
                 .map_err(|e| format!("Failed to write {}: {}", entry.file_name, e))?;

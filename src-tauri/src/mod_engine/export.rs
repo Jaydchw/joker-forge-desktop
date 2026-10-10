@@ -868,6 +868,12 @@ pub fn voucher_data_to_def(
     }
 }
 
+pub fn validate_deck_data(input: &DeckDataInput) -> Result<(), String> {
+    let rules: Vec<RuleDef> = input.rules.iter().map(map_rule).collect();
+    balatro_codegen::compiler::deck::validate_deck_rules(&rules)
+        .map_err(|error| format!("Deck '{}': {}", input.name, error))
+}
+
 pub fn deck_data_to_def(input: &DeckDataInput, mod_prefix: &str, pos: AtlasPosInput) -> DeckDef {
     let requested_atlas = input.atlas.as_deref().unwrap_or("CustomDecks").trim();
     let normalized_prefixed_enhancers = normalize_mod_prefixed_key(mod_prefix, "Enhancers");

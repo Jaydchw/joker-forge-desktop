@@ -3,6 +3,31 @@ use super::{build_shared_calculate_function, build_shared_loc_vars, compile_rule
 use crate::lua_ast::*;
 use crate::types::*;
 
+pub fn validate_deck_rules(rules: &[RuleDef]) -> Result<(), String> {
+    for (index, rule) in rules.iter().enumerate() {
+        if !matches!(rule.trigger.as_str(), "card_used" | "deck_selected") {
+            continue;
+        }
+        for effect in rule
+            .effects
+            .iter()
+            .chain(rule.random_groups.iter().flat_map(|group| &group.effects))
+            .chain(rule.loop_groups.iter().flat_map(|group| &group.effects))
+        {
+            let (label, category) = match effect.effect_type.as_str() {
+                "create_consumable" | "add_consumable" => ("Create Consumable", "Consumables"),
+                "redeem_voucher" => ("Redeem Voucher", "Vouchers"),
+                _ => continue,
+            };
+            return Err(format!(
+                "Rule {}: {} cannot run When This Deck Is Selected because the game's card areas are not ready. Use Advanced > Starting Items > {} instead, or choose a later trigger.",
+                index + 1, label, category,
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Compile a deck definition into a Lua chunk.
 pub fn compile_deck(deck: &DeckDef, mod_prefix: &str) -> Chunk {
     let mut ctx = CompileContext::new(

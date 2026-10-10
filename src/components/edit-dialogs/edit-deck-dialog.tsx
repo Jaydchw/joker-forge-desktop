@@ -133,6 +133,7 @@ export function EditDeckDialog({
                 id: "Config_vouchers",
                 type: "custom",
                 label: "Starting Vouchers",
+                description: "Add vouchers to redeem when the run starts. Enter voucher keys separated by commas.",
                 render: (value, onChange) => (
                   <div className="space-y-2">
                     <Input
@@ -154,6 +155,7 @@ export function EditDeckDialog({
                 id: "Config_consumables",
                 type: "custom",
                 label: "Starting Consumables",
+                description: "Add consumables to give when the run starts. Enter consumable keys separated by commas.",
                 render: (value, onChange) => (
                   <div className="space-y-2">
                     <Input

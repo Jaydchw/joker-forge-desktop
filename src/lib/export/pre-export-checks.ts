@@ -12,6 +12,7 @@ import type {
 } from "@/lib/core/types";
 import type { NavigationTarget } from "@/lib/app/navigation-target";
 import { getAllGameVariables } from "@/lib/content/game-vars";
+import { getRuleEffectRestriction } from "@/lib/rules/effect-restrictions";
 
 export interface PreExportIssue {
   id: string;
@@ -480,6 +481,18 @@ const checkDeckConfigKeys = ({ data, issues }: CheckContext) => {
   });
 };
 
+const checkDeckStartupRules = ({ data, issues }: CheckContext) => {
+  data.decks.forEach((deck) => {
+    const restriction = getRuleEffectRestriction(deck.rules, "deck");
+    if (!restriction) return;
+    pushIssue(
+      issues,
+      `Decks: "${formatItemName(deck, deck.id)}": ${restriction.message}`,
+      { path: "/decks", itemId: deck.id, editor: "rules" },
+    );
+  });
+};
+
 const checkVoucherRequirements = ({ data, issues }: CheckContext) => {
   data.vouchers.forEach((voucher: VoucherData) => {
     const value = String(voucher.requires || "").trim();
@@ -740,6 +753,7 @@ export const runPreExportChecks = (data: ProjectData): PreExportIssue[] => {
 
   checkConsumableSetReferences(context);
   checkDeckConfigKeys(context);
+  checkDeckStartupRules(context);
   checkVoucherRequirements(context);
   checkJokerRarityReferences(context);
   checkEditionShaderKeys(context);

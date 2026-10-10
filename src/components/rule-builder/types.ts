@@ -177,6 +177,7 @@ export interface GlobalEffectTypeDefinition {
   params: EffectParameter[];
   applicableTriggers?: string[];
   applicableTriggerGroups?: string[];
+  excludedObjectTriggers?: Record<string, string[]>;
   category: string;
   objectUsers: string[];
 }
