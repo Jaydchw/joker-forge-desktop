@@ -35,6 +35,7 @@ import { pushGlobalAlert } from "@/lib/app/global-alerts-bus";
 import { clearThemeStorage } from "@/lib/app/theme-manager";
 import { ensureUniqueItemOrderValues } from "@/lib/items/item-order";
 import { ProjectFileStore } from "@/lib/services/project-file-store";
+import { normalizeSounds } from "@/lib/sounds/sound-data";
 
 export interface ProjectStats {
   jokers: number;
@@ -1222,7 +1223,7 @@ const sanitizeProjectData = (input: any): ProjectData => {
     enhancements: ensureUniqueItemOrderValues(
       toLocalizedArray(input.enhancements),
     ),
-    sounds: toArray(input.sounds),
+    sounds: toArray(normalizeSounds(input.sounds)),
   };
 };
 

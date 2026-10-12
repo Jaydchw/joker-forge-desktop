@@ -2,6 +2,7 @@ import type { ProjectData, ProjectStats } from "@/lib/services/storage";
 import type { ModMetadata } from "@/lib/core/types";
 import { sanitizeDescription } from "@/lib/description/description-sanitizer";
 import { ensureUniqueItemOrderValues } from "@/lib/items/item-order";
+import { normalizeSounds } from "@/lib/sounds/sound-data";
 
 const DEFAULT_METADATA: ModMetadata = {
   id: "my_custom_mod",
@@ -468,23 +469,6 @@ const normalizeCollection = (value: unknown, objectType: string): unknown[] => {
   return asArray(value).map((item, index) =>
     normalizeCollectionItem(item, objectType, index),
   );
-};
-
-const normalizeSounds = (value: unknown): unknown[] => {
-  return asArray(value).map((sound, index) => {
-    const obj = asObject(sound) ?? {};
-    const key =
-      (typeof obj.key === "string" && obj.key.trim()) || `sound_${index + 1}`;
-    return {
-      ...obj,
-      id: (typeof obj.id === "string" && obj.id.trim()) || `sound-${index + 1}`,
-      key,
-      soundString:
-        (typeof obj.soundString === "string" && obj.soundString.trim()) || key,
-      volume: asNumber(obj.volume, 1),
-      pitch: asNumber(obj.pitch, 1),
-    };
-  });
 };
 
 const normalizeRarities = (value: unknown): unknown[] => {

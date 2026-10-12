@@ -18,7 +18,8 @@ import {
   Star,
   Sparkle,
   CaretDown,
-  BookBookmark
+  BookBookmark,
+  MusicNotes,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/core/utils";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ const PROJECT_MAIN = [
     href: "/metadata",
     color: "text-foreground",
   },
+  { label: "Sounds", icon: MusicNotes, href: "/sounds", color: "text-primary" },
 ];
 
 const RESOURCES = [

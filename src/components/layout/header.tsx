@@ -149,6 +149,8 @@ export function Header({ title }: HeaderProps) {
         return "Editions";
       case "/boosters":
         return "Boosters";
+      case "/sounds":
+        return "Sounds";
       case "/vanilla-reforged/jokers":
         return "Vanilla Jokers";
       case "/vanilla-reforged/consumables":
@@ -332,8 +334,6 @@ export function Header({ title }: HeaderProps) {
   };
 
   const navigateToTarget = (target: NavigationTarget) => {
-    const resolvedPath =
-      target.path === "/sounds" ? "/settings" : target.path;
     const params = new URLSearchParams();
     if (target.itemId) {
       params.set("activityItemId", target.itemId);
@@ -342,7 +342,7 @@ export function Header({ title }: HeaderProps) {
       params.set("activityEditor", target.editor);
     }
     const query = params.toString();
-    navigate(query ? `${resolvedPath}?${query}` : resolvedPath);
+    navigate(query ? `${target.path}?${query}` : target.path);
   };
 
   const getDeletableTargetsFromIssues = (
@@ -409,7 +409,7 @@ export function Header({ title }: HeaderProps) {
             <ul className="mt-3 max-h-64 list-disc space-y-2 overflow-y-auto pl-5 pr-1 text-xs">
               {issues.map((issue) => (
                 <li key={issue.id}>
-                  {issue.target && issue.target.path !== "/sounds" ? (
+                  {issue.target ? (
                     <button
                       type="button"
                       className="cursor-pointer text-left underline decoration-white/35 underline-offset-2 hover:text-white"

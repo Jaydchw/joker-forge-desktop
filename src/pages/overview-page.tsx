@@ -26,6 +26,7 @@ import {
   Key,
   ArrowUUpLeft,
   Trash,
+  MusicNotes,
 } from "@phosphor-icons/react";
 import {
   getJokerforgeExportSaveMode,
@@ -681,6 +682,13 @@ export function OverviewPage() {
             icon={Package}
             href="/boosters"
             colorClass="text-booster-primary"
+          />
+          <StatButton
+            title="Sounds"
+            count={stats.sounds}
+            icon={MusicNotes}
+            href="/sounds"
+            colorClass="text-primary"
           />
         </div>
       </div>

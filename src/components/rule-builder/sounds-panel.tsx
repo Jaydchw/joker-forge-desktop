@@ -6,6 +6,7 @@ import { useProjectData } from "@/lib/services/storage";
 import type { SoundData } from "@/lib/core/types";
 import Panel from "./panel";
 import IconButton from "@/components/ui/icon-button";
+import { getNextSoundKey, readSoundUpload, SOUND_FILE_ACCEPT } from "@/lib/sounds/sound-editor-utils";
 
 interface SoundsPanelProps {
   position: { x: number; y: number };
@@ -20,6 +21,15 @@ const createBaseSound = (key: string): SoundData => ({
   volume: 1,
   pitch: 1,
 });
+
+const releaseAudio = (audio: HTMLAudioElement) => {
+  audio.ontimeupdate = null;
+  audio.ondurationchange = null;
+  audio.onended = null;
+  audio.pause();
+  audio.removeAttribute("src");
+  audio.load();
+};
 
 const decodeWaveformPeaks = async (dataUrl: string, bars = 72): Promise<number[]> => {
   if (!dataUrl) return [];
@@ -48,7 +58,7 @@ const decodeWaveformPeaks = async (dataUrl: string, bars = 72): Promise<number[]
 };
 
 const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
-  const { data, updateSounds } = useProjectData();
+  const { data, updateSounds, currentProjectId } = useProjectData();
   const [searchTerm, setSearchTerm] = useState("");
   const [playingById, setPlayingById] = useState<Record<string, boolean>>({});
   const [currentTimeById, setCurrentTimeById] = useState<Record<string, number>>({});
@@ -63,13 +73,17 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingSoundIdRef = useRef<string | null>(null);
   const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
+  const uploadRequestRef = useRef<AbortController | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const hasCompletedInitialWaveformLoadRef = useRef(false);
 
   const sounds = data.sounds;
-  const keysInUse = useMemo(
-    () => new Set(sounds.map((sound) => sound.key.trim().toLowerCase())),
-    [sounds],
-  );
+  useEffect(() => () => {
+    uploadRequestRef.current?.abort();
+    uploadRequestRef.current = null;
+    Object.values(audioRefs.current).forEach(releaseAudio);
+    audioRefs.current = {};
+  }, [currentProjectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,9 +130,12 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
       return remaining.size === prev.size ? prev : remaining;
     });
     Object.entries(audioRefs.current).forEach(([id, audio]) => {
-      if (!nextIds.has(id)) {
-        audio.pause();
+      const sound = sounds.find((entry) => entry.id === id);
+      if (!nextIds.has(id) || audio.getAttribute("src") !== sound?.audioDataUrl) {
+        releaseAudio(audio);
         delete audioRefs.current[id];
+        setPlayingById((previous) => ({ ...previous, [id]: false }));
+        setCurrentTimeById((previous) => ({ ...previous, [id]: 0 }));
       }
     });
   }, [sounds]);
@@ -130,9 +147,7 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
   };
 
   const addSound = () => {
-    const key = `sound_${sounds.length + 1}`;
-    if (keysInUse.has(key.toLowerCase())) return;
-    updateSounds((previous) => [...previous, createBaseSound(key)]);
+    updateSounds((previous) => [...previous, createBaseSound(getNextSoundKey(previous))]);
   };
 
   const removeSound = (id: string) => {
@@ -143,7 +158,7 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
     });
     const audio = audioRefs.current[id];
     if (audio) {
-      audio.pause();
+      releaseAudio(audio);
       delete audioRefs.current[id];
     }
     setPlayingById((prev) => {
@@ -174,28 +189,24 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     const soundId = pendingSoundIdRef.current;
     pendingSoundIdRef.current = null;
     event.target.value = "";
-    if (
-      !file ||
-      !soundId ||
-      ![".mp3", ".ogg"].some((extension) => file.name.toLowerCase().endsWith(extension))
-    ) {
-      return;
+    if (!file || !soundId) return;
+    uploadRequestRef.current?.abort();
+    const request = new AbortController();
+    uploadRequestRef.current = request;
+    setUploadError(null);
+    try {
+      const upload = await readSoundUpload(file, request.signal);
+      if (!request.signal.aborted && uploadRequestRef.current === request) updateSound(soundId, upload);
+    } catch (failure) {
+      if (!request.signal.aborted && uploadRequestRef.current === request) {
+        setUploadError(failure instanceof Error ? failure.message : "The audio file could not be uploaded.");
+      }
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : "";
-      updateSound(soundId, {
-        soundString: file.name,
-        audioDataUrl: dataUrl,
-      });
-    };
-    reader.readAsDataURL(file);
   };
 
   const ensureAudio = (sound: SoundData) => {
@@ -204,18 +215,18 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
     if (!audio) {
       audio = new Audio();
       audio.preload = "metadata";
-      audio.addEventListener("timeupdate", () => {
+      audio.ontimeupdate = () => {
         setCurrentTimeById((prev) => ({ ...prev, [sound.id]: audio.currentTime || 0 }));
-      });
-      audio.addEventListener("durationchange", () => {
+      };
+      audio.ondurationchange = () => {
         const d = Number.isFinite(audio.duration) ? audio.duration : 0;
         if (d > 0) {
           setDurationsById((prev) => ({ ...prev, [sound.id]: d }));
         }
-      });
-      audio.addEventListener("ended", () => {
+      };
+      audio.onended = () => {
         setPlayingById((prev) => ({ ...prev, [sound.id]: false }));
-      });
+      };
       audioRefs.current[sound.id] = audio;
     }
     if (audio.src !== sound.audioDataUrl) {
@@ -313,6 +324,7 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
             />
           </div>
         </div>
+        {uploadError && <p role="alert" className="text-xs text-destructive">{uploadError}</p>}
 
         <div className="divide-y divide-border/40 max-h-96">
           {isWaveformLoading && sounds.length > 0 ? (
@@ -450,7 +462,7 @@ const SoundsPanel: React.FC<SoundsPanelProps> = ({ position, onClose }) => {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".mp3,.ogg,audio/mpeg,audio/ogg"
+        accept={SOUND_FILE_ACCEPT}
         className="hidden"
         onChange={handleFileChange}
       />

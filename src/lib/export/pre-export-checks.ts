@@ -360,16 +360,14 @@ const checkSimpleKeyCollection = <T extends IdentifierItem>(
     getKey: (item: T) => string;
     getValueLabel: (item: T) => string;
     checkExtra?: (item: T) => string | null;
-    supportsItemNavigation?: boolean;
   },
   items: T[],
 ) => {
   const keyMap = new Map<string, T[]>();
   const toTarget = (itemId: string): NavigationTarget => ({
     path: config.path,
-    ...(config.supportsItemNavigation === false
-      ? {}
-      : { itemId, editor: "info" as const }),
+    itemId,
+    editor: "info",
   });
 
   items.forEach((item) => {
@@ -693,13 +691,23 @@ export const runPreExportChecks = (data: ProjectData): PreExportIssue[] => {
       keyLabel: "key",
       getKey: (item) => item.key,
       getValueLabel: (item) => item.key || item.id,
-      supportsItemNavigation: false,
       checkExtra: (item) => {
         if (!item.soundString?.trim()) {
           return `Sounds: "${item.key || item.id}" is missing an uploaded MP3 or OGG filename.`;
         }
         if (!item.audioDataUrl?.trim()) {
           return `Sounds: "${item.key || item.id}" is missing uploaded MP3 or OGG data.`;
+        }
+        try {
+          const payload = item.audioDataUrl.match(/^data:[^,]*;base64,([\s\S]+)$/i)?.[1];
+          if (!payload || atob(payload).length === 0) {
+            return `Sounds: "${item.key || item.id}" has empty or invalid audio data. Replace its audio in Sounds.`;
+          }
+        } catch {
+          return `Sounds: "${item.key || item.id}" has invalid audio data. Replace its audio in Sounds.`;
+        }
+        if (!/\.(mp3|ogg)$/i.test(item.soundString.trim())) {
+          return `Sounds: "${item.key || item.id}" needs an MP3 or OGG file. Replace its audio in Sounds.`;
         }
         const modPrefix = String(data.metadata.prefix || "").trim().toLowerCase();
         const key = String(item.key || "").trim().toLowerCase();
