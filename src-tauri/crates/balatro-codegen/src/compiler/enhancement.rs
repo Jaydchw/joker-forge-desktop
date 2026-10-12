@@ -204,6 +204,12 @@ fn build_enhancement_table(
     }
     if let Some(v) = enhancement.weight {
         entries.push(kv("weight", lua_num(v)));
+        if v <= 0.0 {
+            entries.push(kv("in_pool", Expr::Function {
+                params: vec!["self".into(), "args".into()],
+                body: vec![lua_return(lua_bool(false))],
+            }));
+        }
     }
 
     // loc_vars
