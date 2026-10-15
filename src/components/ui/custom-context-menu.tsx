@@ -3,10 +3,15 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuCheckboxItem,
   ContextMenuLabel,
   ContextMenuSeparator,
   ContextMenuShortcut,
   ContextMenuTrigger,
+  ContextMenuPortal,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
 } from "@/components/ui/context-menu";
 import {
   ArrowClockwise,
@@ -23,6 +28,8 @@ export type ContextMenuItemConfig = {
   disabled?: boolean;
   onSelect?: () => void;
   show?: boolean;
+  items?: ContextMenuItemConfig[];
+  checked?: boolean;
 };
 
 export type ContextMenuGroupConfig = {
@@ -41,6 +48,48 @@ type CustomContextMenuProps = {
   includeDefault?: boolean;
   className?: string;
 };
+
+function ConfiguredContextMenuItem({ item }: { item: ContextMenuItemConfig }) {
+  if (item.show === false) return null;
+  const content = (
+    <>
+      {item.icon && <item.icon className="mr-2 h-4 w-4" />}
+      <span>{item.label}</span>
+      {item.shortcut && <ContextMenuShortcut>{item.shortcut}</ContextMenuShortcut>}
+    </>
+  );
+  if (item.items) {
+    const visibleItems = item.items.filter((child) => child.show !== false);
+    if (visibleItems.length === 0) return null;
+    return (
+      <ContextMenuSub>
+        <ContextMenuSubTrigger disabled={item.disabled}>{content}</ContextMenuSubTrigger>
+        <ContextMenuPortal>
+          <ContextMenuSubContent className="w-44 border-border/95 bg-card/98 shadow-lg backdrop-blur-md">
+            {visibleItems.map((child, index) => <ConfiguredContextMenuItem key={index} item={child} />)}
+          </ContextMenuSubContent>
+        </ContextMenuPortal>
+      </ContextMenuSub>
+    );
+  }
+  if (item.checked !== undefined) {
+    return (
+      <ContextMenuCheckboxItem
+        checked={item.checked}
+        disabled={item.disabled}
+        onSelect={item.onSelect}
+        className={item.variant === "destructive" ? "text-destructive focus:bg-destructive/10 focus:text-destructive" : undefined}
+      >
+        {content}
+      </ContextMenuCheckboxItem>
+    );
+  }
+  return (
+    <ContextMenuItem disabled={item.disabled} variant={item.variant} onSelect={item.onSelect}>
+      {content}
+    </ContextMenuItem>
+  );
+}
 
 export function CustomContextMenu({
   children,
@@ -92,20 +141,7 @@ export function CustomContextMenu({
           return (
             <React.Fragment key={gIdx}>
               {group.label && <ContextMenuLabel>{group.label}</ContextMenuLabel>}
-              {visibleItems.map((item, iIdx) => (
-                <ContextMenuItem
-                  key={iIdx}
-                  disabled={item.disabled}
-                  variant={item.variant}
-                  onSelect={item.onSelect}
-                >
-                  {item.icon && <item.icon className="mr-2 h-4 w-4" />}
-                  <span>{item.label}</span>
-                  {item.shortcut && (
-                    <ContextMenuShortcut>{item.shortcut}</ContextMenuShortcut>
-                  )}
-                </ContextMenuItem>
-              ))}
+              {visibleItems.map((item, iIdx) => <ConfiguredContextMenuItem key={iIdx} item={item} />)}
               {group.separator && (
                 <ContextMenuSeparator />
               )}

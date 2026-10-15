@@ -40,7 +40,23 @@ import type {
   SelectedItem,
   ConditionParameter,
   EffectParameter,
+  BlockMarkerColor,
 } from "./types";
+import {
+  BLOCK_MARKER_COLORS,
+  getBlockMarkerColor,
+  getBlockMarkerDefinition,
+  stripBlockMarkers,
+  updateBlockMarkerColors,
+  updateRuleMarkerColors,
+} from "./block-markers";
+import {
+  getBlockMarkerTarget,
+  getBlockSelectionFromContext,
+  getBlockSelectionKey,
+  pruneBlockSelections,
+  toggleBlockSelection,
+} from "./block-selection";
 import RuleCard from "./rule-card";
 import BlockComponent from "./block-component";
 import FloatingDock from "./floating-dock";
@@ -102,6 +118,7 @@ import {
   SquaresFour,
   Terminal,
   Trash,
+  Palette,
   X,
 } from "@phosphor-icons/react";
 import {
@@ -167,6 +184,13 @@ const VARIABLE_COLLECTIONS = {
 } as const;
 
 type SnippetNodeParams = Record<string, unknown>;
+
+const markerMenuIcons = Object.fromEntries(BLOCK_MARKER_COLORS.map((marker) => [
+  marker.id,
+  ({ className }: { className?: string }) => (
+    <span aria-hidden="true" className={className} style={{ backgroundColor: marker.color, borderRadius: "50%" }} />
+  ),
+]));
 
 type LiveCodeBlockPreviewTarget = {
   type: "trigger" | "condition" | "effect";
@@ -686,12 +710,18 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const rulesRef = useRef<Rule[]>(rules);
   rulesRef.current = rules;
   const [selectedItem, setSelectedItem] = useState<SelectedItem>(null);
+  const [selectedBlocks, setSelectedBlocks] = useState<NonNullable<SelectedItem>[]>([]);
+  const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
   const [liveCodeRevealRequest, setLiveCodeRevealRequest] = useState<{
     segmentId: string; revision: number;
   } | null>(null);
   const liveCodeRevealRevisionRef = useRef(0);
-  const selectBuilderItem = useCallback((selection: SelectedItem, segmentId?: string) => {
+  const selectBuilderItem = useCallback((selection: SelectedItem, segmentId?: string, preserveBlockSelection = false) => {
     setSelectedItem(selection);
+    if (!preserveBlockSelection) {
+      setSelectedBlocks(selection ? [selection] : []);
+      setSelectedRuleIds([]);
+    }
     if (!selection) {
       setLiveCodeRevealRequest(null);
       return;
@@ -747,7 +777,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const [contextTarget, setContextTarget] = useState<RuleBuilderContextTarget>({
     type: "canvas",
   });
-  const [selectedRuleIds, setSelectedRuleIds] = useState<string[]>([]);
   const [hoveredContextTarget, setHoveredContextTarget] =
     useState<RuleBuilderContextTarget | null>(null);
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(
@@ -825,13 +854,67 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   // object, but we don't want that to trigger a fresh compilation.
   const itemCodegenKey = useMemo(() => {
     const { customCode: _, ...rest } = item;
-    return JSON.stringify(rest);
+    return JSON.stringify({ ...rest, rules: stripBlockMarkers(rest.rules ?? []) });
   }, [item]);
   const itemWithoutCustomCode = useMemo(() => {
     const { customCode: _, ...rest } = item;
-    return itemType === "joker" ? { ...rest, ruleExecutionMode } : rest;
+    const sourceItem = { ...rest, rules: stripBlockMarkers(rest.rules ?? []) };
+    return itemType === "joker" ? { ...sourceItem, ruleExecutionMode } : sourceItem;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemCodegenKey, itemType, ruleExecutionMode]);
+
+  const codegenRulesKey = useMemo(() => JSON.stringify(stripBlockMarkers(rules)), [rules]);
+  const codegenRules = useMemo(() => JSON.parse(codegenRulesKey) as Rule[], [codegenRulesKey]);
+
+  const handleContextMarkerColorChange = useCallback((color: BlockMarkerColor | null) => {
+    if (isReadOnly) return;
+    const selection = getBlockSelectionFromContext(contextTarget);
+    if (!selection) return;
+    const applyToSelection = selectedBlocks.some((block) =>
+      getBlockSelectionKey(block) === getBlockSelectionKey(selection));
+    const targets = applyToSelection ? selectedBlocks.map(getBlockMarkerTarget) : [contextTarget];
+    setRules((previous) => updateBlockMarkerColors(previous, targets, color));
+  }, [isReadOnly, contextTarget, selectedBlocks, setRules]);
+
+  const handleContextRuleColorChange = useCallback((color: BlockMarkerColor | null) => {
+    if (isReadOnly || !contextTarget.ruleId) return;
+    const ruleIds = selectedRuleIds.includes(contextTarget.ruleId)
+      ? selectedRuleIds : [contextTarget.ruleId];
+    setRules((previous) => updateRuleMarkerColors(previous, ruleIds, color));
+  }, [isReadOnly, contextTarget.ruleId, selectedRuleIds, setRules]);
+
+  const contextMarkerColors = useMemo(() => {
+    const selection = getBlockSelectionFromContext(contextTarget);
+    if (selection && selectedBlocks.some((block) =>
+      getBlockSelectionKey(block) === getBlockSelectionKey(selection))) {
+      return selectedBlocks.map((block) => getBlockMarkerColor(rules, getBlockMarkerTarget(block)));
+    }
+    return [getBlockMarkerColor(rules, contextTarget)];
+  }, [rules, contextTarget, selectedBlocks]);
+  const contextMarkerColor = contextMarkerColors[0];
+  const hasUniformContextMarkerColor = contextMarkerColors.length > 0
+    && contextMarkerColors.every((color) => color === contextMarkerColor);
+
+  const contextRuleMarkerColors = useMemo(() => {
+    if (contextTarget.ruleId && selectedRuleIds.includes(contextTarget.ruleId)) {
+      const selectedIds = new Set(selectedRuleIds);
+      return rules.filter((rule) => selectedIds.has(rule.id))
+        .map((rule) => getBlockMarkerDefinition(rule.markerColor)?.id);
+    }
+    return [getBlockMarkerColor(rules, { type: "rule", ruleId: contextTarget.ruleId })];
+  }, [rules, contextTarget, selectedRuleIds]);
+  const contextRuleMarkerColor = contextRuleMarkerColors[0];
+  const hasUniformContextRuleMarkerColor = contextRuleMarkerColors.length > 0
+    && contextRuleMarkerColors.every((color) => color === contextRuleMarkerColor);
+
+  useEffect(() => {
+    const remaining = pruneBlockSelections(rules, selectedBlocks);
+    if (remaining === selectedBlocks) return;
+    setSelectedBlocks(remaining);
+    if (selectedItem && !pruneBlockSelections(rules, [selectedItem]).length) {
+      selectBuilderItem(remaining[remaining.length - 1] ?? null, undefined, true);
+    }
+  }, [rules, selectedBlocks, selectedItem, selectBuilderItem]);
 
   const previewItemType = useMemo<PreviewCompileItemType>(() => {
     const objectType = String(itemWithoutCustomCode?.objectType || "")
@@ -1151,7 +1234,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     const isNotImplemented = normalized.includes("not yet implemented");
 
     // Determine which sourceRules changed since the last generation
-    const currentRulesSnapshot = JSON.stringify(sourceRules);
+    const semanticRules = stripBlockMarkers(sourceRules);
+    const currentRulesSnapshot = JSON.stringify(semanticRules);
     const changedRuleIds = new Set<string>();
     if (
       prevRulesSnapshotRef.current &&
@@ -1165,7 +1249,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           prevRules.map((r) => [r.id, JSON.stringify(r)]),
         );
         const currMap = new Map(
-          sourceRules.map((r) => [r.id, JSON.stringify(r)]),
+          semanticRules.map((r) => [r.id, JSON.stringify(r)]),
         );
 
         // Rules that were modified or added
@@ -1323,7 +1407,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         const context = variableContextRef.current;
         const { customCode: _, ...latestItem } = context.item;
         return {
-          item: { ...latestItem, ...(itemType === "joker" ? { ruleExecutionMode } : {}), rules: sourceRules },
+          item: { ...latestItem, ...(itemType === "joker" ? { ruleExecutionMode } : {}), rules: stripBlockMarkers(sourceRules) },
           prefix: context.data.metadata.prefix,
           globalUserVariables: collectGlobalVariables(context.data, { excludeItemId: context.item.id })
             .map((entry) => entry.variable),
@@ -1379,7 +1463,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const handleSelectItem = useCallback((item: NonNullable<SelectedItem>) => {
     setLinkedFieldRequest(null);
     selectBuilderItem(item);
-    setSelectedRuleIds([item.ruleId]);
+    setSelectedRuleIds([]);
   }, [selectBuilderItem]);
 
   const handleCloseInspector = useCallback(() => {
@@ -1402,7 +1486,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     const selection = resolveSelectedItem(rulesRef.current, target);
     if (!selection) return;
     setSelectedItem(selection);
-    setSelectedRuleIds([selection.ruleId]);
+    setSelectedBlocks([selection]);
+    setSelectedRuleIds([]);
     setIsFirstSelection(false);
     if (focus) {
       rememberInspectorDismissal(false);
@@ -1453,7 +1538,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     }
 
     setSelectedRuleIds([ruleId]);
-    selectBuilderItem({ type: "trigger", ruleId }, `rule:${ruleId}`);
+    selectBuilderItem({ type: "trigger", ruleId }, `rule:${ruleId}`, true);
+    setSelectedBlocks([]);
   }, [selectBuilderItem]);
 
   const clearRuleSelection = useCallback(() => {
@@ -1468,7 +1554,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       allRuleIds.length === 1
         ? { type: "trigger", ruleId: allRuleIds[0] }
         : null,
+      undefined, true,
     );
+    setSelectedBlocks([]);
   }, [rules]);
 
   const handleSelectRuleCard = useCallback(
@@ -1485,13 +1573,14 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           : [...prev, ruleId];
 
         if (next.length === 1) {
-          selectBuilderItem({ type: "trigger", ruleId: next[0] });
+          selectBuilderItem({ type: "trigger", ruleId: next[0] }, undefined, true);
         } else {
-          selectBuilderItem(null);
+          selectBuilderItem(null, undefined, true);
         }
 
         return next;
       });
+      setSelectedBlocks([]);
     },
     [setSingleSelectedRule],
   );
@@ -1708,6 +1797,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       setIsInitialLoadComplete(false);
       setShowNoRulesMessage(false);
       setSelectedRuleIds([]);
+      setSelectedBlocks([]);
       setSelectionRect(null);
       setIsDragSelecting(false);
     }
@@ -2005,7 +2095,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
         if (
           shortcutMatches(event, ruleBuilderSettings.shortcuts.clearSelection) &&
-          selectedRuleIds.length > 0
+          (selectedRuleIds.length > 0 || selectedBlocks.length > 0)
         ) {
           event.preventDefault();
           clearRuleSelection();
@@ -2093,6 +2183,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     shortcutMatches,
     selectAllRules,
     selectedRuleIds,
+    selectedBlocks.length,
     handleTogglePanel,
     togglePanel,
   ]);
@@ -3818,7 +3909,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         newRuleIds.length === 1
           ? { type: "trigger", ruleId: newRuleIds[0] }
           : null,
+        undefined, true,
       );
+      setSelectedBlocks([]);
     }
   }, [selectedRuleIds, itemType, rejectRestrictedEffects]);
 
@@ -3889,7 +3982,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       newRuleIds.length === 1
         ? { type: "trigger", ruleId: newRuleIds[0] }
         : null,
+      undefined, true,
     );
+    setSelectedBlocks([]);
 
     pasteOffsetStepRef.current += 1;
   }, [itemType, rejectRestrictedEffects]);
@@ -3953,8 +4048,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   const handleCanvasMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!ruleBuilderSettings.enableDragBoxSelection) return;
-      if (ruleBuilderSettings.enableLeftMousePan && !event.shiftKey) return;
       if (event.button !== 0) return;
 
       const target = event.target as HTMLElement;
@@ -3977,6 +4070,10 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         return;
       }
 
+      selectBuilderItem(null);
+      setSelectedRuleIds([]);
+      if (!ruleBuilderSettings.enableDragBoxSelection) return;
+      if (ruleBuilderSettings.enableLeftMousePan && !event.shiftKey) return;
       setIsDragSelecting(true);
       setSelectionRect({
         startClientX: event.clientX,
@@ -3984,8 +4081,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         currentClientX: event.clientX,
         currentClientY: event.clientY,
       });
-      selectBuilderItem(null);
-      setSelectedRuleIds([]);
     },
     [
       ruleBuilderSettings.enableDragBoxSelection,
@@ -4088,10 +4183,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           selectBuilderItem({
             type: "trigger",
             ruleId: intersectedRuleIds[0],
-          });
+          }, undefined, true);
         } else {
-          selectBuilderItem(null);
+          selectBuilderItem(null, undefined, true);
         }
+        setSelectedBlocks([]);
 
         return null;
       });
@@ -4145,7 +4241,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   const resolveContextTarget = useCallback(
     (target: EventTarget | null): RuleBuilderContextTarget => {
-      if (!(target instanceof HTMLElement)) {
+      if (!(target instanceof Element)) {
         return { type: "canvas" };
       }
 
@@ -4190,77 +4286,47 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     setHoveredContextTarget(null);
   }, []);
 
+  const handleRuleBuilderClickCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    if (!(event.target instanceof Element)) return;
+    const element = event.target;
+    if (element.closest("[data-rb-panel='true'], [data-rb-live-code='true'], button, input, textarea, select, [contenteditable='true']")) return;
+    const target = resolveContextTarget(element);
+    const selection = getBlockSelectionFromContext(target);
+    if (!selection) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const next = toggleBlockSelection(selectedBlocks, selection);
+    setLinkedFieldRequest(null);
+    setSelectedRuleIds([]);
+    setSelectedBlocks(next);
+    selectBuilderItem(next[next.length - 1] ?? null, undefined, true);
+  }, [resolveContextTarget, selectedBlocks, selectBuilderItem]);
+
   const applyContextSelection = useCallback(
     (target: RuleBuilderContextTarget) => {
       if (!target.ruleId) return;
 
       if (
         selectedRuleIds.length > 1 &&
-        selectedRuleIdSet.has(target.ruleId) &&
-        (target.type === "rule" || target.type === "trigger")
+        selectedRuleIdSet.has(target.ruleId)
       ) {
         return;
       }
 
-      if (target.type === "rule" || target.type === "trigger") {
-        selectBuilderItem({ type: "trigger", ruleId: target.ruleId });
-        setSelectedRuleIds([target.ruleId]);
+      if (target.type === "rule") {
+        setSingleSelectedRule(target.ruleId);
         return;
       }
 
-      if (target.type === "condition" && target.itemId) {
-        selectBuilderItem({
-          type: "condition",
-          ruleId: target.ruleId,
-          itemId: target.itemId,
-          groupId: target.groupId,
-        });
-        setSelectedRuleIds([target.ruleId]);
+      const selection = getBlockSelectionFromContext(target);
+      if (!selection) return;
+      if (selectedBlocks.some((block) => getBlockSelectionKey(block) === getBlockSelectionKey(selection))) {
         return;
       }
-
-      if (target.type === "effect" && target.itemId) {
-        selectBuilderItem({
-          type: "effect",
-          ruleId: target.ruleId,
-          itemId: target.itemId,
-          randomGroupId: target.randomGroupId,
-          loopGroupId: target.loopGroupId,
-        });
-        setSelectedRuleIds([target.ruleId]);
-        return;
-      }
-
-      if (target.type === "condition-group" && target.groupId) {
-        selectBuilderItem({
-          type: "condition",
-          ruleId: target.ruleId,
-          groupId: target.groupId,
-        });
-        setSelectedRuleIds([target.ruleId]);
-        return;
-      }
-
-      if (target.type === "random-group" && target.randomGroupId) {
-        selectBuilderItem({
-          type: "randomgroup",
-          ruleId: target.ruleId,
-          randomGroupId: target.randomGroupId,
-        });
-        setSelectedRuleIds([target.ruleId]);
-        return;
-      }
-
-      if (target.type === "loop-group" && target.loopGroupId) {
-        selectBuilderItem({
-          type: "loopgroup",
-          ruleId: target.ruleId,
-          loopGroupId: target.loopGroupId,
-        });
-        setSelectedRuleIds([target.ruleId]);
-      }
+      handleSelectItem(selection);
     },
-    [selectedRuleIdSet, selectedRuleIds.length],
+    [selectedRuleIdSet, selectedRuleIds.length, selectedBlocks, setSingleSelectedRule, handleSelectItem],
   );
 
   const handleRuleBuilderContextMenuCapture = useCallback(
@@ -4600,7 +4666,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
     const run = async () => {
       const editorRevision = editorRevisionRef.current;
-      const sourceRulesSnapshot = JSON.stringify(rules);
+      const sourceRulesSnapshot = JSON.stringify(codegenRules);
       setLiveCodeIsLoading(true);
       setLiveCodeIsError(false);
       setLiveCodeStatusMessage(undefined);
@@ -4608,7 +4674,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
       try {
         if (liveCodePreviewTarget) {
-          const targetRule = rules.find(
+          const targetRule = codegenRules.find(
             (rule) => rule.id === liveCodePreviewTarget.ruleId,
           );
 
@@ -4736,7 +4802,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         );
 
         const freshCompiled = await compileSingleItemLuaWithSegments(
-          { ...(itemWithoutCustomCode as any), rules },
+          { ...(itemWithoutCustomCode as any), rules: codegenRules },
           previewItemType,
           data.metadata.prefix,
           { includeLocTxt: true, globalUserVariables },
@@ -4746,12 +4812,12 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
           cancelled ||
           editorRevision !== editorRevisionRef.current ||
           pendingEditorCodeRef.current !== null ||
-          sourceRulesSnapshot !== JSON.stringify(rulesRef.current)
+          sourceRulesSnapshot !== JSON.stringify(stripBlockMarkers(rulesRef.current))
         ) {
           return;
         }
 
-        reconcileGeneratedCode(freshCompiled, rules);
+        reconcileGeneratedCode(freshCompiled, rulesRef.current);
       } catch (error) {
         if (cancelled || (!liveCodePreviewTarget && editorRevision !== editorRevisionRef.current)) {
           return;
@@ -4786,7 +4852,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     isOpen,
     liveCodeIsVisible,
     liveCodePreviewTarget,
-    rules,
+    codegenRules,
     editorSyncRevision,
     persistEditorCode,
     reconcileGeneratedCode,
@@ -4829,6 +4895,42 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         ],
         separator: true,
       });
+    }
+
+    if (!isLiveCodeContextMenu && contextTarget.ruleId && contextTarget.type !== "canvas") {
+      const colorMenus = [{
+          label: "Rule color",
+          icon: Palette,
+          disabled: isReadOnly,
+          items: [
+            ...BLOCK_MARKER_COLORS.map((marker) => ({
+              label: marker.label,
+              icon: markerMenuIcons[marker.id],
+              checked: hasUniformContextRuleMarkerColor && contextRuleMarkerColor === marker.id,
+              onSelect: () => handleContextRuleColorChange(marker.id),
+            })),
+            { label: "Remove color", icon: X, checked: hasUniformContextRuleMarkerColor && !contextRuleMarkerColor,
+              onSelect: () => handleContextRuleColorChange(null) },
+          ],
+      }];
+      if (getBlockSelectionFromContext(contextTarget)) {
+        colorMenus.push({
+          label: "Block color",
+          icon: Palette,
+          disabled: isReadOnly,
+          items: [
+            ...BLOCK_MARKER_COLORS.map((marker) => ({
+              label: marker.label,
+              icon: markerMenuIcons[marker.id],
+              checked: hasUniformContextMarkerColor && contextMarkerColor === marker.id,
+              onSelect: () => handleContextMarkerColorChange(marker.id),
+            })),
+            { label: "Remove color", icon: X, checked: hasUniformContextMarkerColor && !contextMarkerColor,
+              onSelect: () => handleContextMarkerColorChange(null) },
+          ],
+        });
+      }
+      groups.push({ items: colorMenus, separator: true });
     }
 
     if (hasBulkSelection) {
@@ -4915,6 +5017,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         disabled: rules.length === 0,
         onSelect: selectAllRules,
       });
+      if (selectedBlocks.length) {
+        selectionItems.push({ label: "Clear Selection", shortcut: "Esc", onSelect: clearRuleSelection });
+      }
       groups.push({ items: selectionItems, separator: true });
 
       const actionItems = [];
@@ -4978,6 +5083,15 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     isLiveCodeContextMenu,
     hasLiveCodeSelectedText,
     handleCopyLiveCodeSelection,
+    isReadOnly,
+    contextTarget.type,
+    contextMarkerColor,
+    hasUniformContextMarkerColor,
+    handleContextMarkerColorChange,
+    contextRuleMarkerColor,
+    hasUniformContextRuleMarkerColor,
+    handleContextRuleColorChange,
+    selectedBlocks.length,
     hasBulkSelection,
     selectedRuleIds.length,
     lastContextWorldPoint,
@@ -5031,6 +5145,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       <div
         className="fixed inset-x-0 bottom-0 top-9 flex bg-background items-center justify-center z-[45]"
         onContextMenuCapture={handleRuleBuilderContextMenuCapture}
+        onClickCapture={handleRuleBuilderClickCapture}
       >
         <div
           ref={modalRef}
@@ -5394,6 +5509,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                                   rule={rule}
                                   ruleIndex={index + 1}
                                   selectedItem={selectedItem}
+                                  selectedBlocks={selectedBlocks}
                                   onSelectItem={handleSelectItem}
                                   onSelectRuleCard={handleSelectRuleCard}
                                   onDuplicateRule={duplicateRule}

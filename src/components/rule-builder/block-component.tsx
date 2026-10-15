@@ -14,6 +14,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { BlockMarkerColor } from "./types";
+import { getBlockMarkerStyle } from "./block-markers";
 
 interface BlockComponentProps {
   label: string;
@@ -31,6 +33,7 @@ interface BlockComponentProps {
   isDraggable?: boolean;
   dragHandleProps?: Record<string, unknown>;
   variant?: "default" | "palette" | "condition";
+  markerColor?: BlockMarkerColor;
 }
 
 const BlockComponent: React.FC<BlockComponentProps> = ({
@@ -49,6 +52,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
   isDraggable = false,
   dragHandleProps,
   variant = "default",
+  markerColor,
 }) => {
   const typeLabelLeft = onIconClick
     ? type === "effect"
@@ -155,7 +159,7 @@ const BlockComponent: React.FC<BlockComponentProps> = ({
         }
       `}
       onClick={handleClick}
-      style={{ pointerEvents: "auto" }}
+      style={{ pointerEvents: "auto", ...getBlockMarkerStyle(markerColor) }}
       {...(isDraggable ? dragHandleProps : {})}
     >
       <div

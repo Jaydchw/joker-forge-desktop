@@ -19,6 +19,8 @@ import type {
 
 import BlockComponent from "./block-component";
 import { areRuleCardPropsEqual } from "./rule-card-memo";
+import { getBlockSelectionKey } from "./block-selection";
+import { getBlockMarkerDefinition, getBlockMarkerStyle } from "./block-markers";
 import {
   CaretDown,
   List,
@@ -57,6 +59,7 @@ interface RuleCardProps {
   rule: Rule;
   ruleIndex: number;
   selectedItem: SelectedItem;
+  selectedBlocks?: readonly NonNullable<SelectedItem>[];
   onSelectItem: (item: {
     type: "trigger" | "condition" | "effect" | "randomgroup" | "loopgroup";
     ruleId: string;
@@ -205,6 +208,7 @@ const Condition: React.FC<{
     >
       <BlockComponent
         type="condition"
+        markerColor={condition.markerColor}
         label={conditionType?.label || "Unknown Condition"}
         dynamicTitle={dynamicTitle}
         isSelected={isSelected}
@@ -285,6 +289,7 @@ const Effect: React.FC<{
     >
       <BlockComponent
         type="effect"
+        markerColor={effect.markerColor}
         label={effectType?.label || "Unknown Effect"}
         dynamicTitle={dynamicTitle}
         isSelected={isSelected}
@@ -321,6 +326,7 @@ const RandomGroupContainer: React.FC<{
         isSelected ? "border-jungle-green-400" : "border-jungle-green-400/30"
       }`}
       data-rb-context="random-group"
+      style={getBlockMarkerStyle(group.markerColor)}
       data-rule-id={ruleId}
       data-random-group-id={group.id}
       onClick={(e) => {
@@ -365,6 +371,7 @@ const LoopGroupContainer: React.FC<{
         isSelected ? "border-balatro-blue" : "border-balatro-blue/30"
       }`}
       data-rb-context="loop-group"
+      style={getBlockMarkerStyle(group.markerColor)}
       data-rule-id={ruleId}
       data-loop-group-id={group.id}
       onClick={(e) => {
@@ -398,6 +405,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
   rule,
   ruleIndex,
   selectedItem,
+  selectedBlocks = [],
   onSelectItem,
   onDuplicateRule,
   onSaveRuleTemplate,
@@ -536,7 +544,8 @@ const RuleCard: React.FC<RuleCardProps> = ({
     rule.effects.length +
     rule.randomGroups.reduce((sum, group) => sum + group.effects.length, 0) +
     rule.loops.reduce((sum, group) => sum + group.effects.length, 0);
-  const shouldRenderSingleConditionDirectly = totalConditions === 1;
+  const shouldRenderSingleConditionDirectly = totalConditions === 1
+    && !rule.conditionGroups.some((group) => getBlockMarkerDefinition(group.markerColor));
   const singleConditionGroup = shouldRenderSingleConditionDirectly
     ? rule.conditionGroups.find((group) => group.conditions.length > 0)
     : undefined;
@@ -567,6 +576,12 @@ const RuleCard: React.FC<RuleCardProps> = ({
     exit: { opacity: 0, scale: 0.8, y: -10 },
   };
 
+  const activeSelections = selectedBlocks.length > 0
+    ? selectedBlocks
+    : selectedItem ? [selectedItem] : [];
+  const ruleSelections = activeSelections.filter((selection) => selection.ruleId === rule.id);
+  const selectedBlockKeys = new Set(ruleSelections.map(getBlockSelectionKey));
+
   const isItemSelected = (
     type: "trigger" | "condition" | "effect" | "randomgroup" | "loopgroup",
     itemId?: string,
@@ -574,50 +589,29 @@ const RuleCard: React.FC<RuleCardProps> = ({
     randomGroupId?: string,
     loopGroupId?: string,
   ) => {
-    if (!selectedItem || selectedItem.ruleId !== rule.id) return false;
-    if (selectedItem.type !== type) return false;
-    if (type === "trigger") return true;
-    if (type === "condition" && groupId && selectedItem.groupId !== groupId)
-      return false;
-    if (
-      type === "randomgroup" &&
-      randomGroupId &&
-      selectedItem.randomGroupId !== randomGroupId
-    )
-      return false;
-    if (
-      type === "loopgroup" &&
-      loopGroupId &&
-      selectedItem.loopGroupId !== loopGroupId
-    )
-      return false;
-    if (type === "effect") {
-      if (selectedItem.itemId !== itemId) return false;
-      if (randomGroupId && selectedItem.randomGroupId !== randomGroupId)
-        return false;
-      if (!randomGroupId && selectedItem.randomGroupId) return false;
-      if (loopGroupId && selectedItem.loopGroupId !== loopGroupId) return false;
-      if (!loopGroupId && selectedItem.loopGroupId) return false;
-      return true;
-    }
-    return selectedItem.itemId === itemId;
+    return selectedBlockKeys.has(getBlockSelectionKey({
+      type,
+      ruleId: rule.id,
+      itemId,
+      groupId,
+      randomGroupId,
+      loopGroupId,
+    }));
   };
 
   const isGroupSelected = (groupId: string) => {
     return (
-      selectedItem?.ruleId === rule.id && selectedItem?.groupId === groupId
+      ruleSelections.some((selection) => selection.groupId === groupId)
     );
   };
   const isRandomGroupSelected = (randomGroupId: string) => {
     return (
-      selectedItem?.ruleId === rule.id &&
-      selectedItem?.randomGroupId === randomGroupId
+      ruleSelections.some((selection) => selection.randomGroupId === randomGroupId)
     );
   };
   const isLoopGroupSelected = (loopGroupId: string) => {
     return (
-      selectedItem?.ruleId === rule.id &&
-      selectedItem?.loopGroupId === loopGroupId
+      ruleSelections.some((selection) => selection.loopGroupId === loopGroupId)
     );
   };
 
@@ -659,6 +653,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
             isSelected ? "border-jungle-green-400" : "border-border"
           }`}
           data-rb-context="condition-group"
+          style={getBlockMarkerStyle(group.markerColor)}
           data-rule-id={rule.id}
           data-group-id={group.id}
           onClick={(e) => {
@@ -811,7 +806,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
                     effect={effect}
                     ruleId={rule.id}
                     randomGroupId={group.id}
-                    isSelected={isItemSelected("effect", effect.id)}
+                    isSelected={isItemSelected("effect", effect.id, undefined, group.id)}
                     onSelect={() =>
                       onSelectItem({
                         type: "effect",
@@ -877,7 +872,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
                     effect={effect}
                     ruleId={rule.id}
                     loopGroupId={group.id}
-                    isSelected={isItemSelected("effect", effect.id)}
+                    isSelected={isItemSelected("effect", effect.id, undefined, undefined, group.id)}
                     onSelect={() =>
                       onSelectItem({
                         type: "effect",
@@ -1031,7 +1026,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
             ${isRuleSelected ? "border-jungle-green-400" : "border-border"}
             ${isPaletteDragging && isOver ? "ring-2 ring-jungle-green-400/70" : ""}
           `}
-          style={{ pointerEvents: "auto" }}
+          style={{ pointerEvents: "auto", ...getBlockMarkerStyle(rule.markerColor) }}
           variants={snapFadeUp}
           initial="initial"
           animate="animate"
@@ -1184,6 +1179,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
             >
               <BlockComponent
                 type="trigger"
+                markerColor={rule.triggerMarkerColor}
                 label={triggerLabel}
                 isSelected={isItemSelected("trigger")}
                 onIconClick={() =>
@@ -1194,7 +1190,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
                 }
                 onClick={(e) => {
                   e?.stopPropagation();
-                  onSelectRuleCard(rule.id, !!(e?.ctrlKey || e?.metaKey));
+                  onSelectItem({ type: "trigger", ruleId: rule.id });
                 }}
                 variant="palette"
               />

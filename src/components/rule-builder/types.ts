@@ -1,4 +1,6 @@
 // Rule structure for the Rule Builder: Trigger -> Condition(s) -> Effect(s)
+export type BlockMarkerColor = "red" | "amber" | "green" | "cyan" | "blue" | "violet" | "pink";
+
 export interface Rule {
   position: { x: number; y: number };
   id: string;
@@ -8,11 +10,14 @@ export interface Rule {
   effects: Effect[];
   randomGroups: RandomGroup[];
   loops: LoopGroup[];
+  markerColor?: BlockMarkerColor;
+  triggerMarkerColor?: BlockMarkerColor;
 }
 
 // A group of effects with shared random chance
 export interface RandomGroup {
   id: string;
+  markerColor?: BlockMarkerColor;
   chance_numerator: { value: number | string; valueType?: string };
   chance_denominator: { value: number | string; valueType?: string };
   respect_probability_effects: boolean;
@@ -22,6 +27,7 @@ export interface RandomGroup {
 
 export interface LoopGroup {
   id: string;
+  markerColor?: BlockMarkerColor;
   repetitions: { value: number | string; valueType?: string };
   effects: Effect[];
 }
@@ -29,6 +35,7 @@ export interface LoopGroup {
 // A group of conditions with a logical operator (AND/OR)
 export interface ConditionGroup {
   id: string;
+  markerColor?: BlockMarkerColor;
   operator: string; // "and" or "or"
   conditions: Condition[];
 }
@@ -36,6 +43,7 @@ export interface ConditionGroup {
 // A single condition with parameters
 export interface Condition {
   id: string;
+  markerColor?: BlockMarkerColor;
   type: string;
   negate: boolean; // For NOT logic
   params: Record<string, { value: unknown; valueType?: string }>;
@@ -45,6 +53,7 @@ export interface Condition {
 // An effect with parameters
 export interface Effect {
   id: string;
+  markerColor?: BlockMarkerColor;
   type: string;
   params: Record<string, { value: unknown; valueType?: string }>;
   customMessage?: string;
