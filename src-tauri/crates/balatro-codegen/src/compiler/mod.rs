@@ -2115,7 +2115,14 @@ fn build_in_pool(appearance: &AppearanceDef, ctx: &CompileContext) -> Option<Exp
         lua_and_chain(conditions)
     };
 
-    let body = vec![lua_return(cond)];
+    let mut body = Vec::new();
+    if !appearance.appears_in.is_empty() || !appearance.not_appears_in.is_empty() {
+        body.push(lua_assign(
+            lua_ident("args"),
+            lua_or(lua_ident("args"), lua_table_raw(Vec::new())),
+        ));
+    }
+    body.push(lua_return(cond));
 
     Some(Expr::Function {
         params: vec!["self".into(), "args".into()],
