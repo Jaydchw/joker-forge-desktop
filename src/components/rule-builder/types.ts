@@ -4,6 +4,7 @@ export type BlockMarkerColor = "red" | "amber" | "green" | "cyan" | "blue" | "vi
 export interface Rule {
   position: { x: number; y: number };
   id: string;
+  name?: string;
   trigger: string;
   blueprintCompatible: boolean;
   conditionGroups: ConditionGroup[];

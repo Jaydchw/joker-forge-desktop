@@ -60,6 +60,7 @@ import {
 import RuleCard from "./rule-card";
 import { applyRuleOrder, moveRuleToPosition, hasRuleOrderChanged } from "./rule-order";
 import { RuleOrderDialog } from "./rule-order-dialog";
+import { getRuleName, setRuleName } from "./rule-names";
 import BlockComponent from "./block-component";
 import FloatingDock from "./floating-dock";
 import BlockPalette from "./block-palette";
@@ -590,6 +591,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const descriptionVariablesRef = useRef(descriptionVariables);
   descriptionVariablesRef.current = descriptionVariables;
   const [ruleOrderTargetId, setRuleOrderTargetId] = useState<string | null>(null);
+  const [ruleNameTargetId, setRuleNameTargetId] = useState<string | null>(null);
   const [isReordering, setIsReordering] = useState(false);
   const reorderingRef = useRef(false);
   const ruleOrderDirtyRef = useRef(false);
@@ -1529,6 +1531,25 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     if (rulesRef.current.some((rule) => rule.id === ruleId)) setRuleOrderTargetId(ruleId);
   }, [itemType, isReadOnly]);
 
+  const handleRuleNameRequest = useCallback((ruleId: string) => {
+    if (isReadOnly || savingRef.current || reorderingRef.current) return;
+    const currentRules = flushPendingCodeEdit();
+    if (currentRules.some((rule) => rule.id === ruleId)) setRuleNameTargetId(ruleId);
+  }, [isReadOnly, flushPendingCodeEdit]);
+
+  const handleSaveRuleName = useCallback((ruleId: string, name: string) => {
+    if (isReadOnly || savingRef.current || reorderingRef.current) return;
+    const currentRules = flushPendingCodeEdit();
+    const nextRules = setRuleName(currentRules, ruleId, name);
+    if (nextRules !== currentRules) {
+      rulesRef.current = nextRules;
+      setRules(nextRules);
+    }
+    setRuleNameTargetId(null);
+  }, [isReadOnly, flushPendingCodeEdit, setRules]);
+
+  const handleCancelRuleName = useCallback(() => setRuleNameTargetId(null), []);
+
   const handleSaveAndClose = useCallback(async () => {
     if (isReadOnly) {
       onClose();
@@ -1883,6 +1904,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       setDescriptionVariables(item.descriptionVariables);
       ruleOrderDirtyRef.current = false;
       setRuleOrderTargetId(null);
+      setRuleNameTargetId(null);
       reorderingRef.current = false;
       setIsReordering(false);
       setRuleExecutionMode(item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match");
@@ -2693,7 +2715,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       const targetRule = rules.find((rule) => rule.id === ruleId);
       if (!targetRule) return;
 
-      const templateName = `Rule ${rules.findIndex((rule) => rule.id === ruleId) + 1} Template`;
+      const templateName = `${getRuleName(targetRule) ?? `Rule ${rules.findIndex((rule) => rule.id === ruleId) + 1}`} Template`;
       createRuleTemplate({
         name: templateName,
         itemType: ruleTemplateItemType,
@@ -5043,6 +5065,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     }
 
     if (!isLiveCodeContextMenu && contextTarget.ruleId && contextTarget.type !== "canvas") {
+      groups.push({ items: [{
+        label: "Rename rule…",
+        disabled: isReadOnly || isSaving || isReordering,
+        onSelect: () => handleRuleNameRequest(contextTarget.ruleId!),
+      }], separator: true });
       if (itemType === "joker") {
         const index = rules.findIndex((rule) => rule.id === contextTarget.ruleId);
         const disabled = isReadOnly || isSaving || isReordering || !!ruleOrderDisabledReason;
@@ -5250,6 +5277,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     ruleOrderDisabledReason,
     handleMoveRuleOrder,
     handleRuleOrderRequest,
+    handleRuleNameRequest,
     rules,
     contextTarget.type,
     contextMarkerColor,
@@ -5679,7 +5707,10 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                                   selectedBlocks={selectedBlocks}
                                   onSelectItem={handleSelectItem}
                                   onSelectRuleCard={handleSelectRuleCard}
-                                  onRuleOrderRequest={itemType === "joker" && !isReadOnly && rules.length > 1 ? handleRuleOrderRequest : undefined}
+                                  onRuleNameRequest={isReadOnly ? undefined : handleRuleNameRequest}
+                                  onRuleNameChange={isReadOnly ? undefined : handleSaveRuleName}
+                                  onRuleNameCancel={handleCancelRuleName}
+                                  isRenaming={ruleNameTargetId === rule.id && ruleOrderTargetId === null}
                                   onDuplicateRule={duplicateRule}
                                   onSaveRuleTemplate={handleSaveRuleAsTemplate}
                                   onDeleteRule={deleteRule}
@@ -5897,6 +5928,10 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       onOpenChange={(open) => { if (!open && !reorderingRef.current) setRuleOrderTargetId(null); }}
       rules={rules}
       selectedRuleId={ruleOrderTargetId}
+      onRuleNameRequest={isReadOnly ? undefined : handleRuleNameRequest}
+      onRuleNameChange={isReadOnly ? undefined : handleSaveRuleName}
+      onRuleNameCancel={handleCancelRuleName}
+      renamingRuleId={ruleNameTargetId}
       generateEffectTitle={generateEffectTitleForCard}
       onReorder={(orderedRuleIds) => { void handleApplyRuleOrder(orderedRuleIds); }}
       disabledReason={ruleOrderDisabledReason}

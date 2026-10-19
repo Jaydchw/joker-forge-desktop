@@ -7,6 +7,7 @@ import type {
   Rule,
 } from "../../components/rule-builder/types";
 import { isParameterVisible } from "../../components/rule-builder/parameter-visibility";
+import { getRuleLabel } from "../../components/rule-builder/rule-names";
 import type { LiveCodeCatalog } from "./live-code-fields";
 
 export interface LiveCodeExplanation {
@@ -129,7 +130,7 @@ export function buildLiveCodeExplanations(
   const effectDescriptions = new Map<Effect, NodeDescription>();
   const explanations: Record<string, LiveCodeExplanation> = {};
   rules.forEach((rule, ruleIndex) => {
-    const ruleLabel = `Rule ${ruleIndex + 1}`;
+    const ruleLabel = getRuleLabel(rule, ruleIndex + 1);
     const trigger = currentCatalog.getTrigger(rule.trigger);
     const triggerLabel = trigger?.label[itemType] ?? trigger?.label.joker
       ?? `Unavailable trigger: ${readableId(rule.trigger)}`;

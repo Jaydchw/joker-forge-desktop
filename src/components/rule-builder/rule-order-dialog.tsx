@@ -31,6 +31,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getEffectTypeById, getTriggerById } from "./rule-catalog";
 import { getBlockMarkerDefinition } from "./block-markers";
+import { getRuleLabel } from "./rule-names";
+import { RuleNameEditor } from "./rule-name-editor";
 import type { Effect, Rule } from "./types";
 
 interface RuleOrderDialogProps {
@@ -39,6 +41,10 @@ interface RuleOrderDialogProps {
   rules: Rule[];
   selectedRuleId: string | null;
   onReorder: (orderedRuleIds: string[]) => void;
+  onRuleNameRequest?: (ruleId: string) => void;
+  onRuleNameChange?: (ruleId: string, name: string) => void;
+  onRuleNameCancel?: () => void;
+  renamingRuleId?: string | null;
   generateEffectTitle?: (effect: Effect) => string;
   disabledReason?: string;
   isBusy?: boolean;
@@ -50,6 +56,11 @@ function SortableRuleRow({
   position,
   selected,
   disabled,
+  onRuleNameRequest,
+  onRuleNameChange,
+  onRuleNameCancel,
+  isNameEditing,
+  nameDisabled,
   generateEffectTitle,
 }: {
   rule: Rule;
@@ -57,6 +68,11 @@ function SortableRuleRow({
   position: number;
   selected: boolean;
   disabled: boolean;
+  onRuleNameRequest?: (ruleId: string) => void;
+  onRuleNameChange?: (ruleId: string, name: string) => void;
+  onRuleNameCancel?: () => void;
+  isNameEditing: boolean;
+  nameDisabled: boolean;
   generateEffectTitle?: (effect: Effect) => string;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
@@ -74,6 +90,7 @@ function SortableRuleRow({
       (effects.length > 2 ? ` · +${effects.length - 2} more` : "")
     : "No effects";
   const marker = getBlockMarkerDefinition(rule.markerColor);
+  const ruleLabel = getRuleLabel(rule, originalNumber);
 
   return (
     <li
@@ -91,7 +108,7 @@ function SortableRuleRow({
         {...listeners}
         type="button"
         data-rule-order-handle={rule.id}
-        aria-label={`Drag Rule ${originalNumber} to reorder`}
+        aria-label={`Drag ${ruleLabel} to reorder`}
         disabled={disabled}
         className="flex h-9 w-7 shrink-0 touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40 cursor-grab active:cursor-grabbing"
       >
@@ -113,8 +130,17 @@ function SortableRuleRow({
               aria-hidden="true"
             />
           )}
-          <span className="text-sm font-medium">Rule {originalNumber}</span>
-          {selected && <span className="text-[10px] font-medium text-jungle-green-600 dark:text-jungle-green-300">Selected</span>}
+          <RuleNameEditor
+            rule={rule}
+            ruleNumber={originalNumber}
+            isEditing={isNameEditing}
+            onEdit={onRuleNameRequest ? () => onRuleNameRequest(rule.id) : undefined}
+            onCommit={onRuleNameChange ? (name) => onRuleNameChange(rule.id, name) : undefined}
+            onCancel={onRuleNameCancel}
+            disabled={nameDisabled}
+            variant="list"
+          />
+          {selected && <span className="shrink-0 text-[10px] font-medium text-jungle-green-600 dark:text-jungle-green-300">Selected</span>}
         </div>
         <p className="truncate text-xs text-foreground/90" title={triggerLabel}>{triggerLabel}</p>
         <p className="truncate text-xs text-muted-foreground" title={effectSummary}>{effectSummary}</p>
@@ -129,6 +155,10 @@ export function RuleOrderDialog({
   rules,
   selectedRuleId,
   onReorder,
+  onRuleNameRequest,
+  onRuleNameChange,
+  onRuleNameCancel,
+  renamingRuleId = null,
   generateEffectTitle,
   disabledReason,
   isBusy = false,
@@ -142,6 +172,7 @@ export function RuleOrderDialog({
   const [moveStatus, setMoveStatus] = useState("");
   const originalNumbers = useMemo(() => new Map(rules.map((rule, index) => [rule.id, index + 1])), [rules]);
   const rulesById = useMemo(() => new Map(rules.map((rule) => [rule.id, rule])), [rules]);
+  const ruleLabel = (id: string) => getRuleLabel(rulesById.get(id) ?? {}, originalNumbers.get(id) ?? 0);
   const selectedPosition = selectedRuleId ? draftIds.indexOf(selectedRuleId) + 1 : 0;
   const blocked = Boolean(disabledReason) || isBusy;
   const validDraft = draftIds.length === rules.length && new Set(draftIds).size === rules.length && draftIds.every((id) => rulesById.has(id));
@@ -188,7 +219,7 @@ export function RuleOrderDialog({
       <DialogContent
         className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
         showCloseButton={!isBusy}
-        onEscapeKeyDown={(event) => { if (activeId) event.preventDefault(); }}
+        onEscapeKeyDown={(event) => { if (activeId || renamingRuleId) event.preventDefault(); }}
       >
         <DialogHeader>
           <DialogTitle>Rule order</DialogTitle>
@@ -207,9 +238,9 @@ export function RuleOrderDialog({
               draggable: "Press Space to pick up a rule, use the up and down arrow keys to move it, and press Space to drop. Press Escape to cancel dragging.",
             },
             announcements: {
-              onDragStart: ({ active }) => `Picked up Rule ${originalNumbers.get(String(active.id))}, position ${draftIds.indexOf(String(active.id)) + 1} of ${rules.length}.`,
-              onDragOver: ({ active, over }) => over ? `Rule ${originalNumbers.get(String(active.id))} is over position ${draftIds.indexOf(String(over.id)) + 1}.` : undefined,
-              onDragEnd: ({ active, over }) => over ? `Rule ${originalNumbers.get(String(active.id))} moved to position ${draftIds.indexOf(String(over.id)) + 1}.` : "Drag cancelled. Order unchanged.",
+              onDragStart: ({ active }) => `Picked up ${ruleLabel(String(active.id))}, position ${draftIds.indexOf(String(active.id)) + 1} of ${rules.length}.`,
+              onDragOver: ({ active, over }) => over ? `${ruleLabel(String(active.id))} is over position ${draftIds.indexOf(String(over.id)) + 1}.` : undefined,
+              onDragEnd: ({ active, over }) => over ? `${ruleLabel(String(active.id))} moved to position ${draftIds.indexOf(String(over.id)) + 1}.` : "Drag cancelled. Order unchanged.",
               onDragCancel: () => "Drag cancelled. Order unchanged.",
             },
           }}
@@ -227,6 +258,11 @@ export function RuleOrderDialog({
                       position={index + 1}
                       selected={id === selectedRuleId}
                       disabled={blocked || !validDraft}
+                      onRuleNameRequest={onRuleNameRequest}
+                      onRuleNameChange={onRuleNameChange}
+                      onRuleNameCancel={onRuleNameCancel}
+                      isNameEditing={id === renamingRuleId}
+                      nameDisabled={isBusy || Boolean(activeId)}
                       generateEffectTitle={generateEffectTitle}
                     />
                   ) : null;
@@ -245,7 +281,7 @@ export function RuleOrderDialog({
               event.stopPropagation();
               if (!canMove) return;
               setDraftIds((previous) => arrayMove(previous, previous.indexOf(selectedRuleId!), position - 1));
-              setMoveStatus(`Rule ${originalNumbers.get(selectedRuleId!)} moved to position ${position}.`);
+              setMoveStatus(`${ruleLabel(selectedRuleId!)} moved to position ${position}.`);
             }}
           >
             <Label htmlFor={fieldId}>Move selected rule to</Label>

@@ -21,6 +21,7 @@ import BlockComponent from "./block-component";
 import { areRuleCardPropsEqual } from "./rule-card-memo";
 import { getBlockSelectionKey } from "./block-selection";
 import { getBlockMarkerDefinition, getBlockMarkerStyle } from "./block-markers";
+import { RuleNameEditor } from "./rule-name-editor";
 import {
   CaretDown,
   List,
@@ -120,7 +121,10 @@ interface RuleCardProps {
   scale: number;
   isPaletteDragging: boolean;
   onSelectRuleCard: (ruleId: string, additive: boolean) => void;
-  onRuleOrderRequest?: (ruleId: string) => void;
+  onRuleNameRequest?: (ruleId: string) => void;
+  onRuleNameChange?: (ruleId: string, name: string) => void;
+  onRuleNameCancel?: () => void;
+  isRenaming?: boolean;
 }
 
 const RuleTooltipButton: React.FC<{
@@ -436,7 +440,10 @@ const RuleCard: React.FC<RuleCardProps> = ({
   scale,
   isPaletteDragging,
   onSelectRuleCard,
-  onRuleOrderRequest,
+  onRuleNameRequest,
+  onRuleNameChange,
+  onRuleNameCancel,
+  isRenaming = false,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [groupOperators, setGroupOperators] = useState<Record<string, string>>(
@@ -1012,35 +1019,23 @@ const RuleCard: React.FC<RuleCardProps> = ({
           style={{ cursor: isDragging ? "grabbing" : "grab" }}
         >
           <div
-            className={`bg-card/95 border rounded-t-xl px-8 py-2 pt-1 relative ${
+            className={`flex max-w-full min-w-0 items-center gap-2 bg-card/95 border rounded-t-xl px-8 py-2 pt-1 relative ${
               isRuleSelected ? "border-jungle-green-400" : "border-border"
             } `}
           >
-            {onRuleOrderRequest ? (
-              <button
-                type="button"
-                title="Change rule order"
-                aria-label={`Change order for Rule ${ruleIndex}`}
-                className="rounded-sm text-foreground text-sm tracking-widest cursor-pointer hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-                onPointerDown={(event) => event.stopPropagation()}
-                onMouseDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (event.ctrlKey || event.metaKey) {
-                    onSelectRuleCard(rule.id, true);
-                  } else {
-                    onRuleOrderRequest(rule.id);
-                  }
-                }}
-                onDoubleClick={(event) => event.stopPropagation()}
-              >
-                Rule {ruleIndex}
-              </button>
-            ) : (
-              <span className="text-foreground text-sm tracking-widest">
-                Rule {ruleIndex}
-              </span>
-            )}
+            <RuleNameEditor
+              rule={rule}
+              ruleNumber={ruleIndex}
+              isEditing={isRenaming}
+              onEdit={onRuleNameRequest ? () => onRuleNameRequest(rule.id) : undefined}
+              onCommit={onRuleNameChange ? (name) => onRuleNameChange(rule.id, name) : undefined}
+              onCancel={onRuleNameCancel}
+              onModifierClick={(event) => {
+                if (event.ctrlKey || event.metaKey) onSelectRuleCard(rule.id, true);
+              }}
+              disabled={!onRuleNameRequest || !onRuleNameChange}
+              variant="header"
+            />
           </div>
         </motion.div>
 
