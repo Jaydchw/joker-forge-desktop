@@ -58,6 +58,8 @@ import {
   toggleBlockSelection,
 } from "./block-selection";
 import RuleCard from "./rule-card";
+import { applyRuleOrder, moveRuleToPosition, hasRuleOrderChanged } from "./rule-order";
+import { RuleOrderDialog } from "./rule-order-dialog";
 import BlockComponent from "./block-component";
 import FloatingDock from "./floating-dock";
 import BlockPalette from "./block-palette";
@@ -99,12 +101,19 @@ import {
 import { mapCodeSegmentsThroughEdits } from "@/lib/content/live-code-navigation";
 import { buildLiveCodeExplanations } from "@/lib/content/live-code-explanations";
 import { formatLuaCode, isLuaIndentationEquivalent } from "@/lib/content/live-code-format";
-import { canRegenerateJokerCalculate, regenerateJokerCalculate } from "@/lib/content/live-code-rule-execution";
+import {
+  canRegenerateJokerCalculate, regenerateJokerCalculate,
+  canRegenerateJokerRuleOrder, regenerateJokerRuleOrder,
+} from "@/lib/content/live-code-rule-execution";
+import { buildDescriptionVariableTokens, type DescriptionVariableBinding } from "@/lib/rules/description-variable-registry";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowClockwise,
   ArrowCounterClockwise,
+  ArrowUp,
+  ArrowDown,
+  ListNumbers,
   ArrowsMerge,
   CheckCircle,
   Copy,
@@ -539,6 +548,7 @@ const normalizeRuleForBuilder = (
 export interface RuleBuilderSaveOptions {
   ruleExecutionMode?: RuleExecutionMode;
   customCode?: CustomCodeState;
+  descriptionVariables?: DescriptionVariableBinding[];
 }
 
 interface RuleBuilderProps {
@@ -576,6 +586,13 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   const [ruleExecutionMode, setRuleExecutionMode] = useState<RuleExecutionMode>(
     () => item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match",
   );
+  const [descriptionVariables, setDescriptionVariables] = useState<DescriptionVariableBinding[] | undefined>(item.descriptionVariables);
+  const descriptionVariablesRef = useRef(descriptionVariables);
+  descriptionVariablesRef.current = descriptionVariables;
+  const [ruleOrderTargetId, setRuleOrderTargetId] = useState<string | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
+  const reorderingRef = useRef(false);
+  const ruleOrderDirtyRef = useRef(false);
   const { userConfig } = useContext(UserConfigContext);
   const {
     data, currentProjectId, updateJokers, updateConsumables, updateVouchers,
@@ -665,9 +682,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     setRules,
     resetHistory,
     recordVariableChange,
-    handleUndo,
-    handleRedo,
-    restoreHistoryAt,
+    handleUndo: undoRuleHistory,
+    handleRedo: redoRuleHistory,
+    restoreHistoryAt: restoreRuleHistoryAt,
     historyTimeline,
     historyVariableTimeline,
     historyCurrentIndex,
@@ -854,11 +871,11 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
   // object, but we don't want that to trigger a fresh compilation.
   const itemCodegenKey = useMemo(() => {
     const { customCode: _, ...rest } = item;
-    return JSON.stringify({ ...rest, rules: stripBlockMarkers(rest.rules ?? []) });
-  }, [item]);
+    return JSON.stringify({ ...rest, descriptionVariables, rules: stripBlockMarkers(rest.rules ?? []) });
+  }, [item, descriptionVariables]);
   const itemWithoutCustomCode = useMemo(() => {
     const { customCode: _, ...rest } = item;
-    const sourceItem = { ...rest, rules: stripBlockMarkers(rest.rules ?? []) };
+    const sourceItem = { ...rest, descriptionVariables, rules: stripBlockMarkers(rest.rules ?? []) };
     return itemType === "joker" ? { ...sourceItem, ruleExecutionMode } : sourceItem;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemCodegenKey, itemType, ruleExecutionMode]);
@@ -1077,7 +1094,8 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     customCodeRef.current = newCustomCode;
     setCustomCode(newCustomCode);
     const savedMode = item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match";
-    if (itemType !== "joker" || (ruleExecutionMode === savedMode
+    if (itemType !== "joker" || (!ruleOrderDirtyRef.current
+      && ruleExecutionMode === savedMode
       && lastGeneratedRuleExecutionModeRef.current === ruleExecutionMode)) {
       onUpdateItemRef.current({ customCode: newCustomCode });
     }
@@ -1112,8 +1130,40 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     );
   }, [customCode, itemType, item.objectKey, generatedMetadataRevision]);
 
+  const ruleOrderDisabledReason = useMemo(() => {
+    if (isReadOnly) return "This Joker is read only.";
+    const current = customCode?.fullCode;
+    if (current && !canRegenerateJokerRuleOrder(
+      current, lastGeneratedCleanRef.current || customCode?.lastGeneratedCode || "", item.objectKey,
+    )) return "Reset custom Lua in Live Code before changing rule order. Its edited code may depend on the current order.";
+    return undefined;
+  }, [isReadOnly, customCode, item.objectKey, generatedMetadataRevision]);
+
+  const canRestoreRuleOrder = useCallback((nextRules: Rule[] | undefined) => {
+    if (isReadOnly || reorderingRef.current || savingRef.current || !nextRules) return false;
+    flushPendingCodeEdit();
+    const current = customCodeRef.current;
+    if (itemType === "joker" && hasRuleOrderChanged(rulesRef.current, nextRules) && current
+      && !canRegenerateJokerRuleOrder(current.fullCode,
+        lastGeneratedCleanRef.current || current.lastGeneratedCode, item.objectKey)) {
+      pushGlobalAlert({ type: "danger", title: "Rule order could not change",
+        message: "Reset custom Lua in Live Code before restoring a different rule order." });
+      return false;
+    }
+    return true;
+  }, [isReadOnly, itemType, item.objectKey, flushPendingCodeEdit]);
+  const handleUndo = useCallback(() => {
+    if (canRestoreRuleOrder(historyTimeline[historyCurrentIndex - 1])) undoRuleHistory();
+  }, [canRestoreRuleOrder, historyTimeline, historyCurrentIndex, undoRuleHistory]);
+  const handleRedo = useCallback(() => {
+    if (canRestoreRuleOrder(historyTimeline[historyCurrentIndex + 1])) redoRuleHistory();
+  }, [canRestoreRuleOrder, historyTimeline, historyCurrentIndex, redoRuleHistory]);
+  const restoreHistoryAt = useCallback((index: number) => {
+    if (Number.isInteger(index) && canRestoreRuleOrder(historyTimeline[index])) restoreRuleHistoryAt(index);
+  }, [canRestoreRuleOrder, historyTimeline, restoreRuleHistoryAt]);
+
   const handleRuleExecutionModeChange = useCallback((value: string) => {
-    if (isReadOnly || savingRef.current || itemType !== "joker") return;
+    if (isReadOnly || savingRef.current || reorderingRef.current || itemType !== "joker") return;
     const nextMode = value === "all_matching" ? "all_matching" : "first_match";
     if (nextMode === ruleExecutionMode) return;
     flushPendingCodeEdit();
@@ -1229,13 +1279,18 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     setEditorSyncRevision((revision) => revision + 1);
   }, [onUpdateItem]);
 
-  const reconcileGeneratedCode = useCallback((freshCompiled: CompiledLuaWithSegments, sourceRules: Rule[]) => {
+  const reconcileGeneratedCode = useCallback((freshCompiled: CompiledLuaWithSegments, sourceRules: Rule[], forceRuleOrderRegeneration = false) => {
     const normalized = (freshCompiled.code || "").toLowerCase();
     const isNotImplemented = normalized.includes("not yet implemented");
 
     // Determine which sourceRules changed since the last generation
     const semanticRules = stripBlockMarkers(sourceRules);
     const currentRulesSnapshot = JSON.stringify(semanticRules);
+    let previousRules = fieldSourceRulesRef.current;
+    try {
+      if (prevRulesSnapshotRef.current) previousRules = JSON.parse(prevRulesSnapshotRef.current) as Rule[];
+    } catch { /* Use the last linked source snapshot. */ }
+    const ruleOrderChanged = forceRuleOrderRegeneration || hasRuleOrderChanged(previousRules, sourceRules);
     const changedRuleIds = new Set<string>();
     if (
       prevRulesSnapshotRef.current &&
@@ -1269,7 +1324,6 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         sourceRules.forEach((r) => changedRuleIds.add(r.id));
       }
     }
-    prevRulesSnapshotRef.current = currentRulesSnapshot;
 
     const freshClean = freshCompiled.code;
     const freshSegments = freshCompiled.segments;
@@ -1284,7 +1338,16 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     const editableCurrentCode = pendingEditorCode ?? savedCustomCode;
 
     // If user has custom code (persisted or pending in-editor), merge with the new generation
-    if (editableCurrentCode && previewItemType === "joker"
+    if (editableCurrentCode && previewItemType === "joker" && ruleOrderChanged) {
+      const replaced = regenerateJokerRuleOrder(
+        editableCurrentCode,
+        previousGenerated || customCodeRef.current?.lastGeneratedCode || "",
+        freshClean, item.objectKey,
+      );
+      if (replaced === null) throw new Error("Reset custom Lua in Live Code before changing rule order.");
+      displayCode = replaced;
+      displayFieldRanges = updateBoundRanges(freshClean, displayCode, toFieldRanges(freshClean, freshFieldBindings));
+    } else if (editableCurrentCode && previewItemType === "joker"
       && lastGeneratedRuleExecutionModeRef.current !== ruleExecutionMode) {
       const replaced = regenerateJokerCalculate(
         editableCurrentCode,
@@ -1369,6 +1432,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
       ? retainTrackedCodeSegments(remappedSegments, lastSegmentsRef.current, sourceRules)
       : remappedSegments;
 
+    prevRulesSnapshotRef.current = currentRulesSnapshot;
     lastGeneratedCleanRef.current = freshClean;
     lastGeneratedRuleExecutionModeRef.current = ruleExecutionMode;
     lastGeneratedSegmentsRef.current = freshSegments;
@@ -1392,12 +1456,85 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     setLiveCodeIsError(false);
   }, [persistEditorCode, previewItemType, ruleExecutionMode, item.objectKey]);
 
+  const handleApplyRuleOrder = useCallback(async (orderedRuleIds: string[]): Promise<boolean> => {
+    if (isReadOnly || itemType !== "joker" || savingRef.current || reorderingRef.current) return false;
+    const originalRules = flushPendingCodeEdit();
+    const nextRules = applyRuleOrder(originalRules, orderedRuleIds);
+    if (nextRules === originalRules) return false;
+    const current = customCodeRef.current;
+    const baseline = lastGeneratedCleanRef.current || current?.lastGeneratedCode || "";
+    if (current && !canRegenerateJokerRuleOrder(current.fullCode, baseline, item.objectKey)) {
+      pushGlobalAlert({ type: "danger", title: "Rule order could not change",
+        message: "Reset custom Lua in Live Code before changing rule order. Your edited code has been kept." });
+      return false;
+    }
+    const readSource = () => {
+      const context = variableContextRef.current;
+      const { customCode: _, ...latestItem } = context.item;
+      return {
+        item: { ...latestItem, ruleExecutionMode, descriptionVariables: descriptionVariablesRef.current, rules: rulesRef.current },
+        prefix: context.data.metadata.prefix,
+        globalUserVariables: collectGlobalVariables(context.data, { excludeItemId: context.item.id }).map((entry) => entry.variable),
+      };
+    };
+    const source = readSource();
+    const snapshot = JSON.stringify(source);
+    const revision = editorRevisionRef.current;
+    const bindings = buildDescriptionVariableTokens(
+      { ...source.item, objectType: "joker", rules: originalRules }, source.globalUserVariables,
+    ).map((token) => token.binding);
+    reorderingRef.current = true;
+    setIsReordering(true);
+    try {
+      const compiled = await compileSingleItemLuaWithSegments(
+        { ...source.item, descriptionVariables: bindings, rules: stripBlockMarkers(nextRules) },
+        "joker", source.prefix, { includeLocTxt: true, globalUserVariables: source.globalUserVariables },
+      );
+      if (!builderMountedRef.current) return false;
+      if (revision !== editorRevisionRef.current || snapshot !== JSON.stringify(readSource())) {
+        throw new Error("The Joker changed while its order was updating. Try moving the rule again.");
+      }
+      if (current && regenerateJokerRuleOrder(current.fullCode, baseline, compiled.code, item.objectKey) === null) {
+        throw new Error("Reset custom Lua in Live Code before changing rule order. Your edited code has been kept.");
+      }
+      ruleOrderDirtyRef.current = true;
+      descriptionVariablesRef.current = bindings;
+      setDescriptionVariables(bindings);
+      editorRevisionRef.current += 1;
+      rulesRef.current = nextRules;
+      setRules(nextRules);
+      setLiveCodePreviewTarget(null);
+      reconcileGeneratedCode(compiled, nextRules, true);
+      setRuleOrderTargetId(null);
+      return true;
+    } catch (error) {
+      if (builderMountedRef.current) pushGlobalAlert({ type: "danger", title: "Rule order could not change",
+        message: error instanceof Error ? error.message : "Unable to update the rule order. Your edits have been kept." });
+      return false;
+    } finally {
+      reorderingRef.current = false;
+      if (builderMountedRef.current) setIsReordering(false);
+    }
+  }, [isReadOnly, itemType, item.objectKey, ruleExecutionMode, flushPendingCodeEdit, setRules, reconcileGeneratedCode]);
+
+  const handleMoveRuleOrder = useCallback((ruleId: string, position: number): Promise<boolean> => {
+    const currentRules = rulesRef.current;
+    const nextRules = moveRuleToPosition(currentRules, ruleId, position);
+    if (nextRules === currentRules) return Promise.resolve(false);
+    return handleApplyRuleOrder(nextRules.map((rule) => rule.id));
+  }, [handleApplyRuleOrder]);
+
+  const handleRuleOrderRequest = useCallback((ruleId: string) => {
+    if (itemType !== "joker" || isReadOnly || savingRef.current || reorderingRef.current) return;
+    if (rulesRef.current.some((rule) => rule.id === ruleId)) setRuleOrderTargetId(ruleId);
+  }, [itemType, isReadOnly]);
+
   const handleSaveAndClose = useCallback(async () => {
     if (isReadOnly) {
       onClose();
       return;
     }
-    if (savingRef.current) return;
+    if (savingRef.current || reorderingRef.current) return;
     savingRef.current = true;
     setIsSaving(true);
     try {
@@ -1407,7 +1544,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         const context = variableContextRef.current;
         const { customCode: _, ...latestItem } = context.item;
         return {
-          item: { ...latestItem, ...(itemType === "joker" ? { ruleExecutionMode } : {}), rules: stripBlockMarkers(sourceRules) },
+          item: { ...latestItem, ...(itemType === "joker" ? { ruleExecutionMode, descriptionVariables: descriptionVariablesRef.current } : {}), rules: stripBlockMarkers(sourceRules) },
           prefix: context.data.metadata.prefix,
           globalUserVariables: collectGlobalVariables(context.data, { excludeItemId: context.item.id })
             .map((entry) => entry.variable),
@@ -1430,7 +1567,9 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         reconcileGeneratedCode(freshCompiled, latestRules);
         break;
       }
-      onSave(latestRules, itemType === "joker" ? { ruleExecutionMode, customCode: customCodeRef.current } : undefined);
+      onSave(latestRules, itemType === "joker" ? {
+        ruleExecutionMode, customCode: customCodeRef.current, descriptionVariables: descriptionVariablesRef.current,
+      } : undefined);
       onClose();
     } catch (error) {
       if (!builderMountedRef.current) return;
@@ -1740,6 +1879,12 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      descriptionVariablesRef.current = item.descriptionVariables;
+      setDescriptionVariables(item.descriptionVariables);
+      ruleOrderDirtyRef.current = false;
+      setRuleOrderTargetId(null);
+      reorderingRef.current = false;
+      setIsReordering(false);
       setRuleExecutionMode(item.ruleExecutionMode === "all_matching" ? "all_matching" : "first_match");
       const normalizedRules = existingRules.map((rule) =>
         normalizeRuleForBuilder(rule, itemType, reforged),
@@ -4898,6 +5043,22 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     }
 
     if (!isLiveCodeContextMenu && contextTarget.ruleId && contextTarget.type !== "canvas") {
+      if (itemType === "joker") {
+        const index = rules.findIndex((rule) => rule.id === contextTarget.ruleId);
+        const disabled = isReadOnly || isSaving || isReordering || !!ruleOrderDisabledReason;
+        groups.push({ items: [{ label: "Rule order", icon: ListNumbers,
+          disabled: isReadOnly || isSaving || isReordering || index < 0 || rules.length < 2,
+          items: [
+            { label: "Move earlier", icon: ArrowUp, disabled: disabled || index <= 0,
+              onSelect: () => void handleMoveRuleOrder(contextTarget.ruleId!, index) },
+            { label: "Move later", icon: ArrowDown, disabled: disabled || index >= rules.length - 1,
+              onSelect: () => void handleMoveRuleOrder(contextTarget.ruleId!, index + 2) },
+            { label: "Reorder rules…", icon: ListNumbers, disabled,
+              onSelect: () => handleRuleOrderRequest(contextTarget.ruleId!) },
+            ...(ruleOrderDisabledReason ? [{ label: "Reset custom Lua in Live Code to reorder", disabled: true }] : []),
+          ],
+        }], separator: true });
+      }
       const colorMenus = [{
           label: "Rule color",
           icon: Palette,
@@ -5084,6 +5245,12 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
     hasLiveCodeSelectedText,
     handleCopyLiveCodeSelection,
     isReadOnly,
+    isSaving,
+    isReordering,
+    ruleOrderDisabledReason,
+    handleMoveRuleOrder,
+    handleRuleOrderRequest,
+    rules,
     contextTarget.type,
     contextMarkerColor,
     hasUniformContextMarkerColor,
@@ -5274,7 +5441,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                   variant={isReadOnly ? "outline" : "default"}
                   size="sm"
                   onClick={handleSaveAndClose}
-                  disabled={isSaving}
+                  disabled={isSaving || isReordering}
                   icon={
                     isReadOnly ? (
                       <X className="h-4 w-4" />
@@ -5512,6 +5679,7 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
                                   selectedBlocks={selectedBlocks}
                                   onSelectItem={handleSelectItem}
                                   onSelectRuleCard={handleSelectRuleCard}
+                                  onRuleOrderRequest={itemType === "joker" && !isReadOnly && rules.length > 1 ? handleRuleOrderRequest : undefined}
                                   onDuplicateRule={duplicateRule}
                                   onSaveRuleTemplate={handleSaveRuleAsTemplate}
                                   onDeleteRule={deleteRule}
@@ -5724,6 +5892,16 @@ const RuleBuilder: React.FC<RuleBuilderProps> = ({
         </div>
       </div>
     </CustomContextMenu>
+    <RuleOrderDialog
+      open={ruleOrderTargetId !== null && rules.some((rule) => rule.id === ruleOrderTargetId)}
+      onOpenChange={(open) => { if (!open && !reorderingRef.current) setRuleOrderTargetId(null); }}
+      rules={rules}
+      selectedRuleId={ruleOrderTargetId}
+      generateEffectTitle={generateEffectTitleForCard}
+      onReorder={(orderedRuleIds) => { void handleApplyRuleOrder(orderedRuleIds); }}
+      disabledReason={ruleOrderDisabledReason}
+      isBusy={isReordering || isSaving}
+    />
     <ConfirmDialog
       open={isDeleteConfirmOpen}
       onOpenChange={(open) => {

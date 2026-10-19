@@ -2,6 +2,7 @@ export type { Rule } from "@/components/rule-builder/types";
 
 import type { Rule } from "@/components/rule-builder/types";
 import type { LocalizationEntry } from "@/lib/core/localization";
+import type { DescriptionVariableBinding } from "@/lib/rules/description-variable-registry";
 
 export interface UserVariable {
   id: string;
@@ -100,6 +101,7 @@ export interface BaseGameObject {
   discovered: boolean;
   rules?: Rule[];
   userVariables?: UserVariable[];
+  descriptionVariables?: DescriptionVariableBinding[];
   customCode?: CustomCodeState;
 }
 

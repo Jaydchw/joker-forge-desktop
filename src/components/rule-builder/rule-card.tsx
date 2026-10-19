@@ -120,6 +120,7 @@ interface RuleCardProps {
   scale: number;
   isPaletteDragging: boolean;
   onSelectRuleCard: (ruleId: string, additive: boolean) => void;
+  onRuleOrderRequest?: (ruleId: string) => void;
 }
 
 const RuleTooltipButton: React.FC<{
@@ -435,6 +436,7 @@ const RuleCard: React.FC<RuleCardProps> = ({
   scale,
   isPaletteDragging,
   onSelectRuleCard,
+  onRuleOrderRequest,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [groupOperators, setGroupOperators] = useState<Record<string, string>>(
@@ -1014,9 +1016,31 @@ const RuleCard: React.FC<RuleCardProps> = ({
               isRuleSelected ? "border-jungle-green-400" : "border-border"
             } `}
           >
-            <span className="text-foreground text-sm tracking-widest">
-              Rule {ruleIndex}
-            </span>
+            {onRuleOrderRequest ? (
+              <button
+                type="button"
+                title="Change rule order"
+                aria-label={`Change order for Rule ${ruleIndex}`}
+                className="rounded-sm text-foreground text-sm tracking-widest cursor-pointer hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                onPointerDown={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (event.ctrlKey || event.metaKey) {
+                    onSelectRuleCard(rule.id, true);
+                  } else {
+                    onRuleOrderRequest(rule.id);
+                  }
+                }}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
+                Rule {ruleIndex}
+              </button>
+            ) : (
+              <span className="text-foreground text-sm tracking-widest">
+                Rule {ruleIndex}
+              </span>
+            )}
           </div>
         </motion.div>
 

@@ -6,7 +6,7 @@ type ParameterValue = { value: unknown; valueType?: string };
 
 export type DescriptionVariableBinding =
   | { kind: "literal"; value: string | number }
-  | { kind: "user"; name: string }
+  | { kind: "user"; name: string; variable_id?: string }
   | {
       kind: "config";
       name: string;
@@ -32,6 +32,7 @@ type DescriptionVariableItem = {
   objectType?: string;
   rules?: Rule[];
   userVariables?: UserVariable[];
+  descriptionVariables?: DescriptionVariableBinding[];
   locVars?: { vars?: Array<string | number> };
   config?: { choose?: number; extra?: number };
 };
@@ -328,7 +329,7 @@ const extractGameVariableReferences = (
   return { existingIds: Array.from(existingIds), references: Array.from(references.values()) };
 };
 
-export const buildDescriptionVariableTokens = (
+const inferDescriptionVariableTokens = (
   item: DescriptionVariableItem | undefined,
   globalVariables: UserVariable[] = [],
 ): DescriptionVariableToken[] => {
@@ -376,7 +377,11 @@ export const buildDescriptionVariableTokens = (
       label: userVar.name,
       source,
       category: "user",
-      binding: { kind: "user", name: userVar.name },
+      binding: {
+        kind: "user",
+        name: userVar.name,
+        ...(userVar.id ? { variable_id: userVar.id } : {}),
+      },
       previewValue: getVariableDisplayValue(userVar),
     }, foreign ? source : `${abilityPath}.${userVar.name}`);
   };
@@ -440,4 +445,170 @@ export const buildDescriptionVariableTokens = (
   }
 
   return tokens;
+};
+
+export const getDescriptionVariableBindingKey = (
+  binding: DescriptionVariableBinding,
+): string => {
+  switch (binding.kind) {
+    case "config":
+      return binding.effect_id
+        ? JSON.stringify([binding.kind, binding.effect_id, binding.name.replace(/\d+$/, "")])
+        : JSON.stringify([binding.kind, binding.name]);
+    case "probability":
+      return JSON.stringify([binding.kind, binding.group_id, binding.part]);
+    case "user":
+      return binding.variable_id
+        ? JSON.stringify([binding.kind, "id", binding.variable_id])
+        : JSON.stringify([binding.kind, "name", binding.name]);
+    case "game":
+      return JSON.stringify([binding.kind, binding.id, binding.multiplier ?? 1, binding.startsFrom ?? 0]);
+    case "literal":
+      return JSON.stringify([binding.kind, typeof binding.value, binding.value]);
+  }
+};
+
+const buildRetainedDescriptionToken = (
+  binding: DescriptionVariableBinding,
+  item: DescriptionVariableItem,
+  globalVariables: UserVariable[],
+): DescriptionVariableToken => {
+  const abilityPath = getAbilityPath(item.objectType);
+  const userVariables = [...(item.userVariables ?? []), ...globalVariables.filter((variable) => variable.isGlobal)];
+  switch (binding.kind) {
+    case "config": {
+      const fallback = binding.fallback;
+      const parameter = typeof fallback === "object" && fallback !== null
+        ? fallback
+        : { value: fallback ?? 0 };
+      return {
+        label: `${binding.name} (saved fallback)`,
+        source: `Saved slot for ${abilityPath}.${binding.name}; effect unavailable`,
+        category: "config",
+        binding,
+        previewValue: getParameterDisplayValue(parameter, userVariables, 0),
+      };
+    }
+    case "user": {
+      const variable = userVariables.find((entry) => binding.variable_id
+        ? entry.id === binding.variable_id
+        : entry.name === binding.name);
+      const name = variable?.name ?? binding.name;
+      const source = variable?.isGlobal
+        ? `${variable.isPersistent ? "JF_GLOBALS" : "G.GAME.jf_global_vars"}.${name}`
+        : `${abilityPath}.${name}`;
+      return {
+        label: variable ? name : `${name} (removed variable)`,
+        source: variable ? source : `Saved slot for ${source}; fallback 0`,
+        category: "user",
+        binding: variable
+          ? { kind: "user", name, ...(variable.id ? { variable_id: variable.id } : {}) }
+          : { kind: "literal", value: 0 },
+        previewValue: variable ? getVariableDisplayValue(variable) : "0",
+      };
+    }
+    case "probability": {
+      const fallback = binding.part === "numerator" ? "1" : "2";
+      return {
+        label: `Chance ${binding.part} (saved fallback)`,
+        source: `Saved slot for chance group ${binding.group_id}; fallback ${fallback}`,
+        category: "probability",
+        binding,
+        previewValue: fallback,
+      };
+    }
+    case "game": {
+      const variableLabel = GAME_VARIABLE_LABELS.get(binding.id) || binding.id;
+      const multiplier = binding.multiplier ?? 1;
+      const startsFrom = binding.startsFrom ?? 0;
+      const scaledLabel = multiplier === 1 ? variableLabel : `${multiplier} × ${variableLabel}`;
+      const label = startsFrom === 0 ? scaledLabel : `${startsFrom} + (${scaledLabel})`;
+      return {
+        label,
+        source: `Saved game variable slot: GAMEVAR:${binding.id}|${multiplier}|${startsFrom}`,
+        category: "game",
+        binding,
+        previewValue: label,
+      };
+    }
+    case "literal":
+      return {
+        label: String(binding.value),
+        source: `Saved literal value: ${String(binding.value)}`,
+        category: "loc",
+        binding,
+        previewValue: String(binding.value),
+      };
+  }
+};
+
+const isDescriptionVariableBinding = (value: unknown): value is DescriptionVariableBinding => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const binding = value as Record<string, unknown>;
+  const isName = (name: unknown): name is string => typeof name === "string" && name.trim().length > 0;
+  const isLiteral = (literal: unknown): literal is string | number =>
+    typeof literal === "string" || (typeof literal === "number" && Number.isFinite(literal));
+  switch (binding.kind) {
+    case "literal":
+      return isLiteral(binding.value);
+    case "user":
+      return isName(binding.name) && (binding.variable_id === undefined || isName(binding.variable_id));
+    case "config": {
+      const fallback = binding.fallback;
+      const validFallback = fallback === undefined || isLiteral(fallback) || (
+        fallback !== null && typeof fallback === "object" && !Array.isArray(fallback) &&
+        "value" in fallback && typeof (fallback as Record<string, unknown>).valueType === "string"
+      );
+      return isName(binding.name) && (binding.effect_id === undefined || isName(binding.effect_id)) && validFallback;
+    }
+    case "probability":
+      return isName(binding.group_id) && (binding.part === "numerator" || binding.part === "denominator");
+    case "game":
+      return isName(binding.id) && [binding.multiplier, binding.startsFrom].every((entry) =>
+        entry === undefined || (typeof entry === "number" && Number.isFinite(entry)));
+    default:
+      return false;
+  }
+};
+
+export const buildDescriptionVariableTokens = (
+  item: DescriptionVariableItem | undefined,
+  globalVariables: UserVariable[] = [],
+): DescriptionVariableToken[] => {
+  const inferred = inferDescriptionVariableTokens(item, globalVariables);
+  const savedBindings = Array.isArray(item?.descriptionVariables)
+    ? item.descriptionVariables.filter(isDescriptionVariableBinding)
+    : [];
+  if (!item || savedBindings.length === 0) return inferred;
+
+  const available = new Map<string, number[]>();
+  const addAvailable = (key: string, index: number) => {
+    const indices = available.get(key) ?? [];
+    indices.push(index);
+    available.set(key, indices);
+  };
+  inferred.forEach((token, index) => {
+    addAvailable(getDescriptionVariableBindingKey(token.binding), index);
+    // Legacy bindings without an effect ID use their complete generated name.
+    if (token.binding.kind === "config" && token.binding.effect_id) {
+      addAvailable(getDescriptionVariableBindingKey({ kind: "config", name: token.binding.name }), index);
+    }
+    if (token.binding.kind === "user" && token.binding.variable_id) {
+      addAvailable(getDescriptionVariableBindingKey({ kind: "user", name: token.binding.name }), index);
+    }
+  });
+
+  const consumed = new Set<number>();
+  const ordered = savedBindings.map((binding) => {
+    const indices = available.get(getDescriptionVariableBindingKey(binding));
+    while (indices?.length && consumed.has(indices[0])) indices.shift();
+    const index = indices?.shift();
+    if (index === undefined) return buildRetainedDescriptionToken(binding, item, globalVariables);
+    consumed.add(index);
+    return inferred[index];
+  });
+  inferred.forEach((token, index) => {
+    if (!consumed.has(index)) ordered.push(token);
+  });
+  return ordered;
 };
