@@ -270,11 +270,8 @@ fn card_trigger_context(trigger: &str, object_type: ObjectType) -> Option<Expr> 
         "card_held_in_hand_end_of_round" => lua_and(
             ctx("end_of_round"),
             lua_and(
+                ctx("playing_card_end_of_round"),
                 lua_eq(ctx("cardarea"), lua_path(&["G", "hand"])),
-                lua_and(
-                    lua_eq(ctx("other_card"), lua_ident("card")),
-                    ctx("individual"),
-                ),
             ),
         ),
         "card_discarded" => lua_and(ctx("discard"), lua_eq(ctx("other_card"), lua_ident("card"))),

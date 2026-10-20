@@ -969,8 +969,6 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
             .filter(|r| r.trigger == *trigger && r.has_retrigger == *use_retrigger_context)
             .collect();
 
-        let has_trigger_destroy = rules_for_trigger.iter().any(|r| r.has_destroy);
-
         // Get the trigger context expression
         let trigger_ctx = triggers::trigger_context_for_rule(
             ctx.object_type,
@@ -981,26 +979,8 @@ fn build_calculate_function(rule_outputs: &[RuleOutput], ctx: &CompileContext) -
 
         let mut trigger_body: Vec<Stmt> = Vec::new();
 
-        if has_trigger_destroy && trigger.as_str() != "card_discarded" {
-            trigger_body.push(lua_assign(
-                lua_path(&["context", "other_card", "should_destroy"]),
-                lua_bool(false),
-            ));
-        }
-
         let build_rule_stmts = |ro: &RuleOutput| {
-            let mut rule_stmts = ro.effect_stmts.clone();
-            if ro.has_destroy && trigger.as_str() != "card_discarded" {
-                rule_stmts.insert(
-                    0,
-                    lua_assign(
-                        lua_path(&["context", "other_card", "should_destroy"]),
-                        lua_bool(true),
-                    ),
-                );
-            }
-
-            wrap_rule_segment(&ro.rule_id, rule_stmts)
+            wrap_rule_segment(&ro.rule_id, ro.effect_stmts.clone())
         };
         if ctx.rule_execution_mode == RuleExecutionMode::AllMatching {
             append_independent_rules(&mut trigger_body, &rules_for_trigger, build_rule_stmts);

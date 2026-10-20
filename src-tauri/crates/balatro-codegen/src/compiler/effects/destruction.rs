@@ -15,6 +15,22 @@ pub fn destroy_card(effect: &EffectDef, ctx: &mut CompileContext, trigger: &str)
         .get("customMessage")
         .and_then(|v| v.as_str())
         .unwrap_or("Destroyed!");
+    let target = if matches!(
+        ctx.object_type,
+        ObjectType::Enhancement | ObjectType::Seal | ObjectType::Edition
+    ) {
+        "card"
+    } else {
+        "context.other_card"
+    };
+    let set_glass = effect
+        .params
+        .get("set_glass_trigger")
+        .or_else(|| effect.params.get("setGlassTrigger"))
+        .map(|value| value.as_bool().unwrap_or_else(|| {
+            matches!(value.to_string_lossy().trim().to_ascii_lowercase().as_str(), "y" | "yes" | "true")
+        }))
+        .unwrap_or(false);
 
     match trigger {
         "card_discarded" => EffectOutput {
@@ -26,25 +42,47 @@ pub fn destroy_card(effect: &EffectDef, ctx: &mut CompileContext, trigger: &str)
 
             segment_id: None,
         },
-        _ => {
-            // Playing-card objects receive the affected card directly. Their
-            // main_scoring context does not contain context.other_card.
-            let target = if matches!(
-                ctx.object_type,
-                ObjectType::Enhancement | ObjectType::Seal | ObjectType::Edition
-            ) {
-                "card"
+        "card_held_in_hand_end_of_round" => {
+            // The normal destruction pass has already run. Queue the actual
+            // removal so the engine can finish iterating over held cards.
+            // Capture the card now: context is reused by later evaluations.
+            let index = ctx.next_effect_count("destroy_card_request");
+            let captured = format!("jf_destroy_target{index}");
+            let requested = format!("jf_destroy_requested{index}");
+            let glass_code = if set_glass {
+                format!("{captured}.glass_trigger = true\n")
             } else {
-                "context.other_card"
+                String::new()
             };
-            let set_glass = effect
-                .params
-                .get("set_glass_trigger")
-                .or_else(|| effect.params.get("setGlassTrigger"))
-                .map(|value| value.as_bool().unwrap_or_else(|| {
-                    matches!(value.to_string_lossy().trim().to_ascii_lowercase().as_str(), "y" | "yes" | "true")
-                }))
-                .unwrap_or(false);
+            let schedule = lua_raw_stmt(format!(
+                "local {captured} = {target}\n\
+                local {requested} = false\n\
+                if {captured} and not {captured}.removed and not {captured}.destroyed and not {captured}.shattered and not {captured}.getting_sliced and not {captured}.jf_destroy_card_pending and not SMODS.is_eternal({captured}, {{destroy_cards = true}}) then\n\
+                    {captured}.jf_destroy_card_pending = true\n\
+                    {requested} = true\n\
+                    {glass_code}\
+                    G.E_MANAGER:add_event(Event({{\n\
+                        func = function()\n\
+                            {captured}.jf_destroy_card_pending = nil\n\
+                            if {captured}.removed or {captured}.destroyed or {captured}.shattered or {captured}.getting_sliced then return true end\n\
+                            SMODS.destroy_cards({{{captured}}})\n\
+                            return true\n\
+                        end\n\
+                    }}))\n\
+                end"
+            ));
+            EffectOutput {
+                return_fields: vec![],
+                pre_return: vec![schedule],
+                config_vars: vec![],
+                message: Some(lua_raw_expr(format!(
+                    "{requested} and {} or nil", lua_str(message)
+                ))),
+                colour: Some(lua_raw_expr("G.C.RED")),
+                segment_id: None,
+            }
+        }
+        _ => {
             let mut mark_destroyed = Vec::new();
             if set_glass {
                 mark_destroyed.push(lua_assign(

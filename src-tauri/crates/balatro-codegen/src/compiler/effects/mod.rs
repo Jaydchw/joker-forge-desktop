@@ -245,15 +245,31 @@ pub fn build_return_block(effects: &[EffectOutput]) -> Vec<Stmt> {
         .collect();
 
     if let Some((first, rest)) = content_effects.split_first() {
-        let mut root_entries = effect_entries(first);
+        let mut root_entries = effect_entries(first, true);
+
+        let remove_values: Vec<Expr> = content_effects.iter()
+            .flat_map(|effect| &effect.return_fields)
+            .filter(|(key, _)| key == "remove")
+            .map(|(_, value)| value.clone())
+            .collect();
+        if !remove_values.is_empty() {
+            let remove = lua_or_chain(remove_values);
+            if let Some(TableEntry::KeyValue(_, value)) = root_entries.iter_mut()
+                .find(|entry| matches!(entry, TableEntry::KeyValue(key, _) if key == "remove"))
+            {
+                *value = remove;
+            } else {
+                root_entries.push(TableEntry::KeyValue("remove".to_string(), remove));
+            }
+        }
 
         // Chain additional effects through nested `extra = { ... }` tables:
         // return { first..., extra = { second..., extra = { third... } } }
         if !rest.is_empty() {
-            let mut nested_extra = lua_table_raw(effect_entries(rest[rest.len() - 1]));
+            let mut nested_extra = lua_table_raw(effect_entries(rest[rest.len() - 1], false));
             if rest.len() > 1 {
                 for eff in rest[..rest.len() - 1].iter().rev() {
-                    let mut entries = effect_entries(eff);
+                    let mut entries = effect_entries(eff, false);
                     entries.push(TableEntry::KeyValue("extra".to_string(), nested_extra));
                     nested_extra = lua_table_raw(entries);
                 }
@@ -302,6 +318,7 @@ pub(crate) fn collect_group_effects(stmts: Vec<Stmt>) -> Vec<Stmt> {
     let mut body = vec![
         Stmt::Local("jf_effects".into(), None),
         Stmt::Local("jf_effects_tail".into(), None),
+        lua_local("jf_remove", lua_bool(false)),
         lua_local("jf_append_effect", Expr::Function {
             params: vec!["effect".into()],
             body: vec![
@@ -312,16 +329,21 @@ pub(crate) fn collect_group_effects(stmts: Vec<Stmt>) -> Vec<Stmt> {
                     else_body: Some(vec![lua_assign(lua_ident("jf_effects"), lua_ident("effect"))]),
                 },
                 lua_assign(lua_ident("jf_effects_tail"), lua_ident("effect")),
-                lua_raw_stmt("while jf_effects_tail.extra do\n    jf_effects_tail = jf_effects_tail.extra\nend"),
+                lua_raw_stmt("jf_remove = jf_remove or not not jf_effects_tail.remove\nwhile jf_effects_tail.extra do\n    jf_effects_tail = jf_effects_tail.extra\n    jf_remove = jf_remove or not not jf_effects_tail.remove\nend"),
             ],
         }),
     ];
     body.extend(collected);
-    body.push(lua_if(lua_ident("jf_effects"), vec![lua_return(lua_ident("jf_effects"))]));
+    body.push(lua_if(lua_ident("jf_effects"), vec![
+        lua_if(lua_ident("jf_remove"), vec![lua_assign(
+            lua_field(lua_ident("jf_effects"), "remove"), lua_bool(true),
+        )]),
+        lua_return(lua_ident("jf_effects")),
+    ]));
     body
 }
 
-fn effect_entries(effect: &EffectOutput) -> Vec<TableEntry> {
+fn effect_entries(effect: &EffectOutput, include_remove: bool) -> Vec<TableEntry> {
     let mut entries: Vec<TableEntry> = Vec::new();
 
     if let Some(segment_id) = &effect.segment_id {
@@ -329,6 +351,9 @@ fn effect_entries(effect: &EffectOutput) -> Vec<TableEntry> {
     }
 
     for (key, val) in &effect.return_fields {
+        if key == "remove" && !include_remove {
+            continue;
+        }
         entries.push(TableEntry::KeyValue(key.clone(), val.clone()));
     }
 
