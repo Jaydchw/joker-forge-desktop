@@ -160,7 +160,7 @@ export const stripBlockMarkers = (rules: Rule[]): Rule[] => {
     return rest;
   };
   return rules.map((rule) => {
-    const { markerColor: _, triggerMarkerColor: __, name: ___, ...rest } = rule;
+    const { markerColor: _, triggerMarkerColor: __, ...rest } = rule;
     return {
       ...rest,
       conditionGroups: rule.conditionGroups.map((group) => ({

@@ -22,10 +22,6 @@ export interface RuleCardMemoProps {
   }) => void;
   onMoveSelectedRulesByDelta: (deltaX: number, deltaY: number) => void;
   onFinalizeMultiRuleDrag: () => void;
-  onRuleNameRequest?: (ruleId: string) => void;
-  onRuleNameChange?: (ruleId: string, name: string) => void;
-  onRuleNameCancel?: () => void;
-  isRenaming?: boolean;
 }
 
 const usesChanceGroupLabels = (rule: Rule): boolean => rule.conditionGroups.some((group) =>
@@ -54,10 +50,6 @@ export function areRuleCardPropsEqual(prev: RuleCardMemoProps, next: RuleCardMem
   if (prev.onPreviewBlockCode !== next.onPreviewBlockCode) return false;
   if (prev.onMoveSelectedRulesByDelta !== next.onMoveSelectedRulesByDelta) return false;
   if (prev.onFinalizeMultiRuleDrag !== next.onFinalizeMultiRuleDrag) return false;
-  if (prev.onRuleNameRequest !== next.onRuleNameRequest) return false;
-  if (prev.onRuleNameChange !== next.onRuleNameChange) return false;
-  if (prev.onRuleNameCancel !== next.onRuleNameCancel) return false;
-  if (prev.isRenaming !== next.isRenaming) return false;
   if (prev.generateConditionTitle !== next.generateConditionTitle && usesChanceGroupLabels(next.rule)) return false;
 
   const prevSelectionKeys = getRuleSelectionKeys(prev);

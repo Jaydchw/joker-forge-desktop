@@ -1,5 +1,4 @@
 import type { Rule } from "./types";
-import { getRuleLabel } from "./rule-names";
 
 export type ChanceGroupOption = {
   value: string;
@@ -22,7 +21,7 @@ export function getChanceGroupOptions(
   const options = rules.flatMap((rule, ruleIndex) =>
     (rule.randomGroups ?? []).filter((group) => !!group.id).map((group, groupIndex) => ({
       value: group.id,
-      label: `${getRuleLabel(rule, ruleIndex + 1)} · Chance ${groupIndex + 1} (${formatChanceValue(group.chance_numerator?.value)} in ${formatChanceValue(group.chance_denominator?.value)})`,
+      label: `Rule ${ruleIndex + 1} · Chance ${groupIndex + 1} (${formatChanceValue(group.chance_numerator?.value)} in ${formatChanceValue(group.chance_denominator?.value)})`,
     })),
   );
   if (selectedGroupId && !options.some((option) => option.value === selectedGroupId)) {

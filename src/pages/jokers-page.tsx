@@ -138,9 +138,6 @@ export default function JokersPage() {
       if (options && "customCode" in options) {
         updates.customCode = options.customCode;
       }
-      if (options && "descriptionVariables" in options) {
-        updates.descriptionVariables = options.descriptionVariables;
-      }
       if (
         shouldOverwriteDescriptionOnRuleSave(
           ruleEditingItem.description,
@@ -153,7 +150,7 @@ export default function JokersPage() {
           rules,
           "joker",
           buildDescriptionVariableTokens(
-            { ...ruleEditingItem, ...updates, objectType: "joker", rules },
+            { ...ruleEditingItem, objectType: "joker", rules },
             descriptionGlobalVariables,
           ),
         );

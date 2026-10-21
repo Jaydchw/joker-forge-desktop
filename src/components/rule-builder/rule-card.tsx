@@ -21,7 +21,6 @@ import BlockComponent from "./block-component";
 import { areRuleCardPropsEqual } from "./rule-card-memo";
 import { getBlockSelectionKey } from "./block-selection";
 import { getBlockMarkerDefinition, getBlockMarkerStyle } from "./block-markers";
-import { RuleNameEditor } from "./rule-name-editor";
 import {
   CaretDown,
   List,
@@ -121,10 +120,6 @@ interface RuleCardProps {
   scale: number;
   isPaletteDragging: boolean;
   onSelectRuleCard: (ruleId: string, additive: boolean) => void;
-  onRuleNameRequest?: (ruleId: string) => void;
-  onRuleNameChange?: (ruleId: string, name: string) => void;
-  onRuleNameCancel?: () => void;
-  isRenaming?: boolean;
 }
 
 const RuleTooltipButton: React.FC<{
@@ -440,10 +435,6 @@ const RuleCard: React.FC<RuleCardProps> = ({
   scale,
   isPaletteDragging,
   onSelectRuleCard,
-  onRuleNameRequest,
-  onRuleNameChange,
-  onRuleNameCancel,
-  isRenaming = false,
 }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [groupOperators, setGroupOperators] = useState<Record<string, string>>(
@@ -1019,23 +1010,13 @@ const RuleCard: React.FC<RuleCardProps> = ({
           style={{ cursor: isDragging ? "grabbing" : "grab" }}
         >
           <div
-            className={`flex max-w-full min-w-0 items-center gap-2 bg-card/95 border rounded-t-xl px-8 py-2 pt-1 relative ${
+            className={`bg-card/95 border rounded-t-xl px-8 py-2 pt-1 relative ${
               isRuleSelected ? "border-jungle-green-400" : "border-border"
             } `}
           >
-            <RuleNameEditor
-              rule={rule}
-              ruleNumber={ruleIndex}
-              isEditing={isRenaming}
-              onEdit={onRuleNameRequest ? () => onRuleNameRequest(rule.id) : undefined}
-              onCommit={onRuleNameChange ? (name) => onRuleNameChange(rule.id, name) : undefined}
-              onCancel={onRuleNameCancel}
-              onModifierClick={(event) => {
-                if (event.ctrlKey || event.metaKey) onSelectRuleCard(rule.id, true);
-              }}
-              disabled={!onRuleNameRequest || !onRuleNameChange}
-              variant="header"
-            />
+            <span className="text-foreground text-sm tracking-widest">
+              Rule {ruleIndex}
+            </span>
           </div>
         </motion.div>
 
