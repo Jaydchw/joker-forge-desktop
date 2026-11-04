@@ -29,6 +29,7 @@ pub struct AtlasPosInput {
     pub y: i32,
 }
 
+#[derive(Debug, Deserialize)]
 #[serde(try_from = "RawFullSpriteSizeInput")]
 pub struct FullSpriteSizeInput {
     pub width: u32,
