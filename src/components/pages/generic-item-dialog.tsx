@@ -84,6 +84,11 @@ import {
   normalizeBalatroCardImageSource,
   readFileAsDataUrl,
 } from "@/lib/media/image-processing-utils";
+import {
+  decodeGifDataUrl,
+  isGifDataUrl,
+  type DecodedGif,
+} from "@/lib/media/gif-decoder";
 
 export type FieldType =
   | "text"
@@ -190,6 +195,7 @@ const isLocalizableDialogItem = (value: unknown): value is LocalizableDialogItem
 type ImageCropperState = {
   fieldId: string;
   imageSrc: string;
+  animation?: DecodedGif;
 };
 
 const MemoizedField = memo(
@@ -569,6 +575,9 @@ const MemoizedField = memo(
                   Preparing image…
                 </p>
               )}
+              <p className="text-center text-xs text-muted-foreground">
+                PNG, JPG, WebP or animated GIF
+              </p>
               {error && (
                 <div className="space-y-2 text-center">
                   <p role="alert" className="text-xs text-destructive dark:text-red-400">
@@ -1260,9 +1269,9 @@ function GenericItemDialogInternal<T extends { id: string }>({
   }, [formData, handleChange]);
 
   const handleOpenImageCropper = useCallback(
-    (fieldId: string, imageSrc: string) => {
+    (fieldId: string, imageSrc: string, animation?: DecodedGif) => {
       cancelImageRequest(fieldId);
-      setImageCropperState({ fieldId, imageSrc });
+      setImageCropperState({ fieldId, imageSrc, animation });
     },
     [cancelImageRequest],
   );
@@ -1276,13 +1285,14 @@ function GenericItemDialogInternal<T extends { id: string }>({
       if (!request) return;
       try {
         const src = await readFileAsDataUrl(file);
-        const dimensions = await getImageDimensions(src);
+        const animation = isGifDataUrl(src) ? decodeGifDataUrl(src) : undefined;
+        const dimensions = animation ?? await getImageDimensions(src);
         if (!request.isCurrent()) return;
         if (!isBalatroCardImageSize(dimensions)) {
-          handleOpenImageCropper(field.id, src);
+          handleOpenImageCropper(field.id, src, animation);
           return;
         }
-        const result = field.processFile
+        const result = animation ? src : field.processFile
           ? await field.processFile(file)
           : await normalizeBalatroCardImageSource(src);
         if (!request.isCurrent()) return;
@@ -1294,7 +1304,9 @@ function GenericItemDialogInternal<T extends { id: string }>({
         console.error("Image processing failed", error);
         setImageErrors((prev) => ({
           ...prev,
-          [field.id]: "This image could not be opened. Try another PNG, JPEG, or WebP image.",
+          [field.id]: error instanceof Error
+            ? error.message
+            : "This image could not be opened. Try another PNG, JPEG, WebP, or GIF image.",
         }));
       } finally {
         request.finish();
@@ -1759,6 +1771,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
       <ImageCropperDialog
         open={Boolean(imageCropperState)}
         imageSrc={imageCropperState?.imageSrc ?? null}
+        decodedGif={imageCropperState?.animation}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             setImageCropperState(null);

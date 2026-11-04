@@ -15,7 +15,7 @@ use balatro_codegen::types::{
 use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 // ---------------------------------------------------------------------------
@@ -27,6 +27,82 @@ use std::path::Path;
 pub struct AtlasPosInput {
     pub x: i32,
     pub y: i32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlasAnimationFrameInput {
+    pub x: i32,
+    pub y: i32,
+    pub duration_ms: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlasAnimationInput {
+    pub atlas: String,
+    pub pos: AtlasPosInput,
+    pub frames: Vec<AtlasAnimationFrameInput>,
+    pub loop_count: Option<u32>,
+}
+
+pub fn validate_atlas_animations(animations: &[AtlasAnimationInput]) -> Result<(), String> {
+    let mut positions = HashSet::new();
+    for animation in animations {
+        if !matches!(animation.atlas.as_str(), "CustomJokers" | "CustomConsumables"
+            | "CustomEnhancements" | "CustomSeals" | "CustomVouchers" | "CustomDecks"
+            | "CustomBoosters")
+        {
+            return Err(format!("Unsupported animation atlas: {}", animation.atlas));
+        }
+        if animation.frames.is_empty() || animation.frames.len() > 300 {
+            return Err("Animated artwork must contain between 1 and 300 frames.".to_string());
+        }
+        if animation.pos.x < 0 || animation.pos.x >= 57 || animation.pos.y < 0 || animation.pos.y >= 43
+            || !positions.insert((animation.atlas.as_str(), animation.pos.x, animation.pos.y))
+        {
+            return Err("Animated artwork has an invalid or duplicate atlas position.".to_string());
+        }
+        if animation.frames[0].x != animation.pos.x || animation.frames[0].y != animation.pos.y {
+            return Err("Animated artwork must start at its assigned atlas position.".to_string());
+        }
+        let mut duration = 0.0;
+        for frame in &animation.frames {
+            if frame.x < 0 || frame.x >= 57 || frame.y < 0 || frame.y >= 43
+                || !frame.duration_ms.is_finite() || frame.duration_ms <= 0.0
+            {
+                return Err("Animated artwork contains an invalid frame position or duration.".to_string());
+            }
+            duration += frame.duration_ms;
+        }
+        if !duration.is_finite() {
+            return Err("Animated artwork duration is too large.".to_string());
+        }
+    }
+    Ok(())
+}
+
+pub fn build_animated_sprites_lua(animations: &[AtlasAnimationInput], mod_prefix: &str) -> String {
+    let mut atlas_entries: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+    for animation in animations {
+        let mut end_ms = 0.0;
+        let frames = animation.frames.iter().map(|frame| {
+            end_ms += frame.duration_ms;
+            format!("{{ x = {}, y = {}, ends_at = {} }}", frame.x, frame.y, end_ms)
+        }).collect::<Vec<_>>().join(",\n");
+        let plays = animation.loop_count.map(|count| {
+            if count == 0 { "false".to_string() } else { (u64::from(count) + 1).to_string() }
+        }).unwrap_or_else(|| "1".to_string());
+        atlas_entries.entry(&animation.atlas).or_default().push(format!(
+            "[\"{}:{}\"] = {{ duration = {}, plays = {}, frames = {{\n{}\n}} }}",
+            animation.pos.x, animation.pos.y, end_ms, plays, frames,
+        ));
+    }
+    let data = atlas_entries.into_iter().map(|(atlas, entries)| format!(
+        "[{}] = {{\n{}\n}}", balatro_codegen::lua_ast::lua_str(format!("{mod_prefix}_{atlas}")),
+        entries.join(",\n"),
+    )).collect::<Vec<_>>().join(",\n");
+    include_str!("animated_sprites.lua").replace("__JF_ANIMATION_DATA__", &data)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1992,6 +2068,7 @@ pub fn build_main_lua(
     load_globals: bool,
     disable_vanilla: bool,
     run_scoped_globals: &[UserVariableDef],
+    has_atlas_animations: bool,
 ) -> String {
     let sorted_jokers: Vec<&BatchJokerEntry> = jokers.iter().collect();
 
@@ -2040,6 +2117,9 @@ pub fn build_main_lua(
     }
 
     let mut requires = String::new();
+    if has_atlas_animations {
+        requires.push_str("assert(SMODS.load_file(\"animated_sprites.lua\"))()\n");
+    }
     if load_rarities {
         requires.push_str("assert(SMODS.load_file(\"rarities.lua\"))()\n");
     }

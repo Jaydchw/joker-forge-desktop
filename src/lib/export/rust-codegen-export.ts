@@ -24,6 +24,7 @@ import {
 import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable-registry";
 import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import { rebaseCustomLuaAtlas, type AtlasItemType } from "./custom-lua-atlas";
+import { buildSpriteAtlas, type SpriteAtlas } from "./image-atlas";
 
 // The editor, card preview and exported loc_vars must use the same slot order.
 const withDescriptionVariables = (item: unknown, globalVariables: UserVariable[] = []) => {
@@ -93,11 +94,6 @@ interface ExportModRustOptions {
   managedModFolderNames?: string[];
 }
 
-type ItemWithImage = Pick<
-  BaseGameObject,
-  "id" | "orderValue" | "image" | "overlayImage" | "objectKey"
->;
-
 export interface ExportModRustResult {
   exportRootPath: string;
   modFolderPath: string;
@@ -108,18 +104,7 @@ export interface ExportModRustResult {
 // Atlas building (browser Canvas , stays in TypeScript)
 // ---------------------------------------------------------------------------
 
-interface AtlasPos {
-  x: number;
-  y: number;
-}
-
-interface AtlasBuildResult {
-  atlasDataUrl: string;
-  positionsById: Record<string, AtlasPos>;
-  soulPositionsById: Record<string, AtlasPos>;
-}
-
-const customLuaForAtlas = (item: BaseGameObject, itemType: AtlasItemType, atlas: AtlasBuildResult | null) =>
+const customLuaForAtlas = (item: BaseGameObject, itemType: AtlasItemType, atlas: SpriteAtlas | null) =>
   rebaseCustomLuaAtlas(item.customCode, {
     itemType,
     objectKey: item.objectKey,
@@ -168,166 +153,6 @@ const loadImage = (src: string): Promise<HTMLImageElement | null> => {
     img.onerror = () => resolve(null);
     img.src = src;
   });
-};
-
-const buildItemAtlas = async (
-  items: ItemWithImage[],
-  scale: number,
-): Promise<AtlasBuildResult> => {
-  const itemsPerRow = 10;
-  const sorted = [...items].sort((a, b) => a.orderValue - b.orderValue);
-  const totalPositions = sorted.reduce(
-    (count, item) => count + (item.overlayImage ? 2 : 1),
-    0,
-  );
-  const rows = Math.max(1, Math.ceil(totalPositions / itemsPerRow));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = itemsPerRow * 71 * scale;
-  canvas.height = rows * 95 * scale;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    throw new Error("Failed to build item atlas: missing canvas context.");
-  }
-  ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const positionsById: Record<string, AtlasPos> = {};
-  const soulPositionsById: Record<string, AtlasPos> = {};
-
-  let currentPosition = 0;
-  for (const item of sorted) {
-    const col = currentPosition % itemsPerRow;
-    const row = Math.floor(currentPosition / itemsPerRow);
-    positionsById[item.id] = { x: col, y: row };
-
-    const baseImage = await loadImage(item.image || "");
-    if (baseImage) {
-      ctx.drawImage(
-        baseImage,
-        0,
-        0,
-        baseImage.width,
-        baseImage.height,
-        col * 71 * scale,
-        row * 95 * scale,
-        71 * scale,
-        95 * scale,
-      );
-    }
-    currentPosition += 1;
-
-    if (item.overlayImage && item.overlayImage.trim().length > 0) {
-      const soulCol = currentPosition % itemsPerRow;
-      const soulRow = Math.floor(currentPosition / itemsPerRow);
-      soulPositionsById[item.id] = { x: soulCol, y: soulRow };
-
-      const overlayImage = await loadImage(item.overlayImage);
-      if (overlayImage) {
-        ctx.drawImage(
-          overlayImage,
-          0,
-          0,
-          overlayImage.width,
-          overlayImage.height,
-          soulCol * 71 * scale,
-          soulRow * 95 * scale,
-          71 * scale,
-          95 * scale,
-        );
-      }
-      currentPosition += 1;
-    }
-  }
-
-  return {
-    atlasDataUrl: canvas.toDataURL("image/png"),
-    positionsById,
-    soulPositionsById,
-  };
-};
-
-const buildJokerAtlas = async (
-  jokers: JokerData[],
-  scale: number,
-): Promise<AtlasBuildResult> => {
-  const itemsPerRow = 10;
-  const sorted = [...jokers].sort((a, b) => a.orderValue - b.orderValue);
-  const totalPositions = sorted.reduce(
-    (count, joker) => count + (joker.overlayImage ? 2 : 1),
-    0,
-  );
-  const rows = Math.max(1, Math.ceil(totalPositions / itemsPerRow));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = itemsPerRow * 71 * scale;
-  canvas.height = rows * 95 * scale;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    throw new Error("Failed to build joker atlas: missing canvas context.");
-  }
-  ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const positionsById: Record<string, AtlasPos> = {};
-  const soulPositionsById: Record<string, AtlasPos> = {};
-
-  let currentPosition = 0;
-  for (const joker of sorted) {
-    const col = currentPosition % itemsPerRow;
-    const row = Math.floor(currentPosition / itemsPerRow);
-    positionsById[joker.id] = { x: col, y: row };
-
-    const x = col * 71 * scale;
-    const y = row * 95 * scale;
-    const baseImage = await loadImage(joker.image || "");
-    if (baseImage) {
-      ctx.drawImage(
-        baseImage,
-        0,
-        0,
-        baseImage.width,
-        baseImage.height,
-        x,
-        y,
-        71 * scale,
-        95 * scale,
-      );
-    }
-    currentPosition += 1;
-
-    if (joker.overlayImage && joker.overlayImage.trim().length > 0) {
-      const soulCol = currentPosition % itemsPerRow;
-      const soulRow = Math.floor(currentPosition / itemsPerRow);
-      soulPositionsById[joker.id] = { x: soulCol, y: soulRow };
-
-      const soulX = soulCol * 71 * scale;
-      const soulY = soulRow * 95 * scale;
-      const overlayImage = await loadImage(joker.overlayImage);
-      if (overlayImage) {
-        ctx.drawImage(
-          overlayImage,
-          0,
-          0,
-          overlayImage.width,
-          overlayImage.height,
-          soulX,
-          soulY,
-          71 * scale,
-          95 * scale,
-        );
-      }
-      currentPosition += 1;
-    }
-  }
-
-  return {
-    atlasDataUrl: canvas.toDataURL("image/png"),
-    positionsById,
-    soulPositionsById,
-  };
 };
 
 const dataURLToUint8Array = (dataUrl: string): Uint8Array => {
@@ -528,26 +353,13 @@ export const exportModRust = async (
   const sortedEditions = [...editions].sort((a, b) => a.orderValue - b.orderValue);
   const sortedBoosters = [...boosters].sort((a, b) => a.orderValue - b.orderValue);
 
-  const jokerAtlas1x = sortedJokers.length > 0 ? await buildJokerAtlas(sortedJokers, 1) : null;
-  const jokerAtlas2x = sortedJokers.length > 0 ? await buildJokerAtlas(sortedJokers, 2) : null;
-
-  const consumablesAtlas1x = sortedConsumables.length > 0 ? await buildItemAtlas(sortedConsumables, 1) : null;
-  const consumablesAtlas2x = sortedConsumables.length > 0 ? await buildItemAtlas(sortedConsumables, 2) : null;
-
-  const vouchersAtlas1x = sortedVouchers.length > 0 ? await buildItemAtlas(sortedVouchers, 1) : null;
-  const vouchersAtlas2x = sortedVouchers.length > 0 ? await buildItemAtlas(sortedVouchers, 2) : null;
-
-  const decksAtlas1x = sortedDecks.length > 0 ? await buildItemAtlas(sortedDecks, 1) : null;
-  const decksAtlas2x = sortedDecks.length > 0 ? await buildItemAtlas(sortedDecks, 2) : null;
-
-  const enhancementsAtlas1x = sortedEnhancements.length > 0 ? await buildItemAtlas(sortedEnhancements, 1) : null;
-  const enhancementsAtlas2x = sortedEnhancements.length > 0 ? await buildItemAtlas(sortedEnhancements, 2) : null;
-
-  const sealsAtlas1x = sortedSeals.length > 0 ? await buildItemAtlas(sortedSeals, 1) : null;
-  const sealsAtlas2x = sortedSeals.length > 0 ? await buildItemAtlas(sortedSeals, 2) : null;
-
-  const boostersAtlas1x = sortedBoosters.length > 0 ? await buildItemAtlas(sortedBoosters, 1) : null;
-  const boostersAtlas2x = sortedBoosters.length > 0 ? await buildItemAtlas(sortedBoosters, 2) : null;
+  const jokerAtlas = sortedJokers.length > 0 ? await buildSpriteAtlas(sortedJokers, "CustomJokers") : null;
+  const consumablesAtlas = sortedConsumables.length > 0 ? await buildSpriteAtlas(sortedConsumables, "CustomConsumables") : null;
+  const vouchersAtlas = sortedVouchers.length > 0 ? await buildSpriteAtlas(sortedVouchers, "CustomVouchers") : null;
+  const decksAtlas = sortedDecks.length > 0 ? await buildSpriteAtlas(sortedDecks, "CustomDecks") : null;
+  const enhancementsAtlas = sortedEnhancements.length > 0 ? await buildSpriteAtlas(sortedEnhancements, "CustomEnhancements") : null;
+  const sealsAtlas = sortedSeals.length > 0 ? await buildSpriteAtlas(sortedSeals, "CustomSeals") : null;
+  const boostersAtlas = sortedBoosters.length > 0 ? await buildSpriteAtlas(sortedBoosters, "CustomBoosters") : null;
 
   const modIconSource =
     metadata.iconImage && (metadata.hasUserUploadedIcon || metadata.iconImage.trim())
@@ -586,10 +398,10 @@ export const exportModRust = async (
           },
         };
       })(),
-      pos: jokerAtlas1x?.positionsById[joker.id] ?? { x: 0, y: 0 },
-      soulPos: jokerAtlas1x?.soulPositionsById[joker.id] ?? null,
+      pos: jokerAtlas?.positionsById[joker.id] ?? { x: 0, y: 0 },
+      soulPos: jokerAtlas?.soulPositionsById[joker.id] ?? null,
       fileName: `${joker.objectKey}.lua`,
-      customLua: customLuaForAtlas(joker, "joker", jokerAtlas1x),
+      customLua: customLuaForAtlas(joker, "joker", jokerAtlas),
     })),
     consumables: sortedConsumables.map((item) => ({
       ...(() => {
@@ -601,10 +413,10 @@ export const exportModRust = async (
           },
         };
       })(),
-      pos: consumablesAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
-      soulPos: consumablesAtlas1x?.soulPositionsById[item.id] ?? null,
+      pos: consumablesAtlas?.positionsById[item.id] ?? { x: 0, y: 0 },
+      soulPos: consumablesAtlas?.soulPositionsById[item.id] ?? null,
       fileName: `${item.objectKey}.lua`,
-      customLua: customLuaForAtlas(item, "consumable", consumablesAtlas1x),
+      customLua: customLuaForAtlas(item, "consumable", consumablesAtlas),
     })),
     vouchers: sortedVouchers.map((item) => ({
       ...(() => {
@@ -616,10 +428,10 @@ export const exportModRust = async (
           },
         };
       })(),
-      pos: vouchersAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
-      soulPos: vouchersAtlas1x?.soulPositionsById[item.id] ?? null,
+      pos: vouchersAtlas?.positionsById[item.id] ?? { x: 0, y: 0 },
+      soulPos: vouchersAtlas?.soulPositionsById[item.id] ?? null,
       fileName: `${item.objectKey}.lua`,
-      customLua: customLuaForAtlas(item, "voucher", vouchersAtlas1x),
+      customLua: customLuaForAtlas(item, "voucher", vouchersAtlas),
     })),
     decks: sortedDecks.map((item) => ({
       ...(() => {
@@ -631,9 +443,9 @@ export const exportModRust = async (
           },
         };
       })(),
-      pos: decksAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
+      pos: decksAtlas?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
-      customLua: customLuaForAtlas(item, "deck", decksAtlas1x),
+      customLua: customLuaForAtlas(item, "deck", decksAtlas),
     })),
     enhancements: sortedEnhancements.map((item) => ({
       ...(() => {
@@ -645,9 +457,9 @@ export const exportModRust = async (
           },
         };
       })(),
-      pos: enhancementsAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
+      pos: enhancementsAtlas?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
-      customLua: customLuaForAtlas(item, "enhancement", enhancementsAtlas1x),
+      customLua: customLuaForAtlas(item, "enhancement", enhancementsAtlas),
     })),
     seals: sortedSeals.map((item) => ({
       ...(() => {
@@ -659,9 +471,9 @@ export const exportModRust = async (
           },
         };
       })(),
-      pos: sealsAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
+      pos: sealsAtlas?.positionsById[item.id] ?? { x: 0, y: 0 },
       fileName: `${item.objectKey}.lua`,
-      customLua: customLuaForAtlas(item, "seal", sealsAtlas1x),
+      customLua: customLuaForAtlas(item, "seal", sealsAtlas),
     })),
     editions: sortedEditions.map((item) => ({
       ...(() => {
@@ -683,11 +495,12 @@ export const exportModRust = async (
           ...normalized,
           localizations: sanitizeLocalizationEntries(normalized.localizations),
         },
-        pos: boostersAtlas1x?.positionsById[item.id] ?? { x: 0, y: 0 },
+        pos: boostersAtlas?.positionsById[item.id] ?? { x: 0, y: 0 },
         fileName: `${item.objectKey}.lua`,
-        customLua: customLuaForAtlas(item, "booster", boostersAtlas1x),
+        customLua: customLuaForAtlas(item, "booster", boostersAtlas),
       };
     }),
+    atlasAnimations: [jokerAtlas, consumablesAtlas, vouchersAtlas, decksAtlas, enhancementsAtlas, sealsAtlas, boostersAtlas].flatMap((atlas) => atlas?.animations ?? []),
     includeLocTxt: !useLocalizationFile,
     useLocalizationFile,
     localizationLocale: locale,
@@ -695,20 +508,20 @@ export const exportModRust = async (
     modIcon2xPng: modIcon2x ? dataURLToUint8Array(modIcon2x) : null,
     gameLogo1xPng: gameLogo1x ? dataURLToUint8Array(gameLogo1x) : null,
     gameLogo2xPng: gameLogo2x ? dataURLToUint8Array(gameLogo2x) : null,
-    atlas1xPng: jokerAtlas1x ? dataURLToUint8Array(jokerAtlas1x.atlasDataUrl) : null,
-    atlas2xPng: jokerAtlas2x ? dataURLToUint8Array(jokerAtlas2x.atlasDataUrl) : null,
-    consumablesAtlas1xPng: consumablesAtlas1x ? dataURLToUint8Array(consumablesAtlas1x.atlasDataUrl) : null,
-    consumablesAtlas2xPng: consumablesAtlas2x ? dataURLToUint8Array(consumablesAtlas2x.atlasDataUrl) : null,
-    vouchersAtlas1xPng: vouchersAtlas1x ? dataURLToUint8Array(vouchersAtlas1x.atlasDataUrl) : null,
-    vouchersAtlas2xPng: vouchersAtlas2x ? dataURLToUint8Array(vouchersAtlas2x.atlasDataUrl) : null,
-    decksAtlas1xPng: decksAtlas1x ? dataURLToUint8Array(decksAtlas1x.atlasDataUrl) : null,
-    decksAtlas2xPng: decksAtlas2x ? dataURLToUint8Array(decksAtlas2x.atlasDataUrl) : null,
-    enhancementsAtlas1xPng: enhancementsAtlas1x ? dataURLToUint8Array(enhancementsAtlas1x.atlasDataUrl) : null,
-    enhancementsAtlas2xPng: enhancementsAtlas2x ? dataURLToUint8Array(enhancementsAtlas2x.atlasDataUrl) : null,
-    sealsAtlas1xPng: sealsAtlas1x ? dataURLToUint8Array(sealsAtlas1x.atlasDataUrl) : null,
-    sealsAtlas2xPng: sealsAtlas2x ? dataURLToUint8Array(sealsAtlas2x.atlasDataUrl) : null,
-    boostersAtlas1xPng: boostersAtlas1x ? dataURLToUint8Array(boostersAtlas1x.atlasDataUrl) : null,
-    boostersAtlas2xPng: boostersAtlas2x ? dataURLToUint8Array(boostersAtlas2x.atlasDataUrl) : null,
+    atlas1xPng: jokerAtlas ? dataURLToUint8Array(jokerAtlas.atlas1xDataUrl) : null,
+    atlas2xPng: jokerAtlas ? dataURLToUint8Array(jokerAtlas.atlas2xDataUrl) : null,
+    consumablesAtlas1xPng: consumablesAtlas ? dataURLToUint8Array(consumablesAtlas.atlas1xDataUrl) : null,
+    consumablesAtlas2xPng: consumablesAtlas ? dataURLToUint8Array(consumablesAtlas.atlas2xDataUrl) : null,
+    vouchersAtlas1xPng: vouchersAtlas ? dataURLToUint8Array(vouchersAtlas.atlas1xDataUrl) : null,
+    vouchersAtlas2xPng: vouchersAtlas ? dataURLToUint8Array(vouchersAtlas.atlas2xDataUrl) : null,
+    decksAtlas1xPng: decksAtlas ? dataURLToUint8Array(decksAtlas.atlas1xDataUrl) : null,
+    decksAtlas2xPng: decksAtlas ? dataURLToUint8Array(decksAtlas.atlas2xDataUrl) : null,
+    enhancementsAtlas1xPng: enhancementsAtlas ? dataURLToUint8Array(enhancementsAtlas.atlas1xDataUrl) : null,
+    enhancementsAtlas2xPng: enhancementsAtlas ? dataURLToUint8Array(enhancementsAtlas.atlas2xDataUrl) : null,
+    sealsAtlas1xPng: sealsAtlas ? dataURLToUint8Array(sealsAtlas.atlas1xDataUrl) : null,
+    sealsAtlas2xPng: sealsAtlas ? dataURLToUint8Array(sealsAtlas.atlas2xDataUrl) : null,
+    boostersAtlas1xPng: boostersAtlas ? dataURLToUint8Array(boostersAtlas.atlas1xDataUrl) : null,
+    boostersAtlas2xPng: boostersAtlas ? dataURLToUint8Array(boostersAtlas.atlas2xDataUrl) : null,
     removeOtherManagedMods: options.removeOtherManagedModsFromBalatroFolder ?? false,
     managedModFolderNames: options.managedModFolderNames ?? null,
   });

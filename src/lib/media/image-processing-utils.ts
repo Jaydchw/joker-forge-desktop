@@ -1,3 +1,5 @@
+import { isGifDataUrl } from "./gif-decoder";
+
 export const BALATRO_CARD_IMAGE_WIDTH = 71;
 export const BALATRO_CARD_IMAGE_HEIGHT = 95;
 export const BALATRO_CARD_IMAGE_OUTPUT_SCALE = 2;
@@ -65,6 +67,7 @@ export const isBalatroCardImageSize = (dimensions: LoadedImageDimensions) => {
 export const normalizeBalatroCardImageSource = async (
   src: string,
 ): Promise<string> => {
+  if (isGifDataUrl(src)) return src;
   const img = await loadImageElement(src);
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");

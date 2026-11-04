@@ -18,18 +18,26 @@ import {
   BALATRO_CARD_IMAGE_WIDTH,
   loadImageElement,
 } from "@/lib/media/image-processing-utils";
+import {
+  decodeGifDataUrl,
+  encodeGif,
+  isGifDataUrl,
+  type DecodedGif,
+} from "@/lib/media/gif-decoder";
 
 type ImageCropperDialogProps = {
   open: boolean;
   imageSrc: string | null;
+  decodedGif?: DecodedGif;
   onOpenChange: (open: boolean) => void;
   onApply: (dataUrl: string) => void;
 };
 
 type SourceImage = {
-  element: HTMLImageElement;
+  element: HTMLImageElement | HTMLCanvasElement;
   width: number;
   height: number;
+  animation?: DecodedGif;
 };
 
 type CropState = {
@@ -92,15 +100,42 @@ const normalizeCrop = (image: SourceImage, crop: CropState): CropState => {
   };
 };
 
+const drawCrop = (
+  canvas: HTMLCanvasElement,
+  source: SourceImage,
+  crop: CropState,
+): boolean => {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return false;
+  canvas.width = BALATRO_CARD_IMAGE_WIDTH;
+  canvas.height = BALATRO_CARD_IMAGE_HEIGHT;
+  const coverScale = getCoverScale(source) * crop.zoom;
+  const drawWidth = source.width * coverScale;
+  const drawHeight = source.height * coverScale;
+  const drawX = BALATRO_CARD_IMAGE_WIDTH / 2 - drawWidth / 2 + crop.offsetX;
+  const drawY = BALATRO_CARD_IMAGE_HEIGHT / 2 - drawHeight / 2 + crop.offsetY;
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, BALATRO_CARD_IMAGE_WIDTH, BALATRO_CARD_IMAGE_HEIGHT);
+  ctx.drawImage(source.element, drawX, drawY, drawWidth, drawHeight);
+  return true;
+};
+
+const allowPaint = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 export function ImageCropperDialog({
   open,
   imageSrc,
+  decodedGif,
   onOpenChange,
   onApply,
 }: ImageCropperDialogProps) {
   const [sourceImage, setSourceImage] = useState<SourceImage | null>(null);
   const [crop, setCrop] = useState<CropState>(DEFAULT_CROP);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestRevisionRef = useRef(0);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{
     pointerX: number;
@@ -110,64 +145,123 @@ export function ImageCropperDialog({
   } | null>(null);
 
   useEffect(() => {
+    const revision = ++requestRevisionRef.current;
+    setSourceImage(null);
+    setError(null);
+    setIsApplying(false);
+    setIsLoading(false);
     if (!open || !imageSrc) {
-      setSourceImage(null);
       setCrop(DEFAULT_CROP);
       return;
     }
 
-    let isMounted = true;
-    void loadImageElement(imageSrc)
-      .then((element) => {
-        if (!isMounted) return;
-        setSourceImage({
-          element,
-          width: element.width,
-          height: element.height,
-        });
-        setCrop(DEFAULT_CROP);
+    setIsLoading(true);
+    void (async () => {
+      await allowPaint();
+      if (requestRevisionRef.current !== revision) return;
+      const animation = decodedGif ?? (isGifDataUrl(imageSrc) ? decodeGifDataUrl(imageSrc) : undefined);
+      let source: SourceImage;
+      if (animation) {
+        const element = document.createElement("canvas");
+        element.width = animation.width;
+        element.height = animation.height;
+        const context = element.getContext("2d");
+        if (!context) throw new Error("This image could not be prepared for cropping.");
+        const imageData = context.createImageData(animation.width, animation.height);
+        imageData.data.set(animation.frames[0].pixels);
+        context.putImageData(imageData, 0, 0);
+        source = { element, width: animation.width, height: animation.height, animation };
+      } else {
+        const element = await loadImageElement(imageSrc);
+        source = { element, width: element.width, height: element.height };
+      }
+      if (requestRevisionRef.current !== revision) return;
+      setSourceImage(source);
+      setCrop(DEFAULT_CROP);
+    })()
+      .catch((loadError) => {
+        if (requestRevisionRef.current !== revision) return;
+        console.error("Failed to load image for cropping", loadError);
+        setSourceImage(null);
+        setError(loadError instanceof Error ? loadError.message : "This image could not be opened.");
       })
-      .catch((error) => {
-        console.error("Failed to load image for cropping", error);
-        if (isMounted) {
-          setSourceImage(null);
-        }
+      .finally(() => {
+        if (requestRevisionRef.current === revision) setIsLoading(false);
       });
 
     return () => {
-      isMounted = false;
+      requestRevisionRef.current += 1;
     };
-  }, [imageSrc, open]);
+  }, [decodedGif, imageSrc, open]);
 
   const drawCroppedImage = useCallback(
-    (canvas: HTMLCanvasElement): boolean => {
-      if (!sourceImage) return false;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return false;
-
-      canvas.width = BALATRO_CARD_IMAGE_WIDTH;
-      canvas.height = BALATRO_CARD_IMAGE_HEIGHT;
-
-      const coverScale = getCoverScale(sourceImage) * crop.zoom;
-      const drawWidth = sourceImage.width * coverScale;
-      const drawHeight = sourceImage.height * coverScale;
-      const drawX =
-        BALATRO_CARD_IMAGE_WIDTH / 2 - drawWidth / 2 + crop.offsetX;
-      const drawY =
-        BALATRO_CARD_IMAGE_HEIGHT / 2 - drawHeight / 2 + crop.offsetY;
-
-      ctx.imageSmoothingEnabled = false;
-      ctx.clearRect(0, 0, BALATRO_CARD_IMAGE_WIDTH, BALATRO_CARD_IMAGE_HEIGHT);
-      ctx.drawImage(sourceImage.element, drawX, drawY, drawWidth, drawHeight);
-      return true;
-    },
-    [crop.offsetX, crop.offsetY, crop.zoom, sourceImage],
+    (canvas: HTMLCanvasElement): boolean => sourceImage ? drawCrop(canvas, sourceImage, crop) : false,
+    [crop, sourceImage],
   );
+  const drawCroppedImageRef = useRef(drawCroppedImage);
+  useEffect(() => {
+    drawCroppedImageRef.current = drawCroppedImage;
+    if (previewCanvasRef.current) drawCroppedImage(previewCanvasRef.current);
+  }, [drawCroppedImage]);
 
   useEffect(() => {
-    if (!previewCanvasRef.current) return;
-    drawCroppedImage(previewCanvasRef.current);
-  }, [drawCroppedImage]);
+    if (!open || !sourceImage?.animation || !(sourceImage.element instanceof HTMLCanvasElement)) return;
+    const { animation, element } = sourceImage;
+    const context = element.getContext("2d");
+    if (!context) return;
+    const imageData = context.createImageData(animation.width, animation.height);
+    const duration = animation.frames.reduce((sum, frame) => sum + frame.delayMs, 0);
+    const passes = animation.loopCount === 0 ? Infinity : (animation.loopCount ?? 0) + 1;
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let elapsed = 0;
+    let lastTime = 0;
+    let currentFrame = -1;
+    let request = 0;
+    let stopped = false;
+    const renderFrame = (index: number) => {
+      if (currentFrame === index) return;
+      currentFrame = index;
+      imageData.data.set(animation.frames[index].pixels);
+      context.putImageData(imageData, 0, 0);
+      if (previewCanvasRef.current) drawCroppedImageRef.current(previewCanvasRef.current);
+    };
+    const tick = (timestamp: number) => {
+      if (stopped) return;
+      if (lastTime) elapsed += timestamp - lastTime;
+      lastTime = timestamp;
+      if (elapsed >= duration * passes) {
+        renderFrame(animation.frames.length - 1);
+        return;
+      }
+      let at = elapsed % duration;
+      let index = 0;
+      while (index < animation.frames.length - 1 && at >= animation.frames[index].delayMs) {
+        at -= animation.frames[index].delayMs;
+        index += 1;
+      }
+      renderFrame(index);
+      request = requestAnimationFrame(tick);
+    };
+    const updateAnimation = () => {
+      cancelAnimationFrame(request);
+      lastTime = 0;
+      if (motion.matches) {
+        elapsed = 0;
+        renderFrame(0);
+      } else if (!document.hidden && !stopped) {
+        request = requestAnimationFrame(tick);
+      }
+    };
+    document.addEventListener("visibilitychange", updateAnimation);
+    motion.addEventListener("change", updateAnimation);
+    updateAnimation();
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(request);
+      document.removeEventListener("visibilitychange", updateAnimation);
+      motion.removeEventListener("change", updateAnimation);
+    };
+  }, [open, sourceImage]);
 
   const updateCrop = useCallback(
     (nextCrop: CropState) => {
@@ -192,7 +286,7 @@ export function ImageCropperDialog({
 
   const handlePointerMove = useCallback(
     (event: PointerEvent) => {
-      if (!dragRef.current) return;
+      if (!dragRef.current || isApplying) return;
       updateCrop({
         ...crop,
         offsetX:
@@ -203,7 +297,7 @@ export function ImageCropperDialog({
           (event.clientY - dragRef.current.pointerY) / PREVIEW_SCALE,
       });
     },
-    [crop, updateCrop],
+    [crop, isApplying, updateCrop],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -221,12 +315,60 @@ export function ImageCropperDialog({
     };
   }, [handlePointerMove, handlePointerUp, isDragging]);
 
-  const handleApply = () => {
-    if (!sourceImage) return;
-
-    const canvas = document.createElement("canvas");
-    if (!drawCroppedImage(canvas)) return;
-    onApply(canvas.toDataURL("image/png"));
+  const handleApply = async () => {
+    if (!sourceImage || isApplying) return;
+    const revision = requestRevisionRef.current;
+    setIsApplying(true);
+    setError(null);
+    try {
+      await allowPaint();
+      if (requestRevisionRef.current !== revision) return;
+      const canvas = document.createElement("canvas");
+      if (sourceImage.animation) {
+        const animation = sourceImage.animation;
+        const sourceCanvas = document.createElement("canvas");
+        sourceCanvas.width = animation.width;
+        sourceCanvas.height = animation.height;
+        const sourceContext = sourceCanvas.getContext("2d");
+        if (!sourceContext) throw new Error("This animation could not be cropped.");
+        const sourceData = sourceContext.createImageData(animation.width, animation.height);
+        const frames: DecodedGif["frames"] = [];
+        for (let index = 0; index < animation.frames.length; index += 1) {
+          const frame = animation.frames[index];
+          sourceData.data.set(frame.pixels);
+          sourceContext.putImageData(sourceData, 0, 0);
+          if (!drawCrop(canvas, { ...sourceImage, element: sourceCanvas }, crop)) {
+            throw new Error("This animation could not be cropped.");
+          }
+          const output = canvas.getContext("2d");
+          if (!output) throw new Error("This animation could not be cropped.");
+          frames.push({
+            pixels: output.getImageData(0, 0, BALATRO_CARD_IMAGE_WIDTH, BALATRO_CARD_IMAGE_HEIGHT).data,
+            delayMs: frame.delayMs,
+          });
+          if (index % 16 === 15) {
+            await allowPaint();
+            if (requestRevisionRef.current !== revision) return;
+          }
+        }
+        const result = encodeGif({
+          width: BALATRO_CARD_IMAGE_WIDTH,
+          height: BALATRO_CARD_IMAGE_HEIGHT,
+          frames,
+          loopCount: animation.loopCount,
+        });
+        if (requestRevisionRef.current === revision) onApply(result);
+      } else {
+        if (!drawCroppedImage(canvas)) throw new Error("This image could not be cropped.");
+        if (requestRevisionRef.current === revision) onApply(canvas.toDataURL("image/png"));
+      }
+    } catch (applyError) {
+      if (requestRevisionRef.current === revision) {
+        setError(applyError instanceof Error ? applyError.message : "This image could not be cropped.");
+      }
+    } finally {
+      if (requestRevisionRef.current === revision) setIsApplying(false);
+    }
   };
 
   const resetCrop = () => {
@@ -234,7 +376,7 @@ export function ImageCropperDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!isApplying) onOpenChange(nextOpen); }}>
       <DialogContent
         className="max-w-[calc(100vw-2rem)] border-0 bg-transparent p-0 shadow-none sm:max-w-3xl"
         showCloseButton={false}
@@ -245,6 +387,11 @@ export function ImageCropperDialog({
             <DialogTitle className="text-2xl font-black tracking-tight">
               Crop Image
             </DialogTitle>
+            {sourceImage?.animation && (
+              <p className="text-xs text-muted-foreground">
+                Animated GIF · {sourceImage.animation.frames.length} frames. This crop applies to every frame.
+              </p>
+            )}
           </DialogHeader>
 
           <div className="flex flex-1 items-center justify-center">
@@ -258,7 +405,7 @@ export function ImageCropperDialog({
                 height: PREVIEW_HEIGHT * 1.2,
               }}
               onPointerDown={(event) => {
-                if (!sourceImage) return;
+                if (!sourceImage || isApplying) return;
                 dragRef.current = {
                   pointerX: event.clientX,
                   pointerY: event.clientY,
@@ -269,7 +416,7 @@ export function ImageCropperDialog({
               }}
               onWheel={(event) => {
                 event.preventDefault();
-                changeZoom(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
+                if (!isApplying) changeZoom(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
               }}
               >
               <canvas
@@ -289,7 +436,7 @@ export function ImageCropperDialog({
                 size="icon"
                 className="cursor-pointer rounded-full"
                 onClick={() => changeZoom(-ZOOM_STEP)}
-                disabled={!sourceImage || crop.zoom <= MIN_ZOOM}
+                disabled={!sourceImage || isApplying || crop.zoom <= MIN_ZOOM}
               >
                 <MagnifyingGlassMinus className="h-4 w-4" />
               </Button>
@@ -302,7 +449,7 @@ export function ImageCropperDialog({
                 size="icon"
                 className="cursor-pointer rounded-full"
                 onClick={() => changeZoom(ZOOM_STEP)}
-                disabled={!sourceImage || crop.zoom >= MAX_ZOOM}
+                disabled={!sourceImage || isApplying || crop.zoom >= MAX_ZOOM}
               >
                 <MagnifyingGlassPlus className="h-4 w-4" />
               </Button>
@@ -312,17 +459,25 @@ export function ImageCropperDialog({
                 size="icon"
                 className="cursor-pointer rounded-full"
                 onClick={resetCrop}
-                disabled={!sourceImage}
+                disabled={!sourceImage || isApplying}
               >
                 <ArrowCounterClockwise className="h-4 w-4" />
               </Button>
             </div>
+
+          {(isLoading || isApplying) && (
+            <p role="status" className="text-sm text-muted-foreground">
+              {isApplying ? sourceImage?.animation ? "Cropping animation…" : "Cropping image…" : "Preparing image…"}
+            </p>
+          )}
+          {error && <p role="alert" className="max-w-lg text-center text-sm text-destructive">{error}</p>}
 
           <DialogFooter className="w-full justify-center gap-3 sm:justify-center">
             <Button
               type="button"
               variant="ghost"
               className="cursor-pointer bg-background/70 backdrop-blur hover:bg-background"
+              disabled={isApplying}
               onClick={() => onOpenChange(false)}
             >
               Cancel
@@ -330,10 +485,10 @@ export function ImageCropperDialog({
             <Button
               type="button"
               className="cursor-pointer px-8 shadow-lg"
-              disabled={!sourceImage}
-              onClick={handleApply}
+              disabled={!sourceImage || isApplying || isLoading}
+              onClick={() => void handleApply()}
             >
-              Apply Crop
+              {isApplying ? "Applying…" : "Apply Crop"}
             </Button>
           </DialogFooter>
         </div>

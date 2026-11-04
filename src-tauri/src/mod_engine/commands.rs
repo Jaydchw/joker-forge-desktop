@@ -21,7 +21,7 @@ use vorbis_rs::VorbisEncoderBuilder;
 use super::{
     compiler::Compiler,
     export::{
-        AtlasPosInput, BatchBoosterEntry, BatchConsumableEntry, BatchDeckEntry, BatchEditionEntry,
+        AtlasAnimationInput, AtlasPosInput, BatchBoosterEntry, BatchConsumableEntry, BatchDeckEntry, BatchEditionEntry,
         BatchEnhancementEntry, BatchJokerEntry, BatchSealEntry, BatchVoucherEntry,
         BoosterDataInput, ConsumableDataInput, ConsumableSetDataInput, DeckDataInput, EditionDataInput,
         EnhancementDataInput, JokerDataInput, ModMetadataInput, RarityDataInput, SealDataInput,
@@ -891,9 +891,12 @@ pub fn export_mod_package(
     decks_atlas_2x_png: Option<Vec<u8>>,
     boosters_atlas_1x_png: Option<Vec<u8>>,
     boosters_atlas_2x_png: Option<Vec<u8>>,
+    atlas_animations: Option<Vec<AtlasAnimationInput>>,
     remove_other_managed_mods: bool,
     managed_mod_folder_names: Option<Vec<String>>,
 ) -> Result<usize, String> {
+    let atlas_animations = atlas_animations.unwrap_or_default();
+    super::export::validate_atlas_animations(&atlas_animations)?;
     for entry in &decks {
         super::export::validate_deck_data(&entry.deck_data)?;
     }
@@ -969,10 +972,21 @@ pub fn export_mod_package(
         has_persistent_global_vars,
         metadata.disable_vanilla,
         &run_scoped_global_vars,
+        !atlas_animations.is_empty(),
     ));
     fs::write(&main_path, main_lua.as_bytes())
         .map_err(|e| format!("Failed to write {}: {}", main_path.display(), e))?;
     file_count += 1;
+
+    if !atlas_animations.is_empty() {
+        let animation_path = root.join("animated_sprites.lua");
+        let animation_lua = format_lua_source(&super::export::build_animated_sprites_lua(
+            &atlas_animations, &metadata.prefix,
+        ));
+        fs::write(&animation_path, animation_lua.as_bytes())
+            .map_err(|e| format!("Failed to write {}: {}", animation_path.display(), e))?;
+        file_count += 1;
+    }
 
     if has_persistent_global_vars {
         let globals_path = root.join("globals.lua");

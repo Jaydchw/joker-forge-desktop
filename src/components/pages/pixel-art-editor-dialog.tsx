@@ -68,6 +68,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/core/utils";
 import type { PixelLayerData } from "@/lib/core/types";
 import { CustomContextMenu } from "@/components/ui/custom-context-menu";
+import { isGifDataUrl } from "@/lib/media/gif-decoder";
 
 type Tool = "pen" | "eraser" | "fill" | "picker" | "shape" | "select";
 type ShapeType = "line" | "rect" | "ellipse";
@@ -2167,6 +2168,11 @@ export function PixelArtEditorDialog({
             </DialogHeader>
 
             <div className="flex h-full flex-col">
+              {sourceImage && isGifDataUrl(sourceImage) && (
+                <p role="status" className="shrink-0 border-b border-border/40 bg-muted px-4 py-2 text-xs text-muted-foreground">
+                  Saving pixel edits replaces the animation with a still image.
+                </p>
+              )}
               <div className="flex items-center gap-2 border-b border-border/40 px-4 py-2 pr-12 bg-card z-10 shadow-sm">
                 <span className="shrink-0 text-sm font-semibold text-foreground">
                   Pixel Art Editor
