@@ -1,5 +1,5 @@
 import { parse } from "luaparse";
-import type { CustomCodeState } from "../core/types";
+import type { CustomCodeState, FullSpriteSize } from "../core/types";
 import { parseLuaScalar } from "../content/live-code-sync";
 
 export type AtlasItemType = "joker" | "consumable" | "voucher" | "deck" | "enhancement" | "seal" | "booster";
@@ -14,6 +14,8 @@ interface AtlasTarget {
   objectKey: string;
   pos: AtlasPos;
   soulPos?: AtlasPos | null;
+  atlas?: string;
+  displaySize?: FullSpriteSize | null;
 }
 
 interface LuaNode {
@@ -109,21 +111,67 @@ const samePosition = (a: LiteralPosition | undefined, b: LiteralPosition | undef
 const validPosition = (pos: AtlasPos): boolean =>
   Number.isInteger(pos.x) && pos.x >= 0 && Number.isInteger(pos.y) && pos.y >= 0;
 
+class SpriteSizingConflict extends Error {}
+
+function sameLuaValue(before: LuaNode | undefined, after: LuaNode | undefined): boolean {
+  const comparable = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(comparable);
+    if (!value || typeof value !== "object") return value;
+    if (isNode(value) && value.type === "StringLiteral") return { type: value.type, value: stringValue(value) };
+    if (isNode(value) && value.type === "TableConstructorExpression" && Array.isArray(value.fields)
+      && value.fields.every((field) => isNode(field) && field.type !== "TableValue")) {
+      const fields = tableFields(value);
+      if (fields) return { type: value.type, fields: [...fields.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, comparable(child)]) };
+    }
+    return Object.fromEntries(Object.entries(value)
+      .filter(([key]) => !["range", "loc", "raw"].includes(key))
+      .map(([key, child]) => [key, comparable(child)]));
+  };
+  return JSON.stringify(comparable(before)) === JSON.stringify(comparable(after));
+}
+
 export function rebaseCustomLuaAtlas(
   customCode: Pick<CustomCodeState, "fullCode" | "lastGeneratedCode"> | undefined,
   target: AtlasTarget,
 ): string | null {
   if (!customCode) return null;
   const source = customCode.fullCode;
-  if (!customCode.lastGeneratedCode || !validPosition(target.pos)
+  if (!validPosition(target.pos)
     || (target.soulPos && !validPosition(target.soulPos))) return source;
 
   try {
     const current = registration(source, target);
-    const baseline = registration(customCode.lastGeneratedCode, target);
+    const baseline = customCode.lastGeneratedCode ? registration(customCode.lastGeneratedCode, target) : undefined;
     const kind = itemTypes[target.itemType];
-    if (!current || !baseline || stringValue(current.fields.get("atlas")) !== kind.atlas
-      || stringValue(baseline.fields.get("atlas")) !== kind.atlas) return source;
+    const currentAtlas = stringValue(current?.fields.get("atlas"));
+    const previousAtlas = stringValue(baseline?.fields.get("atlas"));
+    const managedAtlas = (atlas: string | undefined) => atlas === kind.atlas
+      || (target.itemType === "joker" && /^CustomJokersFull_[1-9]\d*x[1-9]\d*$/.test(atlas ?? ""));
+    const isFullAtlas = (atlas: string | undefined) => target.itemType === "joker"
+      && /^CustomJokersFull_[1-9]\d*x[1-9]\d*$/.test(atlas ?? "");
+    const sizingChange = target.atlas !== undefined
+      && (isFullAtlas(target.atlas) || isFullAtlas(currentAtlas) || isFullAtlas(previousAtlas));
+    if (sizingChange && (!current || !baseline || currentAtlas !== previousAtlas || !currentAtlas)) {
+      if (currentAtlas && !managedAtlas(currentAtlas)) return source;
+      throw new SpriteSizingConflict(`${target.objectKey}: custom Lua sprite fields could not be matched to the builder. Restore their generated atlas and position in Live Code before changing sprite sizing.`);
+    }
+    if (!current || !baseline || currentAtlas !== previousAtlas || !managedAtlas(currentAtlas)) return source;
+    const nextAtlas = target.atlas ?? kind.atlas;
+    if (!managedAtlas(nextAtlas)) return source;
+    if (target.atlas !== undefined && nextAtlas !== currentAtlas) {
+      const position = literalPosition(current.fields.get("pos"));
+      const beforePosition = literalPosition(baseline.fields.get("pos"));
+      const soul = current.fields.get("soul_pos");
+      const soulAtlas = stringValue(current.fields.get("soul_atlas"));
+      const followsMainAtlas = !soulAtlas || soulAtlas === currentAtlas;
+      if (!samePosition(position, beforePosition)
+        || (followsMainAtlas && soul && soul.type !== "NilLiteral"
+          && !sameLuaValue(soul, baseline.fields.get("soul_pos")))) {
+        throw new SpriteSizingConflict(`${target.objectKey}: custom Lua changes this Joker's sprite position. Restore its generated sprite position in Live Code before changing sprite sizing.`);
+      }
+    }
 
     const edits: Array<{ from: number; to: number; insert: string }> = [];
     const replace = (node: LuaNode, insert: string): void => {
@@ -135,6 +183,27 @@ export function rebaseCustomLuaAtlas(
       replace(position.xNode, String(next.x));
       replace(position.yNode, String(next.y));
     };
+    const insertField = (key: string, value: string) => {
+      if (!current.table.range) return;
+      const newline = source.includes("\r\n") ? "\r\n" : "\n";
+      const at = current.table.range[0] + 1;
+      const suffix = source[at] === "\n" || source.slice(at, at + 2) === "\r\n" ? "" : newline;
+      edits.push({ from: at, to: at, insert: `${newline}  ${key} = ${value},${suffix}` });
+    };
+    const atlasNode = current.fields.get("atlas");
+    if (atlasNode && nextAtlas !== currentAtlas) replace(atlasNode, JSON.stringify(nextAtlas));
+    if (target.itemType === "joker" && target.displaySize !== undefined) {
+      const display = current.fields.get("display_size");
+      const beforeDisplay = baseline.fields.get("display_size");
+      if (sameLuaValue(display, beforeDisplay)) {
+        const size = target.displaySize;
+        if (!size || (Number.isFinite(size.width) && size.width > 0 && Number.isFinite(size.height) && size.height > 0)) {
+          const value = size ? `{ w = ${size.width}, h = ${size.height} }` : "nil";
+          if (display) replace(display, value);
+          else if (size) insertField("display_size", value);
+        }
+      }
+    }
     const pos = literalPosition(current.fields.get("pos"));
     if (pos && samePosition(pos, literalPosition(baseline.fields.get("pos")))) updatePosition(pos, target.pos);
 
@@ -142,8 +211,10 @@ export function rebaseCustomLuaAtlas(
     const baselineSoulAtlas = baseline.fields.get("soul_atlas");
     const ownsSoulAtlas = (!soulAtlas && !baselineSoulAtlas)
       || (soulAtlas?.type === "NilLiteral" && baselineSoulAtlas?.type === "NilLiteral")
-      || (stringValue(soulAtlas) === kind.atlas && stringValue(baselineSoulAtlas) === kind.atlas);
+      || (stringValue(soulAtlas) === previousAtlas
+        && (!baselineSoulAtlas || baselineSoulAtlas.type === "NilLiteral" || stringValue(baselineSoulAtlas) === previousAtlas));
     if (kind.soul && ownsSoulAtlas) {
+      if (soulAtlas?.type === "StringLiteral" && nextAtlas !== currentAtlas) replace(soulAtlas, JSON.stringify(nextAtlas));
       const soul = current.fields.get("soul_pos");
       const baselineSoul = baseline.fields.get("soul_pos");
       const position = literalPosition(soul);
@@ -169,7 +240,11 @@ export function rebaseCustomLuaAtlas(
     return edits.sort((a, b) => b.from - a.from).reduce(
       (code, edit) => code.slice(0, edit.from) + edit.insert + code.slice(edit.to), source,
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof SpriteSizingConflict) throw error;
+    if (target.itemType === "joker" && /^CustomJokersFull_[1-9]\d*x[1-9]\d*$/.test(target.atlas ?? "")) {
+      throw new SpriteSizingConflict(`${target.objectKey}: custom Lua could not be parsed while applying full sprite sizing. Fix its Lua syntax before exporting.`);
+    }
     return source;
   }
 }

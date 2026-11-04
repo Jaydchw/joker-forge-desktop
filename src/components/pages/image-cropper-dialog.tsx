@@ -24,13 +24,18 @@ import {
   isGifDataUrl,
   type DecodedGif,
 } from "@/lib/media/gif-decoder";
+import { fullSpriteSize } from "@/lib/media/sprite-sizing";
+
+export type SpriteApplyOptions = { fullSprite: boolean; width: number; height: number };
 
 type ImageCropperDialogProps = {
   open: boolean;
   imageSrc: string | null;
   decodedGif?: DecodedGif;
+  allowFullSprite?: boolean;
+  initialFullSprite?: boolean;
   onOpenChange: (open: boolean) => void;
-  onApply: (dataUrl: string) => void;
+  onApply: (dataUrl: string, options?: SpriteApplyOptions) => void | Promise<void>;
 };
 
 type SourceImage = {
@@ -126,6 +131,8 @@ export function ImageCropperDialog({
   open,
   imageSrc,
   decodedGif,
+  allowFullSprite = false,
+  initialFullSprite = false,
   onOpenChange,
   onApply,
 }: ImageCropperDialogProps) {
@@ -135,6 +142,7 @@ export function ImageCropperDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useFullSprite, setUseFullSprite] = useState(false);
   const requestRevisionRef = useRef(0);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{
@@ -150,6 +158,7 @@ export function ImageCropperDialog({
     setError(null);
     setIsApplying(false);
     setIsLoading(false);
+    setUseFullSprite(allowFullSprite && initialFullSprite);
     if (!open || !imageSrc) {
       setCrop(DEFAULT_CROP);
       return;
@@ -192,11 +201,22 @@ export function ImageCropperDialog({
     return () => {
       requestRevisionRef.current += 1;
     };
-  }, [decodedGif, imageSrc, open]);
+  }, [allowFullSprite, decodedGif, imageSrc, initialFullSprite, open]);
 
   const drawCroppedImage = useCallback(
-    (canvas: HTMLCanvasElement): boolean => sourceImage ? drawCrop(canvas, sourceImage, crop) : false,
-    [crop, sourceImage],
+    (canvas: HTMLCanvasElement): boolean => {
+      if (!sourceImage) return false;
+      if (!useFullSprite) return drawCrop(canvas, sourceImage, crop);
+      canvas.width = sourceImage.width;
+      canvas.height = sourceImage.height;
+      const context = canvas.getContext("2d");
+      if (!context) return false;
+      context.imageSmoothingEnabled = false;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(sourceImage.element, 0, 0);
+      return true;
+    },
+    [crop, sourceImage, useFullSprite],
   );
   const drawCroppedImageRef = useRef(drawCroppedImage);
   useEffect(() => {
@@ -286,7 +306,7 @@ export function ImageCropperDialog({
 
   const handlePointerMove = useCallback(
     (event: PointerEvent) => {
-      if (!dragRef.current || isApplying) return;
+      if (!dragRef.current || isApplying || useFullSprite) return;
       updateCrop({
         ...crop,
         offsetX:
@@ -297,7 +317,7 @@ export function ImageCropperDialog({
           (event.clientY - dragRef.current.pointerY) / PREVIEW_SCALE,
       });
     },
-    [crop, isApplying, updateCrop],
+    [crop, isApplying, updateCrop, useFullSprite],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -323,6 +343,11 @@ export function ImageCropperDialog({
     try {
       await allowPaint();
       if (requestRevisionRef.current !== revision) return;
+      if (useFullSprite && imageSrc) {
+        const dimensions = fullSpriteSize(sourceImage.width, sourceImage.height);
+        await onApply(imageSrc, { fullSprite: true, ...dimensions });
+        return;
+      }
       const canvas = document.createElement("canvas");
       if (sourceImage.animation) {
         const animation = sourceImage.animation;
@@ -357,10 +382,10 @@ export function ImageCropperDialog({
           frames,
           loopCount: animation.loopCount,
         });
-        if (requestRevisionRef.current === revision) onApply(result);
+        if (requestRevisionRef.current === revision) await onApply(result, { fullSprite: false, width: BALATRO_CARD_IMAGE_WIDTH, height: BALATRO_CARD_IMAGE_HEIGHT });
       } else {
         if (!drawCroppedImage(canvas)) throw new Error("This image could not be cropped.");
-        if (requestRevisionRef.current === revision) onApply(canvas.toDataURL("image/png"));
+        if (requestRevisionRef.current === revision) await onApply(canvas.toDataURL("image/png"), { fullSprite: false, width: BALATRO_CARD_IMAGE_WIDTH, height: BALATRO_CARD_IMAGE_HEIGHT });
       }
     } catch (applyError) {
       if (requestRevisionRef.current === revision) {
@@ -385,11 +410,22 @@ export function ImageCropperDialog({
         <div className="flex min-h-[min(760px,calc(100vh-4rem))] flex-col items-center justify-center gap-6 p-8">
           <DialogHeader className="items-center gap-1 text-center">
             <DialogTitle className="text-2xl font-black tracking-tight">
-              Crop Image
+              {allowFullSprite ? "Sprite Layout" : "Crop Image"}
             </DialogTitle>
             {sourceImage?.animation && (
               <p className="text-xs text-muted-foreground">
-                Animated GIF · {sourceImage.animation.frames.length} frames. This crop applies to every frame.
+                Animated GIF · {sourceImage.animation.frames.length} frames{useFullSprite ? " preserved." : ". This crop applies to every frame."}
+              </p>
+            )}
+            {allowFullSprite && (
+              <div className="mt-3 flex gap-2" role="group" aria-label="Sprite layout">
+                <Button type="button" size="sm" variant={useFullSprite ? "default" : "outline"} aria-pressed={useFullSprite} disabled={isApplying} onClick={() => { setUseFullSprite(true); setError(null); }}>Full sprite</Button>
+                <Button type="button" size="sm" variant={!useFullSprite ? "default" : "outline"} aria-pressed={!useFullSprite} disabled={isApplying} onClick={() => { setUseFullSprite(false); setError(null); }}>Crop to card</Button>
+              </div>
+            )}
+            {allowFullSprite && sourceImage && (
+              <p className="max-w-lg text-xs text-muted-foreground">
+                {useFullSprite ? `Keeps the complete ${sourceImage.width} × ${sourceImage.height} sprite and uses its original size in game.` : "Fits the artwork into a standard 71 × 95 card."}
               </p>
             )}
           </DialogHeader>
@@ -398,14 +434,15 @@ export function ImageCropperDialog({
             <div
               className={cn(
                 "relative overflow-hidden border-2 border-primary bg-black/90 shadow-[0_20px_80px_rgba(0,0,0,0.45)] touch-none",
-                isDragging ? "cursor-grabbing" : "cursor-grab",
+                useFullSprite ? "cursor-default" : isDragging ? "cursor-grabbing" : "cursor-grab",
               )}
               style={{
-                width: PREVIEW_WIDTH * 1.2,
-                height: PREVIEW_HEIGHT * 1.2,
+                width: useFullSprite && sourceImage ? Math.min(640, 480 * sourceImage.width / sourceImage.height) : PREVIEW_WIDTH * 1.2,
+                height: useFullSprite ? "auto" : PREVIEW_HEIGHT * 1.2,
+                maxWidth: useFullSprite ? "100%" : undefined,
               }}
               onPointerDown={(event) => {
-                if (!sourceImage || isApplying) return;
+                if (!sourceImage || isApplying || useFullSprite) return;
                 dragRef.current = {
                   pointerX: event.clientX,
                   pointerY: event.clientY,
@@ -416,20 +453,21 @@ export function ImageCropperDialog({
               }}
               onWheel={(event) => {
                 event.preventDefault();
-                if (!isApplying) changeZoom(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
+                if (!isApplying && !useFullSprite) changeZoom(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
               }}
               >
               <canvas
                 ref={previewCanvasRef}
                 className="block size-full [image-rendering:pixelated]"
+                style={useFullSprite ? { width: "100%", height: "auto" } : undefined}
                 width={BALATRO_CARD_IMAGE_WIDTH}
                 height={BALATRO_CARD_IMAGE_HEIGHT}
               />
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.16)_1px,transparent_1px)] bg-size-[25%_20%]" />
+              {!useFullSprite && <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.16)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.16)_1px,transparent_1px)] bg-size-[25%_20%]" />}
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3 px-4 py-3">
+          <div className={cn("flex items-center justify-center gap-3 px-4 py-3", useFullSprite && "hidden")}>
               <Button
                 type="button"
                 variant="ghost"
@@ -488,7 +526,7 @@ export function ImageCropperDialog({
               disabled={!sourceImage || isApplying || isLoading}
               onClick={() => void handleApply()}
             >
-              {isApplying ? "Applying…" : "Apply Crop"}
+              {isApplying ? "Applying…" : useFullSprite ? "Use Full Sprite" : "Apply Crop"}
             </Button>
           </DialogFooter>
         </div>

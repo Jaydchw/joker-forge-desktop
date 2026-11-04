@@ -21,7 +21,7 @@ use vorbis_rs::VorbisEncoderBuilder;
 use super::{
     compiler::Compiler,
     export::{
-        AtlasAnimationInput, AtlasPosInput, BatchBoosterEntry, BatchConsumableEntry, BatchDeckEntry, BatchEditionEntry,
+        AtlasAnimationInput, AtlasPosInput, FullSpriteAtlasInput, BatchBoosterEntry, BatchConsumableEntry, BatchDeckEntry, BatchEditionEntry,
         BatchEnhancementEntry, BatchJokerEntry, BatchSealEntry, BatchVoucherEntry,
         BoosterDataInput, ConsumableDataInput, ConsumableSetDataInput, DeckDataInput, EditionDataInput,
         EnhancementDataInput, JokerDataInput, ModMetadataInput, RarityDataInput, SealDataInput,
@@ -892,11 +892,18 @@ pub fn export_mod_package(
     boosters_atlas_1x_png: Option<Vec<u8>>,
     boosters_atlas_2x_png: Option<Vec<u8>>,
     atlas_animations: Option<Vec<AtlasAnimationInput>>,
+    full_sprite_atlases: Option<Vec<FullSpriteAtlasInput>>,
     remove_other_managed_mods: bool,
     managed_mod_folder_names: Option<Vec<String>>,
 ) -> Result<usize, String> {
     let atlas_animations = atlas_animations.unwrap_or_default();
-    super::export::validate_atlas_animations(&atlas_animations)?;
+    let full_sprite_atlases = full_sprite_atlases.unwrap_or_default();
+    if full_sprite_atlases.is_empty() {
+        super::export::validate_atlas_animations(&atlas_animations)?;
+    } else {
+        super::export::validate_atlas_animations_with_full_sprites(&atlas_animations, &full_sprite_atlases)?;
+    }
+    super::export::validate_full_sprite_jokers(&jokers, &full_sprite_atlases)?;
     for entry in &decks {
         super::export::validate_deck_data(&entry.deck_data)?;
     }
@@ -973,6 +980,7 @@ pub fn export_mod_package(
         metadata.disable_vanilla,
         &run_scoped_global_vars,
         !atlas_animations.is_empty(),
+        &full_sprite_atlases,
     ));
     fs::write(&main_path, main_lua.as_bytes())
         .map_err(|e| format!("Failed to write {}: {}", main_path.display(), e))?;
@@ -1068,6 +1076,13 @@ pub fn export_mod_package(
         }
         fs::write(&path, bytes).map_err(|e| format!("Failed to write {}: {}", path.display(), e))
     };
+
+    for atlas in full_sprite_atlases {
+        let name = format!("{}.png", atlas.key);
+        write_atlas("1x", &name, atlas.png_1x)?;
+        write_atlas("2x", &name, atlas.png_2x)?;
+        file_count += 2;
+    }
 
     if let Some(b) = mod_icon_1x_png {
         write_atlas("1x", "ModIcon.png", b)?;

@@ -8,6 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import IconButton from "@/components/ui/icon-button";
 import { EditionShaderPreview } from "@/components/balatro/edition-shader-preview";
+import { FullSpriteImage } from "@/components/balatro/full-sprite-image";
 import { BalatroText } from "@/lib/balatro/balatro-text-formatter";
 import { getDescriptionVariablePlaceholdersEnabled, useProjectData } from "@/lib/services/storage";
 import { getProjectGlobalVariables } from "@/lib/app/global-user-variables";
@@ -106,9 +107,9 @@ const ACE_OPTIONS = [
 ];
 
 const SIZE_CLASSES = {
-  sm: { image: "w-28 h-36" },
-  md: { image: "w-40 h-52" },
-  lg: { image: "w-48 h-64" },
+  sm: { image: "w-28 h-36", width: 112, height: 144 },
+  md: { image: "w-40 h-52", width: 160, height: 208 },
+  lg: { image: "w-48 h-64", width: 192, height: 256 },
 };
 
 export function BalatroCard({
@@ -187,6 +188,16 @@ export function BalatroCard({
     };
 
     const currentSize = SIZE_CLASSES[size];
+    const joker = type === "joker" ? data as Partial<JokerData> : undefined;
+    const fullSprite = joker?.fullSprite && Number.isFinite(joker.fullSprite.width) && Number.isFinite(joker.fullSprite.height)
+      && joker.fullSprite.width > 0 && joker.fullSprite.height > 0 ? joker.fullSprite : undefined;
+    const widthScale = joker && typeof joker.scale_w === "number" && Number.isFinite(joker.scale_w) && joker.scale_w > 0 ? joker.scale_w / 100 : 1;
+    const heightScale = joker && typeof joker.scale_h === "number" && Number.isFinite(joker.scale_h) && joker.scale_h > 0 ? joker.scale_h / 100 : 1;
+    const stretchJokerPreview = Boolean(joker && (widthScale !== 1 || heightScale !== 1));
+    const spriteStyle = joker ? {
+      width: (fullSprite ? currentSize.height * fullSprite.width / 95 : currentSize.width) * widthScale,
+      height: currentSize.height * (fullSprite?.height ?? 95) / 95 * heightScale,
+    } : undefined;
     const badgeStyles = getBadgeStyles();
     const isVanillaBadge =
       typeof badgeStyles.bg === "string" && badgeStyles.bg.startsWith("bg-");
@@ -226,12 +237,16 @@ export function BalatroCard({
 
     const renderCardImage = () => {
       const commonClasses =
-        "absolute inset-0 w-full h-full object-contain [image-rendering:pixelated]";
+        `absolute inset-0 w-full h-full ${stretchJokerPreview ? "object-fill" : "object-contain"} [image-rendering:pixelated]`;
       const hasImage = data.image && !imageError;
       const objectType = (data as any)?.objectType;
       const isEnhancementCard =
         type === "enhancement" || objectType === "enhancement";
       const isSealCard = type === "seal" || isSeal || objectType === "seal";
+
+      if (type === "joker" && fullSprite && hasImage) {
+        return <FullSpriteImage image={data.image!} overlayImage={data.overlayImage} size={fullSprite} alt={data.name || "Joker sprite"} fit="fill" className="w-full h-full" />;
+      }
 
       if (type === "edition") {
         return (
@@ -385,7 +400,7 @@ export function BalatroCard({
               <img
                 src={data.image}
                 alt={data.name}
-                className="w-full h-full object-contain [image-rendering:pixelated]"
+                className={`w-full h-full ${stretchJokerPreview ? "object-fill" : "object-contain"} [image-rendering:pixelated]`}
                 onError={() => setImageError(true)}
                 draggable="false"
               />
@@ -472,6 +487,7 @@ export function BalatroCard({
           )}
 
           <div
+            style={spriteStyle}
             className={cn(
               currentSize.image,
               "mb-2 flex items-center justify-center overflow-hidden relative",
@@ -481,6 +497,7 @@ export function BalatroCard({
           >
             {renderCardImage()}
           </div>
+          {fullSprite && <p className="mb-1 whitespace-nowrap text-center font-sans text-[10px] text-muted-foreground">Full sprite · {fullSprite.width} × {fullSprite.height}</p>}
 
           <div
             className={cn(

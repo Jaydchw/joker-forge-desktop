@@ -25,6 +25,7 @@ import { buildDescriptionVariableTokens } from "@/lib/rules/description-variable
 import { collectGlobalVariables } from "@/lib/app/global-user-variables";
 import { rebaseCustomLuaAtlas, type AtlasItemType } from "./custom-lua-atlas";
 import { buildSpriteAtlas, type SpriteAtlas } from "./image-atlas";
+import { buildJokerSpriteAtlases, type JokerArtwork } from "./full-sprite-atlas";
 
 // The editor, card preview and exported loc_vars must use the same slot order.
 const withDescriptionVariables = (item: unknown, globalVariables: UserVariable[] = []) => {
@@ -111,6 +112,17 @@ const customLuaForAtlas = (item: BaseGameObject, itemType: AtlasItemType, atlas:
     pos: atlas?.positionsById[item.id] ?? { x: 0, y: 0 },
     soulPos: atlas?.soulPositionsById[item.id] ?? null,
   });
+
+const customJokerLuaForAtlas = (joker: JokerData, artwork: JokerArtwork) => {
+  const width = (artwork.fullSprite?.width ?? 71) * (joker.scale_w ?? 100) / 100;
+  const height = (artwork.fullSprite?.height ?? 95) * (joker.scale_h ?? 100) / 100;
+  return rebaseCustomLuaAtlas(joker.customCode, {
+    itemType: "joker", objectKey: joker.objectKey,
+    atlas: artwork.atlas, pos: artwork.pos, soulPos: artwork.soulPos ?? null,
+    displaySize: artwork.fullSprite || Math.abs(width - 71) > 0.0001 || Math.abs(height - 95) > 0.0001
+      ? { width, height } : null,
+  });
+};
 
 const buildFixedSizeImage = async (
   src: string,
@@ -353,7 +365,8 @@ export const exportModRust = async (
   const sortedEditions = [...editions].sort((a, b) => a.orderValue - b.orderValue);
   const sortedBoosters = [...boosters].sort((a, b) => a.orderValue - b.orderValue);
 
-  const jokerAtlas = sortedJokers.length > 0 ? await buildSpriteAtlas(sortedJokers, "CustomJokers") : null;
+  const jokerArtwork = await buildJokerSpriteAtlases(sortedJokers);
+  const jokerAtlas = jokerArtwork.normal;
   const consumablesAtlas = sortedConsumables.length > 0 ? await buildSpriteAtlas(sortedConsumables, "CustomConsumables") : null;
   const vouchersAtlas = sortedVouchers.length > 0 ? await buildSpriteAtlas(sortedVouchers, "CustomVouchers") : null;
   const decksAtlas = sortedDecks.length > 0 ? await buildSpriteAtlas(sortedDecks, "CustomDecks") : null;
@@ -387,22 +400,20 @@ export const exportModRust = async (
       pitch: sound.pitch ?? 1,
       replace: sound.replace ?? null,
     })),
-    jokers: sortedJokers.map((joker) => ({
-      // Localization-first model: base fields come from the chosen default locale.
-      ...(() => {
-        const normalized = ensureLocalizableWithLanguage(joker, locale);
-        return {
-          jokerData: {
-            ...withDescriptionVariables(normalized, globalVariables),
-            localizations: sanitizeLocalizationEntries(normalized.localizations),
-          },
-        };
-      })(),
-      pos: jokerAtlas?.positionsById[joker.id] ?? { x: 0, y: 0 },
-      soulPos: jokerAtlas?.soulPositionsById[joker.id] ?? null,
-      fileName: `${joker.objectKey}.lua`,
-      customLua: customLuaForAtlas(joker, "joker", jokerAtlas),
-    })),
+    jokers: sortedJokers.map((joker) => {
+      const artwork = jokerArtwork.artworkById[joker.id];
+      const normalized = ensureLocalizableWithLanguage({ ...joker, fullSprite: artwork.fullSprite }, locale);
+      return {
+        jokerData: {
+          ...withDescriptionVariables(normalized, globalVariables),
+          localizations: sanitizeLocalizationEntries(normalized.localizations),
+        },
+        pos: artwork.pos,
+        soulPos: artwork.soulPos ?? null,
+        fileName: `${joker.objectKey}.lua`,
+        customLua: customJokerLuaForAtlas(joker, artwork),
+      };
+    }),
     consumables: sortedConsumables.map((item) => ({
       ...(() => {
         const normalized = ensureLocalizableWithLanguage(item, locale);
@@ -500,7 +511,12 @@ export const exportModRust = async (
         customLua: customLuaForAtlas(item, "booster", boostersAtlas),
       };
     }),
-    atlasAnimations: [jokerAtlas, consumablesAtlas, vouchersAtlas, decksAtlas, enhancementsAtlas, sealsAtlas, boostersAtlas].flatMap((atlas) => atlas?.animations ?? []),
+    atlasAnimations: [jokerAtlas, ...jokerArtwork.fullAtlases.map((entry) => entry.atlas), consumablesAtlas, vouchersAtlas, decksAtlas, enhancementsAtlas, sealsAtlas, boostersAtlas].flatMap((atlas) => atlas?.animations ?? []),
+    fullSpriteAtlases: jokerArtwork.fullAtlases.map(({ key, width, height, atlas }) => ({
+      key, width, height,
+      png1x: dataURLToUint8Array(atlas.atlas1xDataUrl),
+      png2x: dataURLToUint8Array(atlas.atlas2xDataUrl),
+    })),
     includeLocTxt: !useLocalizationFile,
     useLocalizationFile,
     localizationLocale: locale,

@@ -76,7 +76,7 @@ import {
   sanitizeKeyLikeValue,
   validateFieldValueBasic,
 } from "@/lib/items/item-field-validation";
-import { ImageCropperDialog } from "@/components/pages/image-cropper-dialog";
+import { ImageCropperDialog, type SpriteApplyOptions } from "@/components/pages/image-cropper-dialog";
 import { ItemShowcaseDialog } from "@/components/pages/item-showcase-dialog";
 import {
   getImageDimensions,
@@ -89,6 +89,7 @@ import {
   isGifDataUrl,
   type DecodedGif,
 } from "@/lib/media/gif-decoder";
+import { getFullSpriteSize } from "@/lib/media/sprite-sizing";
 
 export type FieldType =
   | "text"
@@ -125,6 +126,7 @@ export interface DialogField<T> {
   hidden?: (item: T) => boolean;
   validate?: (value: any, item: T) => string | null;
   processFile?: (file: File) => Promise<string>;
+  allowFullSprite?: boolean;
   min?: number;
   max?: number;
   step?: number;
@@ -196,6 +198,8 @@ type ImageCropperState = {
   fieldId: string;
   imageSrc: string;
   animation?: DecodedGif;
+  allowFullSprite?: boolean;
+  initialFullSprite?: boolean;
 };
 
 const MemoizedField = memo(
@@ -210,6 +214,7 @@ const MemoizedField = memo(
     onOpenPlaceholderPicker,
     onOpenImageCropper,
     onUploadImage,
+    onClearImage,
     isProcessingImage,
     rerenderKey,
   }: {
@@ -226,6 +231,7 @@ const MemoizedField = memo(
       field: DialogField<any>,
       input: HTMLInputElement,
     ) => Promise<void>;
+    onClearImage: (fieldId: string) => Promise<void>;
     isProcessingImage?: boolean;
     rerenderKey?: string;
   }) => {
@@ -474,20 +480,6 @@ const MemoizedField = memo(
           const uploadLabel = safeValue
             ? `Replace ${imageKind}`
             : `Upload ${imageKind}`;
-          const clearPlaceholderMetadata = () => {
-            if ("placeholderCreditIndex" in (fullItem as any)) {
-              onChange("placeholderCreditIndex", undefined);
-            }
-            if ("placeholderCategory" in (fullItem as any)) {
-              onChange("placeholderCategory", undefined);
-            }
-          };
-          const clearImageLayers = () => {
-            if (field.id === "image" && "imageLayers" in (fullItem as any)) {
-              onChange("imageLayers", undefined);
-            }
-          };
-
           return (
             <div className="group/image-field flex flex-col items-center gap-2 p-3 transition-colors hover:bg-muted/5">
               <div className="relative flex h-80 w-60 shrink-0 items-center justify-center overflow-hidden">
@@ -547,11 +539,7 @@ const MemoizedField = memo(
                           size="sm"
                           className="cursor-pointer"
                           disabled={isProcessingImage}
-                          onClick={() => {
-                            onChange(field.id, "");
-                            clearPlaceholderMetadata();
-                            clearImageLayers();
-                          }}
+                          onClick={() => void onClearImage(field.id)}
                         >
                           <Trash className="mr-2 h-4 w-4" />
                           Clear
@@ -578,6 +566,11 @@ const MemoizedField = memo(
               <p className="text-center text-xs text-muted-foreground">
                 PNG, JPG, WebP or animated GIF
               </p>
+              {field.allowFullSprite && field.id === "image" && fullItem.fullSprite && (
+                <p className="text-center text-xs text-muted-foreground">
+                  Full sprite · {fullItem.fullSprite.width} × {fullItem.fullSprite.height}
+                </p>
+              )}
               {error && (
                 <div className="space-y-2 text-center">
                   <p role="alert" className="text-xs text-destructive dark:text-red-400">
@@ -692,6 +685,7 @@ const MemoizedField = memo(
     if (prev.field.type === "image" && prev.onUploadImage !== next.onUploadImage) {
       return false;
     }
+    if (prev.field.type === "image" && (prev.onClearImage !== next.onClearImage || prev.onOpenImageCropper !== next.onOpenImageCropper || prev.fullItem.fullSprite !== next.fullItem.fullSprite)) return false;
     if (prev.isProcessingImage !== next.isProcessingImage) return false;
 
     const prevHidden = prev.field.hidden
@@ -724,8 +718,31 @@ const PreviewPanel = memo(
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [isShowcaseOpen, setIsShowcaseOpen] = useState(false);
+    const [spriteFit, setSpriteFit] = useState(1);
     const previewContainerRef = useRef<HTMLDivElement>(null);
+    const previewContentRef = useRef<HTMLDivElement>(null);
     const panLastRef = useRef<{ x: number; y: number } | null>(null);
+
+    useLayoutEffect(() => {
+      const viewport = previewContainerRef.current;
+      const content = previewContentRef.current;
+      if (!viewport || !content) return;
+      const shouldFit = Boolean(item?.fullSprite) || (item?.objectType === "joker"
+        && ((item.scale_w ?? 100) !== 100 || (item.scale_h ?? 100) !== 100));
+      const updateFit = () => {
+        const fit = shouldFit ? Math.min(1,
+          Math.max(1, viewport.clientWidth - 64) / Math.max(1, content.scrollWidth),
+          Math.max(1, viewport.clientHeight - 64) / Math.max(1, content.scrollHeight),
+        ) : 1;
+        setSpriteFit((previous) => Math.abs(previous - fit) < 0.001 ? previous : fit);
+      };
+      updateFit();
+      if (typeof ResizeObserver === "undefined") return;
+      const observer = new ResizeObserver(updateFit);
+      observer.observe(viewport);
+      observer.observe(content);
+      return () => observer.disconnect();
+    }, [item?.fullSprite, item?.scale_w, item?.scale_h, item?.objectType, isCollapsed]);
 
     const handleWheelZoom = useCallback(
       (e: WheelEvent) => {
@@ -866,9 +883,10 @@ const PreviewPanel = memo(
             )}
           >
             <div
-              className="transform transition-transform duration-200 ease-out"
+              ref={previewContentRef}
+              className="shrink-0 transform transition-transform duration-200 ease-out"
               style={{
-                transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale[0]})`,
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale[0] * spriteFit})`,
               }}
             >
               {renderPreview(item)}
@@ -915,6 +933,8 @@ function GenericItemDialogInternal<T extends { id: string }>({
   placeholderCategory,
 }: GenericItemDialogProps<T>) {
   const [formData, setFormData] = useState<T | null>(null);
+  const formDataRef = useRef<any>(formData);
+  formDataRef.current = formData;
   const [activeTab, setActiveTab] = useState<string>("");
   const [panelSize, setPanelSize] = useState<number>(70);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -1236,6 +1256,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
             );
           }
         }
+        formDataRef.current = newData;
         return newData;
       });
 
@@ -1251,30 +1272,67 @@ function GenericItemDialogInternal<T extends { id: string }>({
     [cancelImageRequest, defaultLocalizationLanguage, fieldConfigById],
   );
 
-  const clearImagePlaceholderMetadata = useCallback(() => {
-    if (!formData) return;
-    if ("placeholderCreditIndex" in (formData as any)) {
-      handleChange("placeholderCreditIndex", undefined);
-    }
-    if ("placeholderCategory" in (formData as any)) {
-      handleChange("placeholderCategory", undefined);
-    }
-  }, [formData, handleChange]);
-
-  const clearImageLayers = useCallback(() => {
-    if (!formData) return;
-    if ("imageLayers" in (formData as any)) {
-      handleChange("imageLayers", undefined);
-    }
-  }, [formData, handleChange]);
-
   const handleOpenImageCropper = useCallback(
-    (fieldId: string, imageSrc: string, animation?: DecodedGif) => {
+    (fieldId: string, imageSrc: string, animation?: DecodedGif, initialFullSprite?: boolean) => {
       cancelImageRequest(fieldId);
-      setImageCropperState({ fieldId, imageSrc, animation });
+      const current = formDataRef.current;
+      const allowFullSprite = Boolean(fieldConfigById.get(fieldId)?.allowFullSprite
+        && (fieldId === "image" || current?.fullSprite));
+      setImageCropperState({ fieldId, imageSrc, animation, allowFullSprite,
+        initialFullSprite: allowFullSprite && (initialFullSprite ?? Boolean(current?.fullSprite)) });
     },
-    [cancelImageRequest],
+    [cancelImageRequest, fieldConfigById],
   );
+
+  const commitImage = useCallback(async (
+    fieldId: string, source: string, isCurrent: () => boolean, options?: SpriteApplyOptions,
+  ) => {
+    let snapshot: any;
+    let fullSprite: { width: number; height: number } | undefined;
+    for (;;) {
+      snapshot = formDataRef.current;
+      if (!snapshot || !isCurrent()) return;
+      const canKeepFull = fieldConfigById.get(fieldId)?.allowFullSprite;
+      const keepFull = canKeepFull && (fieldId === "image"
+        ? Boolean(source) && (options?.fullSprite ?? Boolean(snapshot.fullSprite))
+        : Boolean(snapshot.fullSprite));
+      fullSprite = keepFull ? await getFullSpriteSize(
+        fieldId === "image" ? source : snapshot.image,
+        fieldId === "overlayImage" ? source : snapshot.overlayImage,
+        fieldId === "image" && options?.fullSprite ? { width: options.width, height: options.height } : undefined,
+      ) : undefined;
+      if (!isCurrent()) return;
+      const latest = formDataRef.current;
+      if (latest?.id !== snapshot.id) return;
+      const otherField = fieldId === "image" ? "overlayImage" : "image";
+      if (latest[otherField] === snapshot[otherField] && latest.fullSprite === snapshot.fullSprite) break;
+    }
+    if (!isCurrent()) return;
+    cancelImageRequest(fieldId);
+    const apply = (current: any) => {
+      if (!current || current.id !== snapshot.id) return current;
+      const next = { ...current, [fieldId]: source,
+        placeholderCreditIndex: undefined, placeholderCategory: undefined,
+        ...(fieldId === "image" ? { imageLayers: undefined } : {}),
+        ...(fieldConfigById.get(fieldId)?.allowFullSprite ? { fullSprite } : {}),
+        ...(fieldId === "image" && (options?.fullSprite || (current.fullSprite && !fullSprite)) ? { scale_w: 100, scale_h: 100 } : {}),
+      };
+      formDataRef.current = next;
+      return next;
+    };
+    formDataRef.current = apply(formDataRef.current);
+    setFormData(apply);
+  }, [cancelImageRequest, fieldConfigById]);
+
+  const handleClearImage = useCallback(async (fieldId: string) => {
+    if (!item) return;
+    const request = beginImageRequest(fieldId, item.id);
+    if (!request) return;
+    try { await commitImage(fieldId, "", request.isCurrent); }
+    catch (error) {
+      if (request.isCurrent()) setImageErrors((previous) => ({ ...previous, [fieldId]: error instanceof Error ? error.message : "This image could not be cleared." }));
+    } finally { request.finish(); }
+  }, [beginImageRequest, commitImage, item]);
 
   const handleUploadImage = useCallback(
     async (field: DialogField<T>, input: HTMLInputElement) => {
@@ -1289,16 +1347,14 @@ function GenericItemDialogInternal<T extends { id: string }>({
         const dimensions = animation ?? await getImageDimensions(src);
         if (!request.isCurrent()) return;
         if (!isBalatroCardImageSize(dimensions)) {
-          handleOpenImageCropper(field.id, src, animation);
+          handleOpenImageCropper(field.id, src, animation, true);
           return;
         }
         const result = animation ? src : field.processFile
           ? await field.processFile(file)
           : await normalizeBalatroCardImageSource(src);
         if (!request.isCurrent()) return;
-        handleChange(field.id, result);
-        clearImagePlaceholderMetadata();
-        if (field.id === "image") clearImageLayers();
+        await commitImage(field.id, result, request.isCurrent);
       } catch (error) {
         if (!request.isCurrent()) return;
         console.error("Image processing failed", error);
@@ -1314,9 +1370,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
     },
     [
       beginImageRequest,
-      clearImageLayers,
-      clearImagePlaceholderMetadata,
-      handleChange,
+      commitImage,
       handleOpenImageCropper,
       item,
       open,
@@ -1336,33 +1390,27 @@ function GenericItemDialogInternal<T extends { id: string }>({
           console.error("Placeholder image normalization failed", error);
         }
         if (!request.isCurrent()) return;
-        handleChange("image", image);
-        clearImageLayers();
+        await commitImage("image", image, request.isCurrent, { fullSprite: false, width: 71, height: 95 });
         handleChange("placeholderCreditIndex", entry.index);
         handleChange("placeholderCategory", entry.category);
       } finally {
         request.finish();
       }
     },
-    [beginImageRequest, clearImageLayers, handleChange, item, open],
+    [beginImageRequest, commitImage, handleChange, item, open],
   );
 
   const handleApplyImageCrop = useCallback(
-    (dataUrl: string) => {
-      if (!imageCropperState) return;
-      handleChange(imageCropperState.fieldId, dataUrl);
-      clearImagePlaceholderMetadata();
-      if (imageCropperState.fieldId === "image") {
-        clearImageLayers();
-      }
-      setImageCropperState(null);
+    async (dataUrl: string, options?: SpriteApplyOptions) => {
+      if (!imageCropperState || !item) return;
+      const request = beginImageRequest(imageCropperState.fieldId, item.id);
+      if (!request) return;
+      try {
+        await commitImage(imageCropperState.fieldId, dataUrl, request.isCurrent, options);
+        if (imageUploadOwnerRef.current === item.id) setImageCropperState(null);
+      } finally { request.finish(); }
     },
-    [
-      clearImageLayers,
-      clearImagePlaceholderMetadata,
-      handleChange,
-      imageCropperState,
-    ],
+    [beginImageRequest, commitImage, imageCropperState, item],
   );
 
   const handleSave = useCallback(() => {
@@ -1579,6 +1627,7 @@ function GenericItemDialogInternal<T extends { id: string }>({
                   }
                   onOpenImageCropper={handleOpenImageCropper}
                   onUploadImage={handleUploadImage}
+                  onClearImage={handleClearImage}
                   isProcessingImage={processingImageFields.includes(field.id)}
                   rerenderKey={
                     field.id === "localizations"
@@ -1772,15 +1821,14 @@ function GenericItemDialogInternal<T extends { id: string }>({
         open={Boolean(imageCropperState)}
         imageSrc={imageCropperState?.imageSrc ?? null}
         decodedGif={imageCropperState?.animation}
+        allowFullSprite={imageCropperState?.allowFullSprite}
+        initialFullSprite={imageCropperState?.initialFullSprite}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             setImageCropperState(null);
           }
         }}
-        onApply={(dataUrl) => {
-          handleApplyImageCrop(dataUrl);
-          setImageCropperState(null);
-        }}
+        onApply={handleApplyImageCrop}
       />
     </Dialog>
   );

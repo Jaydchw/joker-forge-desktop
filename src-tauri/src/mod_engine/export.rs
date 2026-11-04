@@ -29,6 +29,79 @@ pub struct AtlasPosInput {
     pub y: i32,
 }
 
+#[serde(try_from = "RawFullSpriteSizeInput")]
+pub struct FullSpriteSizeInput {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Deserialize)]
+struct RawFullSpriteSizeInput {
+    width: u32,
+    height: u32,
+}
+
+impl TryFrom<RawFullSpriteSizeInput> for FullSpriteSizeInput {
+    type Error = String;
+
+    fn try_from(size: RawFullSpriteSizeInput) -> Result<Self, Self::Error> {
+        if size.width == 0 || size.height == 0 || size.width > 2048 || size.height > 2048 {
+            return Err("Full sprites must be between 1 and 2048 pixels in each dimension.".to_string());
+        }
+        Ok(Self { width: size.width, height: size.height })
+    }
+}
+
+pub fn full_sprite_atlas_key(size: &FullSpriteSizeInput) -> String {
+    format!("CustomJokersFull_{}x{}", size.width, size.height)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FullSpriteAtlasInput {
+    pub key: String,
+    pub width: u32,
+    pub height: u32,
+    #[serde(rename = "png1x")]
+    pub png_1x: Vec<u8>,
+    #[serde(rename = "png2x")]
+    pub png_2x: Vec<u8>,
+}
+
+fn png_dimensions(bytes: &[u8]) -> Result<(u32, u32), String> {
+    if bytes.len() < 33 || bytes.len() > 128 * 1024 * 1024
+        || &bytes[..8] != b"\x89PNG\r\n\x1a\n"
+        || &bytes[8..16] != b"\x00\x00\x00\x0dIHDR"
+    {
+        return Err("Full-sprite atlas data must be a nonempty PNG image smaller than 128 MB.".to_string());
+    }
+    let width = u32::from_be_bytes(bytes[16..20].try_into().unwrap());
+    let height = u32::from_be_bytes(bytes[20..24].try_into().unwrap());
+    if width == 0 || height == 0 || width > 8192 || height > 8192 {
+        return Err("Full-sprite atlas textures must be between 1 and 8192 pixels in each dimension.".to_string());
+    }
+    Ok((width, height))
+}
+
+pub fn validate_full_sprite_atlases(atlases: &[FullSpriteAtlasInput]) -> Result<(), String> {
+    let mut keys = HashSet::new();
+    for atlas in atlases {
+        let size = FullSpriteSizeInput::try_from(RawFullSpriteSizeInput {
+            width: atlas.width, height: atlas.height,
+        })?;
+        if atlas.key != full_sprite_atlas_key(&size) || !keys.insert(&atlas.key) {
+            return Err("Full-sprite artwork has an invalid or duplicate atlas key.".to_string());
+        }
+        let one = png_dimensions(&atlas.png_1x)?;
+        let two = png_dimensions(&atlas.png_2x)?;
+        if one.0 % size.width != 0 || one.1 % size.height != 0
+            || two.0 != one.0 * 2 || two.1 != one.1 * 2
+        {
+            return Err("Full-sprite atlas dimensions do not match their sprite cells or texture scales.".to_string());
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AtlasAnimationFrameInput {
@@ -47,18 +120,30 @@ pub struct AtlasAnimationInput {
 }
 
 pub fn validate_atlas_animations(animations: &[AtlasAnimationInput]) -> Result<(), String> {
+    validate_atlas_animations_with_full_sprites(animations, &[])
+}
+
+pub fn validate_atlas_animations_with_full_sprites(
+    animations: &[AtlasAnimationInput], atlases: &[FullSpriteAtlasInput],
+) -> Result<(), String> {
+    validate_full_sprite_atlases(atlases)?;
     let mut positions = HashSet::new();
     for animation in animations {
-        if !matches!(animation.atlas.as_str(), "CustomJokers" | "CustomConsumables"
+        let (columns, rows) = if matches!(animation.atlas.as_str(), "CustomJokers" | "CustomConsumables"
             | "CustomEnhancements" | "CustomSeals" | "CustomVouchers" | "CustomDecks"
             | "CustomBoosters")
         {
+            (57, 43)
+        } else if let Some(atlas) = atlases.iter().find(|atlas| atlas.key == animation.atlas) {
+            let (width, height) = png_dimensions(&atlas.png_1x)?;
+            ((width / atlas.width) as i32, (height / atlas.height) as i32)
+        } else {
             return Err(format!("Unsupported animation atlas: {}", animation.atlas));
-        }
+        };
         if animation.frames.is_empty() || animation.frames.len() > 300 {
             return Err("Animated artwork must contain between 1 and 300 frames.".to_string());
         }
-        if animation.pos.x < 0 || animation.pos.x >= 57 || animation.pos.y < 0 || animation.pos.y >= 43
+        if animation.pos.x < 0 || animation.pos.x >= columns || animation.pos.y < 0 || animation.pos.y >= rows
             || !positions.insert((animation.atlas.as_str(), animation.pos.x, animation.pos.y))
         {
             return Err("Animated artwork has an invalid or duplicate atlas position.".to_string());
@@ -68,7 +153,7 @@ pub fn validate_atlas_animations(animations: &[AtlasAnimationInput]) -> Result<(
         }
         let mut duration = 0.0;
         for frame in &animation.frames {
-            if frame.x < 0 || frame.x >= 57 || frame.y < 0 || frame.y >= 43
+            if frame.x < 0 || frame.x >= columns || frame.y < 0 || frame.y >= rows
                 || !frame.duration_ms.is_finite() || frame.duration_ms <= 0.0
             {
                 return Err("Animated artwork contains an invalid frame position or duration.".to_string());
@@ -145,6 +230,8 @@ pub struct JokerDataInput {
     /// Scale height as a percentage (100 = 1×).
     #[serde(default)]
     pub scale_h: Option<f64>,
+    #[serde(default, rename = "fullSprite")]
+    pub full_sprite: Option<FullSpriteSizeInput>,
     #[serde(default)]
     pub rules: Vec<RuleInput>,
     #[serde(default, rename = "ruleExecutionMode")]
@@ -650,6 +737,27 @@ pub struct BatchJokerEntry {
     pub custom_lua: Option<String>,
 }
 
+pub fn validate_full_sprite_jokers(
+    jokers: &[BatchJokerEntry], atlases: &[FullSpriteAtlasInput],
+) -> Result<(), String> {
+    for entry in jokers {
+        let Some(size) = &entry.joker_data.full_sprite else { continue; };
+        let key = full_sprite_atlas_key(size);
+        let atlas = atlases.iter().find(|atlas| atlas.key == key).ok_or_else(|| format!(
+            "Full-sprite artwork for '{}' is missing its texture atlas.", entry.joker_data.object_key,
+        ))?;
+        let (width, height) = png_dimensions(&atlas.png_1x)?;
+        let columns = (width / size.width) as i32;
+        let rows = (height / size.height) as i32;
+        for pos in std::iter::once(&entry.pos).chain(entry.soul_pos.iter()) {
+            if pos.x < 0 || pos.y < 0 || pos.x >= columns || pos.y >= rows {
+                return Err(format!("Full-sprite artwork for '{}' is outside its texture atlas.", entry.joker_data.object_key));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchConsumableEntry {
@@ -773,10 +881,11 @@ pub fn joker_data_to_def(
         perishable_compat: input.perishable_compat.unwrap_or(true),
         unlocked: input.unlocked.unwrap_or(true),
         discovered: input.discovered.unwrap_or(true),
-        atlas: "CustomJokers".to_string(),
+        atlas: input.full_sprite.as_ref().map(full_sprite_atlas_key)
+            .unwrap_or_else(|| "CustomJokers".to_string()),
         pos: AtlasPos { x: pos.x, y: pos.y },
         soul_pos: soul_pos.map(|sp| AtlasPos { x: sp.x, y: sp.y }),
-        display_size: compute_display_size(input.scale_w, input.scale_h),
+        display_size: compute_display_size(input.scale_w, input.scale_h, input.full_sprite.as_ref()),
         rules: input.rules.iter().map(map_rule).collect(),
         rule_execution_mode: input.rule_execution_mode,
         appearance,
@@ -1288,9 +1397,13 @@ fn split_description(desc: &str) -> Vec<String> {
 ///
 /// Returns `None` when both are effectively 1× (within floating-point epsilon),
 /// matching the TypeScript `getDisplaySizeOverride` behaviour.
-fn compute_display_size(scale_w: Option<f64>, scale_h: Option<f64>) -> Option<DisplaySize> {
-    let w = scale_w.map(|v| v / 100.0).unwrap_or(1.0);
-    let h = scale_h.map(|v| v / 100.0).unwrap_or(1.0);
+fn compute_display_size(
+    scale_w: Option<f64>, scale_h: Option<f64>, full_sprite: Option<&FullSpriteSizeInput>,
+) -> Option<DisplaySize> {
+    let w = scale_w.map(|v| v / 100.0).unwrap_or(1.0)
+        * full_sprite.map(|size| f64::from(size.width) / 71.0).unwrap_or(1.0);
+    let h = scale_h.map(|v| v / 100.0).unwrap_or(1.0)
+        * full_sprite.map(|size| f64::from(size.height) / 95.0).unwrap_or(1.0);
     if (w - 1.0).abs() < 0.0001 && (h - 1.0).abs() < 0.0001 {
         None
     } else {
@@ -2069,6 +2182,7 @@ pub fn build_main_lua(
     disable_vanilla: bool,
     run_scoped_globals: &[UserVariableDef],
     has_atlas_animations: bool,
+    full_sprite_atlases: &[FullSpriteAtlasInput],
 ) -> String {
     let sorted_jokers: Vec<&BatchJokerEntry> = jokers.iter().collect();
 
@@ -2093,7 +2207,15 @@ pub fn build_main_lua(
     if has_game_logo {
         atlas_decls.push_str("SMODS.Atlas({\n    key = \"balatro\",\n    path = \"balatro.png\",\n    px = 333,\n    py = 216,\n    prefix_config = { key = false },\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
     }
-    if !sorted_jokers.is_empty() {
+    for atlas in full_sprite_atlases {
+        atlas_decls.push_str(&format!(
+            "SMODS.Atlas({{\n    key = {},\n    path = {},\n    px = {},\n    py = {},\n    atlas_table = \"ASSET_ATLAS\"\n}})\n\n",
+            balatro_codegen::lua_ast::lua_str(&atlas.key),
+            balatro_codegen::lua_ast::lua_str(format!("{}.png", atlas.key)),
+            atlas.width, atlas.height,
+        ));
+    }
+    if sorted_jokers.iter().any(|entry| entry.joker_data.full_sprite.is_none()) {
         atlas_decls.push_str("SMODS.Atlas({\n    key = \"CustomJokers\",\n    path = \"CustomJokers.png\",\n    px = 71,\n    py = 95,\n    atlas_table = \"ASSET_ATLAS\"\n})\n\n");
     }
     if !sorted_consumables.is_empty() {

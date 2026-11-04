@@ -94,6 +94,7 @@ type PixelArtEditorDialogProps = {
   itemName: string;
   sourceImage?: string;
   sourceLayers?: PixelLayerData[];
+  sourceFullSprite?: boolean;
   onSaveToItem: (payload: {
     imageDataUrl: string;
     layers: PixelLayerData[];
@@ -262,6 +263,7 @@ export function PixelArtEditorDialog({
   onOpenChange,
   itemName,
   sourceImage,
+  sourceFullSprite = false,
   sourceLayers,
   onSaveToItem,
 }: PixelArtEditorDialogProps) {
@@ -2168,6 +2170,11 @@ export function PixelArtEditorDialog({
             </DialogHeader>
 
             <div className="flex h-full flex-col">
+              {sourceFullSprite && (
+                <p role="status" className="shrink-0 border-b border-border/40 bg-muted px-4 py-2 text-xs text-muted-foreground">
+                  Saving pixel edits converts this full sprite to standard 71 × 95 artwork.
+                </p>
+              )}
               {sourceImage && isGifDataUrl(sourceImage) && (
                 <p role="status" className="shrink-0 border-b border-border/40 bg-muted px-4 py-2 text-xs text-muted-foreground">
                   Saving pixel edits replaces the animation with a still image.

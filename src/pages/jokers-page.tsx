@@ -39,6 +39,7 @@ import {
   BookmarksSimple,
 } from "@phosphor-icons/react";
 import { BalatroCard } from "@/components/balatro/balatro-card";
+import { FullSpriteImage } from "@/components/balatro/full-sprite-image";
 import { getRandomPlaceholder } from "@/lib/content/placeholder-assets.ts";
 import { PlaceholderPickerDialog } from "@/components/pages/placeholder-picker-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
@@ -349,13 +350,17 @@ export default function JokersPage() {
         idValue={joker.orderValue}
         rarity={joker.rarity}
         imageLayers={joker.imageLayers}
-        overlayImage={joker.overlayImage}
+        fullSprite={joker.fullSprite}
+        editableImageSrc={joker.image}
+        overlayImage={joker.fullSprite ? undefined : joker.overlayImage}
         hasManualEdits={Boolean((joker as { customCode?: unknown }).customCode)}
         onUpdate={(updates) => handleUpdate(joker.id, updates)}
         onDuplicate={() => handleDuplicate(joker)}
         image={
           <div className="w-full h-full relative group cursor-pointer rounded-lg overflow-hidden flex items-center justify-center">
-            {joker.image ? (
+            {joker.image && joker.fullSprite ? (
+              <FullSpriteImage image={joker.image} overlayImage={joker.overlayImage} size={joker.fullSprite} alt={joker.name} className="w-full h-full" />
+            ) : joker.image ? (
               <img
                 src={joker.image}
                 className="w-full h-full object-contain [image-rendering:pixelated]"
@@ -583,9 +588,11 @@ export default function JokersPage() {
     (joker: JokerData) => (
       <GenericItemCardCompact
         name={joker.name}
-        overlayImage={joker.overlayImage}
+        overlayImage={joker.fullSprite ? undefined : joker.overlayImage}
         image={
-          joker.image ? (
+          joker.image && joker.fullSprite ? (
+            <FullSpriteImage image={joker.image} overlayImage={joker.overlayImage} size={joker.fullSprite} alt={joker.name} className="w-full h-full" />
+          ) : joker.image ? (
             <img
               src={joker.image}
               className="w-full h-full object-contain [image-rendering:pixelated]"
@@ -750,6 +757,8 @@ export default function JokersPage() {
           if (!placeholderTargetId) return;
           handleUpdate(placeholderTargetId, {
             image: entry.src,
+            fullSprite: undefined,
+            ...(data.jokers.find((joker) => joker.id === placeholderTargetId)?.fullSprite ? { scale_w: 100, scale_h: 100 } : {}),
             placeholderCreditIndex: entry.index,
             placeholderCategory: entry.category,
           });

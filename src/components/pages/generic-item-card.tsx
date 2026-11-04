@@ -31,7 +31,7 @@ import {
 } from "@/lib/balatro/balatro-text-formatter";
 import { sanitizeDescription } from "@/lib/description/description-sanitizer";
 import { sanitizeKeyLikeValue } from "@/lib/items/item-field-validation";
-import type { PixelLayerData } from "@/lib/core/types";
+import type { FullSpriteSize, PixelLayerData } from "@/lib/core/types";
 import { getDescriptionVariablePlaceholdersEnabled } from "@/lib/services/storage";
 import {
   type AceSelection,
@@ -71,6 +71,7 @@ export interface ActionConfig {
 interface GenericItemCardProps {
   image: ReactNode;
   imageLayers?: PixelLayerData[];
+  fullSprite?: FullSpriteSize;
   overlayImage?: string;
   name: string;
   description: string;
@@ -91,6 +92,9 @@ interface GenericItemCardProps {
     objectKey?: string;
     image?: string;
     imageLayers?: PixelLayerData[];
+    fullSprite?: FullSpriteSize;
+    scale_w?: number;
+    scale_h?: number;
     placeholderCreditIndex?: number | undefined;
     placeholderCategory?: string | undefined;
     rarity?: number | string;
@@ -152,6 +156,7 @@ export const GenericItemCard = memo(function GenericItemCard({
   onDuplicate,
   editableImageSrc,
   imageLayers,
+  fullSprite,
   showPlaceholderPickerButton = false,
   onOpenPlaceholderPicker,
   hasManualEdits = false,
@@ -946,10 +951,12 @@ export const GenericItemCard = memo(function GenericItemCard({
         itemName={name}
         sourceImage={resolvedEditableImageSrc}
         sourceLayers={resolvedEditableImageLayers}
+        sourceFullSprite={Boolean(fullSprite)}
         onSaveToItem={({ imageDataUrl, layers }) =>
           onUpdate({
             image: imageDataUrl,
             imageLayers: layers,
+            ...(fullSprite ? { fullSprite: undefined, scale_w: 100, scale_h: 100 } : {}),
             placeholderCreditIndex: undefined,
             placeholderCategory: undefined,
           })

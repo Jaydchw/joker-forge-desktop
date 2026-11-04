@@ -122,8 +122,14 @@ export interface CardAppearance {
 
 export type RuleExecutionMode = "first_match" | "all_matching";
 
+export interface FullSpriteSize {
+  width: number;
+  height: number;
+}
+
 export interface JokerData extends BaseGameObject {
   objectType: "joker";
+  fullSprite?: FullSpriteSize;
   ruleExecutionMode?: RuleExecutionMode;
   rarity: number | string;
   cost: number;

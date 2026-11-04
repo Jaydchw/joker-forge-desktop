@@ -28,10 +28,17 @@ export interface SpriteAtlas {
   animations: AtlasAnimation[];
 }
 
+export interface SpriteAtlasOptions {
+  width?: number;
+  height?: number;
+  imageFit?: "stretch" | "native";
+}
+
 const CARD_WIDTH = 71;
 const CARD_HEIGHT = 95;
 const MAX_ATLAS_FRAMES = 1024;
 const MAX_TEXTURE_EDGE = 8192;
+const MAX_TEXTURE_PIXELS = 32 * 1024 * 1024;
 
 type PreparedImage = {
   frames: Array<CanvasImageSource | null>;
@@ -57,9 +64,17 @@ const loadStaticImage = (src: string): Promise<HTMLImageElement | null> => new P
   image.src = src;
 });
 
-async function prepareImage(src: string, remainingFrames: number): Promise<PreparedImage> {
+async function prepareImage(
+  src: string,
+  remainingFrames: number,
+  width: number,
+  height: number,
+  native: boolean,
+): Promise<PreparedImage> {
   if (!isGifDataUrl(src)) {
-    return { frames: [await loadStaticImage(src)], delays: [], loopCount: null };
+    const image = await loadStaticImage(src);
+    if (native && !image) throw new Error("The full sprite could not be opened. Upload the image again.");
+    return { frames: [image], delays: [], loopCount: null };
   }
   const animation = decodeGifDataUrl(src);
   if (animation.frames.length > remainingFrames) {
@@ -69,26 +84,37 @@ async function prepareImage(src: string, remainingFrames: number): Promise<Prepa
   const frames: HTMLCanvasElement[] = [];
   for (const [index, frame] of animation.frames.entries()) {
     sourceContext.putImageData(new ImageData(new Uint8ClampedArray(frame.pixels), animation.width, animation.height), 0, 0);
-    const width = Math.min(animation.width, CARD_WIDTH * 2);
-    const height = Math.min(animation.height, CARD_HEIGHT * 2);
-    const { canvas, context } = createCanvas(width, height);
-    context.drawImage(source, 0, 0, width, height);
+    const frameWidth = native ? animation.width : Math.min(animation.width, width * 2);
+    const frameHeight = native ? animation.height : Math.min(animation.height, height * 2);
+    const { canvas, context } = createCanvas(frameWidth, frameHeight);
+    context.drawImage(source, 0, 0, frameWidth, frameHeight);
     frames.push(canvas);
     if (index > 0 && index % 16 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
   }
   return { frames, delays: animation.frames.map((frame) => frame.delayMs), loopCount: animation.loopCount };
 }
 
-export async function buildSpriteAtlas(items: SpriteAtlasItem[], atlas: string): Promise<SpriteAtlas> {
+export async function buildSpriteAtlas(
+  items: SpriteAtlasItem[],
+  atlas: string,
+  options: SpriteAtlasOptions = {},
+): Promise<SpriteAtlas> {
+  const width = options.width ?? CARD_WIDTH;
+  const height = options.height ?? CARD_HEIGHT;
+  const native = options.imageFit === "native";
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1
+    || width > 2048 || height > 2048) {
+    throw new Error("Sprite dimensions must be whole pixels between 1 and 2048.");
+  }
   const sorted = [...items].sort((a, b) => a.orderValue - b.orderValue);
   const prepared: Array<{ item: SpriteAtlasItem; base: PreparedImage; overlay?: PreparedImage }> = [];
   let totalPositions = 0;
   for (const item of sorted) {
     try {
-      const base = await prepareImage(item.image || "", MAX_ATLAS_FRAMES - totalPositions);
+      const base = await prepareImage(item.image || "", MAX_ATLAS_FRAMES - totalPositions, width, height, native);
       totalPositions += base.frames.length;
       const overlay = item.overlayImage?.trim()
-        ? await prepareImage(item.overlayImage, MAX_ATLAS_FRAMES - totalPositions)
+        ? await prepareImage(item.overlayImage, MAX_ATLAS_FRAMES - totalPositions, width, height, native)
         : undefined;
       totalPositions += overlay?.frames.length ?? 0;
       if (totalPositions > MAX_ATLAS_FRAMES) {
@@ -101,11 +127,38 @@ export async function buildSpriteAtlas(items: SpriteAtlasItem[], atlas: string):
     }
   }
 
-  const columns = Math.ceil(totalPositions / 10) * CARD_HEIGHT * 2 <= MAX_TEXTURE_EDGE
-    ? 10 : Math.ceil(Math.sqrt(totalPositions * CARD_HEIGHT / CARD_WIDTH));
+  const maxColumns = Math.floor(MAX_TEXTURE_EDGE / (width * 2));
+  const maxRows = Math.floor(MAX_TEXTURE_EDGE / (height * 2));
+  const minimumColumns = Math.max(1, Math.ceil(totalPositions / maxRows));
+  const preferredColumns = Math.ceil(totalPositions / 10) * height * 2 <= MAX_TEXTURE_EDGE
+    ? 10 : Math.ceil(Math.sqrt(totalPositions * height / width));
+  let columns = Math.min(maxColumns, Math.max(minimumColumns, preferredColumns));
+  if (native) {
+    let bestAspect = Infinity;
+    let bestCells = Infinity;
+    columns = 0;
+    for (let candidate = minimumColumns; candidate <= Math.min(maxColumns, Math.max(1, totalPositions)); candidate++) {
+      const candidateRows = Math.max(1, Math.ceil(totalPositions / candidate));
+      const cells = candidate * candidateRows;
+      if (candidateRows > maxRows || cells * width * height * 4 > MAX_TEXTURE_PIXELS) continue;
+      const aspect = Math.abs(Math.log(candidate * width / (candidateRows * height)));
+      if (aspect < bestAspect || (aspect === bestAspect && cells < bestCells)) {
+        columns = candidate;
+        bestAspect = aspect;
+        bestCells = cells;
+      }
+    }
+  }
+  if (!columns) {
+    throw new Error("This artwork is too large to export. Use smaller sprites, shorter GIFs, or fewer animated images.");
+  }
   const rows = Math.max(1, Math.ceil(totalPositions / columns));
+  if (columns < minimumColumns || columns * width * 2 > MAX_TEXTURE_EDGE
+    || rows * height * 2 > MAX_TEXTURE_EDGE || columns * rows * width * height * 4 > MAX_TEXTURE_PIXELS) {
+    throw new Error("This artwork is too large to export. Use smaller sprites, shorter GIFs, or fewer animated images.");
+  }
   const outputs = [1, 2].map((scale) => ({
-    ...createCanvas(columns * CARD_WIDTH * scale, rows * CARD_HEIGHT * scale), scale,
+    ...createCanvas(columns * width * scale, rows * height * scale), scale,
   }));
   if (outputs[1].canvas.width > MAX_TEXTURE_EDGE || outputs[1].canvas.height > MAX_TEXTURE_EDGE) {
     throw new Error("The animated artwork is too large to export. Use shorter GIFs or fewer animated images.");
@@ -119,7 +172,18 @@ export async function buildSpriteAtlas(items: SpriteAtlasItem[], atlas: string):
       const position = { x: nextPosition % columns, y: Math.floor(nextPosition / columns) };
       nextPosition += 1;
       for (const { context, scale } of outputs) {
-        if (frame) context.drawImage(frame, position.x * CARD_WIDTH * scale, position.y * CARD_HEIGHT * scale, CARD_WIDTH * scale, CARD_HEIGHT * scale);
+        if (!frame) continue;
+        if (native) {
+          const image = frame as HTMLCanvasElement | HTMLImageElement;
+          if (image.width > width || image.height > height) {
+            throw new Error("The full sprite is larger than its export canvas. Upload the image again.");
+          }
+          const offsetX = Math.floor((width - image.width) / 2);
+          const offsetY = Math.floor((height - image.height) / 2);
+          context.drawImage(frame, (position.x * width + offsetX) * scale, (position.y * height + offsetY) * scale, image.width * scale, image.height * scale);
+        } else {
+          context.drawImage(frame, position.x * width * scale, position.y * height * scale, width * scale, height * scale);
+        }
       }
       return { ...position, durationMs: image.delays[index] ?? 100 };
     });
