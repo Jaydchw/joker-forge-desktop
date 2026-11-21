@@ -1,3 +1,4 @@
+import { restoreMissingPlaceholder } from "@/lib/content/placeholder-assets";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import {
@@ -1202,7 +1203,7 @@ const sanitizeProjectData = (input: any): ProjectData => {
     val: T[] | undefined,
   ): T[] =>
     toArray(val).map((item) =>
-      ensureLocalizableWithLanguage(item, DEFAULT_LOCALIZATION_LANGUAGE),
+      ensureLocalizableWithLanguage(restoreMissingPlaceholder(item), DEFAULT_LOCALIZATION_LANGUAGE),
     ) as T[];
 
   return {

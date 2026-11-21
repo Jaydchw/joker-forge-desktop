@@ -1,3 +1,4 @@
+import { restoreMissingPlaceholder } from "@/lib/content/placeholder-assets";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { appDataDir, dirname, join } from "@tauri-apps/api/path";
 import {
@@ -463,7 +464,7 @@ const sanitizeTemplateEntry = (candidate: unknown): TemplateEntry | null => {
       ...base,
       kind: "item",
       itemType: itemType as ItemTemplateItemType,
-      payload,
+      payload: restoreMissingPlaceholder(payload),
     };
   }
 

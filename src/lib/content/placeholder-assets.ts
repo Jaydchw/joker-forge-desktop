@@ -194,3 +194,30 @@ export const getPlaceholderMetaForImageSrc = async (
   const entry = entries.find((row) => row.index === parsed.index);
   return entry || null;
 };
+
+// Saved projects and item templates can reference a bundled image by its old URL.
+const bundledPlaceholders = new Set(
+  Object.keys(import.meta.glob("/public/images/placeholder*/*.png")).map(
+    (path) => path.slice("/public".length),
+  ),
+);
+
+function replacementForMissingPlaceholder(src: unknown) {
+  if (typeof src !== "string" || !src.startsWith("/images/placeholder")) return null;
+  const parsed = parsePlaceholderFromImageSrc(src);
+  if (!parsed) return null;
+  const path = buildEntrySrc(parsed.category, parsed.index);
+  if (src.split("?")[0] !== path || bundledPlaceholders.has(path)) return null;
+  return { category: parsed.category, src: buildEntrySrc(parsed.category, 1) };
+}
+
+export function restoreMissingPlaceholder<T extends object>(item: T): T {
+  const image = "image" in item && replacementForMissingPlaceholder(item.image);
+  const preview = "imagePreview" in item && replacementForMissingPlaceholder(item.imagePreview);
+  if (!image && !preview) return item;
+  return {
+    ...item,
+    ...(preview && { imagePreview: preview.src }),
+    ...(image && { image: image.src, placeholderCategory: image.category, placeholderCreditIndex: 1 }),
+  };
+}
