@@ -12,6 +12,9 @@ This project uses:
 - Export generated content for your mod workflow
 - Run as a native desktop app on Windows, Linux, and macOS
 
+**Joker Forge and Joker Forge Desktop developers have used AI coding tools to assist with development. This is a disclaimer**
+
+
 ## Downloads
 
 - Nightly builds are published on the GitHub Releases page for this repository.
